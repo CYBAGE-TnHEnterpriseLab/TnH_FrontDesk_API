@@ -1,8 +1,0 @@
-package com.frontdesk.pms.room.exception;
-
-public class RoomNotFoundException extends RuntimeException {
-
-    public RoomNotFoundException(String message) {
-        super(message);
-    }
-}
