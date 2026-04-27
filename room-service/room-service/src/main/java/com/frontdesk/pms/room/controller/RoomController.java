@@ -32,9 +32,10 @@ public class RoomController {
     // Get rooms by floor
     @GetMapping("/floor/{floorId}")
     public ResponseEntity<List<RoomResponseDTO>> getRoomsByFloor(
-            @PathVariable Long floorId) {
+            @PathVariable Long floorId,
+            @RequestParam Long propertyId) {
 
-        return ResponseEntity.ok(service.getRoomsByFloor(floorId));
+        return ResponseEntity.ok(service.getRoomsByFloor(floorId, propertyId));
     }
 
     // Get rooms by property

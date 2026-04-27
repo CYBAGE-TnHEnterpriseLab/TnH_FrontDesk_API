@@ -2,7 +2,9 @@ package com.frontdesk.pms.room.service;
 
 import com.frontdesk.pms.room.dto.RoomRequestDTO;
 import com.frontdesk.pms.room.dto.RoomResponseDTO;
+import com.frontdesk.pms.room.entity.Floor;
 import com.frontdesk.pms.room.entity.Room;
+import com.frontdesk.pms.room.exception.FloorNotFoundException;
 import com.frontdesk.pms.room.exception.RoomNotFoundException;
 import com.frontdesk.pms.room.exception.RoomTypeNotFoundException;
 import com.frontdesk.pms.room.mapper.RoomMapper;
@@ -84,8 +86,15 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    public List<RoomResponseDTO> getRoomsByFloor(Long floorId) {
-        return repository.findByFloorId(floorId)
+    public List<RoomResponseDTO> getRoomsByFloor(Long floorId, Long propertyId) {
+        Floor floor = floorRepository.findById(floorId)
+                .orElseThrow(() -> new FloorNotFoundException("Floor not found"));
+
+        if (!floor.getPropertyId().equals(propertyId)) {
+            throw new FloorNotFoundException("Floor not found for property id: " + propertyId);
+        }
+
+        return repository.findByFloorIdAndPropertyId(floorId, propertyId)
                 .stream()
                 .map(RoomMapper::toResponse)
                 .toList();

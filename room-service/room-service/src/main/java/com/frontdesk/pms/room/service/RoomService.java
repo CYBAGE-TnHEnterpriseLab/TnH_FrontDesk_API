@@ -11,7 +11,7 @@ public interface RoomService {
 
     List<RoomResponseDTO> getAllRooms();
 
-    List<RoomResponseDTO> getRoomsByFloor(Long floorId);
+    List<RoomResponseDTO> getRoomsByFloor(Long floorId, Long propertyId);
 
     List<RoomResponseDTO> getRoomsByProperty(Long propertyId);
 
