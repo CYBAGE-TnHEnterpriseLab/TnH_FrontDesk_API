@@ -1,0 +1,26 @@
+server:
+  port: 8081
+
+app:
+  seed:
+    enabled: true
+
+spring:
+  application:
+    name: property-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/property_db
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  jackson:
+    time-zone: UTC
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
