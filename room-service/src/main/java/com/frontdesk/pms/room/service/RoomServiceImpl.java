@@ -2,11 +2,16 @@ package com.frontdesk.pms.room.service;
 
 import com.frontdesk.pms.room.dto.RoomRequestDTO;
 import com.frontdesk.pms.room.dto.RoomResponseDTO;
+import com.frontdesk.pms.room.entity.Floor;
 import com.frontdesk.pms.room.entity.Room;
+import com.frontdesk.pms.room.entity.RoomType;
+import com.frontdesk.pms.room.exception.BadRequestException;
+import com.frontdesk.pms.room.exception.PropertyNotFoundException;
 import com.frontdesk.pms.room.exception.RoomNotFoundException;
 import com.frontdesk.pms.room.exception.RoomTypeNotFoundException;
 import com.frontdesk.pms.room.mapper.RoomMapper;
 import com.frontdesk.pms.room.repository.FloorRepository;
+import com.frontdesk.pms.room.repository.PropertyReferenceRepository;
 import com.frontdesk.pms.room.repository.RoomRepository;
 import com.frontdesk.pms.room.repository.RoomTypeRepository;
 
@@ -16,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -24,17 +30,24 @@ public class RoomServiceImpl implements RoomService {
     private final RoomRepository repository;
     private final FloorRepository floorRepository;
     private final RoomTypeRepository roomTypeRepository;
+    private final PropertyReferenceRepository propertyReferenceRepository;
 
     @Override
     public List<RoomResponseDTO> createRooms(RoomRequestDTO request) {
+        assertPropertyExists(request.getPropertyId());
 
-    // Validate Floor
-    floorRepository.findById(request.getFloorId())
-            .orElseThrow(() -> new RuntimeException("Floor not found"));
+        Floor floor = floorRepository.findById(request.getFloorId())
+                .orElseThrow(() -> new RuntimeException("Floor not found"));
 
-    // Validate Room Type
-    roomTypeRepository.findById(request.getRoomTypeId())
-            .orElseThrow(() -> new RuntimeException("Room type not found"));
+        RoomType roomType = roomTypeRepository.findById(request.getRoomTypeId())
+                .orElseThrow(() -> new RoomTypeNotFoundException("Room type not found"));
+
+        if (!floor.getPropertyId().equals(request.getPropertyId())) {
+            throw new BadRequestException("Floor does not belong to the requested property");
+        }
+        if (!roomType.getPropertyId().equals(request.getPropertyId())) {
+            throw new BadRequestException("Room type does not belong to the requested property");
+        }
             
         // Get existing rooms for this floor
         List<Room> existingRooms = repository.findByFloorId(request.getFloorId());
@@ -92,7 +105,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    public List<RoomResponseDTO> getRoomsByProperty(Long propertyId) {
+    public List<RoomResponseDTO> getRoomsByProperty(UUID propertyId) {
         return repository.findByPropertyId(propertyId)
                 .stream()
                 .map(RoomMapper::toResponse)
@@ -135,4 +148,9 @@ public class RoomServiceImpl implements RoomService {
         repository.delete(room);
     }
 
+    private void assertPropertyExists(UUID propertyId) {
+        if (!propertyReferenceRepository.existsById(propertyId)) {
+            throw new PropertyNotFoundException(propertyId);
+        }
+    }
 }

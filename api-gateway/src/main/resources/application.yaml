@@ -16,6 +16,11 @@ spring:
           order: 1
           predicates:
             - Path=/api/properties/**
+        - id: content-service
+          uri: lb://content-service
+          order: 2
+          predicates:
+            - Path=/api/content/**
 
 eureka:
   client:

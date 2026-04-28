@@ -4,21 +4,26 @@ import com.frontdesk.pms.room.dto.FloorRequestDTO;
 import com.frontdesk.pms.room.dto.FloorResponseDTO;
 import com.frontdesk.pms.room.entity.Floor;
 import com.frontdesk.pms.room.exception.FloorNotFoundException;
+import com.frontdesk.pms.room.exception.PropertyNotFoundException;
 import com.frontdesk.pms.room.mapper.FloorMapper;
 import com.frontdesk.pms.room.repository.FloorRepository;
+import com.frontdesk.pms.room.repository.PropertyReferenceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class FloorServiceImpl implements FloorService {
 
     private final FloorRepository repository;
+    private final PropertyReferenceRepository propertyReferenceRepository;
 
     @Override
     public FloorResponseDTO createFloor(FloorRequestDTO request) {
+        assertPropertyExists(request.getPropertyId());
 
         Floor floor = Floor.builder()
         .name(request.getName())
@@ -58,8 +63,10 @@ public class FloorServiceImpl implements FloorService {
 
         Floor existing = repository.findById(id)
                 .orElseThrow(() -> new FloorNotFoundException("Floor not found"));
+        assertPropertyExists(request.getPropertyId());
 
         existing.setName(request.getName());
+        existing.setPropertyId(request.getPropertyId());
         existing.setFloorNumber(request.getFloorNumber());
 
         Floor updated = repository.save(existing);
@@ -77,4 +84,9 @@ public class FloorServiceImpl implements FloorService {
     }
 
 
+    private void assertPropertyExists(UUID propertyId) {
+        if (!propertyReferenceRepository.existsById(propertyId)) {
+            throw new PropertyNotFoundException(propertyId);
+        }
+    }
 }

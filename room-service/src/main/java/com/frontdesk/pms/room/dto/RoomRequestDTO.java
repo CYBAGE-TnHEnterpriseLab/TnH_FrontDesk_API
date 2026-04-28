@@ -3,6 +3,8 @@ package com.frontdesk.pms.room.dto;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class RoomRequestDTO {
 
@@ -13,7 +15,7 @@ public class RoomRequestDTO {
     private Long roomTypeId;
 
     @NotNull
-    private Long propertyId;
+    private UUID propertyId;
 
     @NotNull
     private Integer numberOfRooms; // how many rooms to create

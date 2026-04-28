@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "room_type")
@@ -24,7 +25,7 @@ public class RoomType {
 
     // Link to Property Service
     @Column(name = "property_id", nullable = false)
-    private Long propertyId;
+    private UUID propertyId;
 
     // Master flag
     @Column(name = "is_master", nullable = false)

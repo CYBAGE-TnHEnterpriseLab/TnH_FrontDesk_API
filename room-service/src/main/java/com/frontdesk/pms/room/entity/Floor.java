@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "floor")
@@ -22,7 +23,7 @@ public class Floor {
     private String name;
 
     @Column(name = "property_id", nullable = false)
-    private Long propertyId;
+    private UUID propertyId;
 
     @Column(name = "floor_number", nullable = false)
     private Integer floorNumber;

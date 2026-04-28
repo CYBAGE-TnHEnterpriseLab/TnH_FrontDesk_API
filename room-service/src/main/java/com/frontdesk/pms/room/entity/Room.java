@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import com.frontdesk.pms.room.enums.RoomStatus;
 
@@ -31,7 +32,7 @@ public class Room {
     private Long roomTypeId;
 
     @Column(name = "property_id", nullable = false)
-    private Long propertyId;
+    private UUID propertyId;
 
     @Enumerated(EnumType.STRING)
     private RoomStatus status;

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -40,7 +41,7 @@ public class RoomController {
     // Get rooms by property
     @GetMapping("/property/{propertyId}")
     public ResponseEntity<List<RoomResponseDTO>> getRoomsByProperty(
-            @PathVariable Long propertyId) {
+            @PathVariable UUID propertyId) {
 
         return ResponseEntity.ok(service.getRoomsByProperty(propertyId));
     }

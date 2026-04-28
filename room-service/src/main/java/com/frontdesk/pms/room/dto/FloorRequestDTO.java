@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class FloorRequestDTO {
 
@@ -11,7 +13,7 @@ public class FloorRequestDTO {
     private String name;
 
     @NotNull(message = "Property ID is required")
-    private Long propertyId;
+    private UUID propertyId;
 
     @NotNull(message = "Floor number is required")
     private Integer floorNumber;

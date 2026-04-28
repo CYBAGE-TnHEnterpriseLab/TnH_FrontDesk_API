@@ -4,6 +4,7 @@ import com.frontdesk.pms.room.dto.RoomRequestDTO;
 import com.frontdesk.pms.room.dto.RoomResponseDTO;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface RoomService {
 
@@ -13,7 +14,7 @@ public interface RoomService {
 
     List<RoomResponseDTO> getRoomsByFloor(Long floorId);
 
-    List<RoomResponseDTO> getRoomsByProperty(Long propertyId);
+    List<RoomResponseDTO> getRoomsByProperty(UUID propertyId);
 
     List<RoomResponseDTO> getRoomsByType(Long roomTypeId);
 
