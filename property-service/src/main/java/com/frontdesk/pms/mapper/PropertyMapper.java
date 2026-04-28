@@ -104,10 +104,6 @@ public final class PropertyMapper {
             property.setNightAuditTime(request.getNightAuditTime());
             anyChange = true;
         }
-        if (request.getStatus() != null) {
-            throw new BadRequestException("Status cannot be updated directly");
-        }
-
         return anyChange;
     }
 

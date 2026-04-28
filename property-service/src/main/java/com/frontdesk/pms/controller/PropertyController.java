@@ -3,7 +3,6 @@ package com.frontdesk.pms.controller;
 import com.frontdesk.common.enums.PropertyStatus;
 import com.frontdesk.pms.dto.PropertyRequestDTO;
 import com.frontdesk.pms.dto.PropertyResponseDTO;
-import com.frontdesk.pms.entity.Property;
 import com.frontdesk.pms.service.PropertyService;
 import com.frontdesk.pms.validation.OnCreate;
 import lombok.RequiredArgsConstructor;
