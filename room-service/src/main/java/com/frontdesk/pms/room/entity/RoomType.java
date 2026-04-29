@@ -20,7 +20,7 @@ public class RoomType {
     private Long id;
 
     // Room Type Name
-    @Column(name = "name", nullable = false, unique = true)
+    @Column(name = "name", nullable = false)
     private String name;
 
     // Link to Property Service

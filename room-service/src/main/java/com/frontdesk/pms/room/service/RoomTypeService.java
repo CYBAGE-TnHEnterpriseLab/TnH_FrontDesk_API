@@ -15,4 +15,9 @@ public interface RoomTypeService {
     RoomTypeResponseDTO updateRoomType(Long id, RoomTypeRequestDTO request);
 
     void deleteRoomType(Long id);
+
+    /**
+     * Fetch all room types for a specific propertyId
+     */
+    List<RoomTypeResponseDTO> getRoomTypesByPropertyId(java.util.UUID propertyId);
 }

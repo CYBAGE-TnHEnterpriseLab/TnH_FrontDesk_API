@@ -10,6 +10,8 @@ public interface FloorService {
 
     List<FloorResponseDTO> getAllFloors();
 
+    List<FloorResponseDTO> getFloorsByPropertyId(java.util.UUID propertyId);
+
     FloorResponseDTO getFloorById(Long id);
 
     FloorResponseDTO updateFloor(Long id, FloorRequestDTO request);

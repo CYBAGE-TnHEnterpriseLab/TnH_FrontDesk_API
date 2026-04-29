@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@CrossOrigin(origins = "*")
 @RequestMapping("/api/rooms")
 @RequiredArgsConstructor
 public class RoomController {
@@ -30,12 +31,23 @@ public class RoomController {
         return ResponseEntity.ok(service.getAllRooms());
     }
 
-    // Get rooms by floor
-    @GetMapping("/floor/{floorId}")
-    public ResponseEntity<List<RoomResponseDTO>> getRoomsByFloor(
-            @PathVariable Long floorId) {
 
-        return ResponseEntity.ok(service.getRoomsByFloor(floorId));
+    // Get rooms by floor and property
+    @GetMapping("/floor/{floorId}/property/{propertyId}")
+    public ResponseEntity<List<RoomResponseDTO>> getRoomsByFloorAndProperty(
+            @PathVariable Long floorId,
+            @PathVariable java.util.UUID propertyId) {
+        return ResponseEntity.ok(service.getRoomsByFloorAndPropertyId(floorId, propertyId));
+    }
+
+    // Create rooms by propertyId
+    @PostMapping("/property/{propertyId}")
+    public ResponseEntity<List<RoomResponseDTO>> createRoomsByProperty(
+            @PathVariable java.util.UUID propertyId,
+            @Valid @RequestBody RoomRequestDTO request) {
+        // Override propertyId in request for safety
+        request.setPropertyId(propertyId);
+        return ResponseEntity.ok(service.createRooms(request));
     }
 
     // Get rooms by property

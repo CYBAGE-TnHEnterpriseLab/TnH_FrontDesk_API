@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@CrossOrigin(origins = "*")
 @RequestMapping("/api/floors")
 @RequiredArgsConstructor
 public class FloorController {
@@ -23,10 +24,17 @@ public class FloorController {
         return ResponseEntity.ok(service.createFloor(request));
     }
 
+
     // Get all floors
     @GetMapping
     public ResponseEntity<List<FloorResponseDTO>> getAllFloors() {
         return ResponseEntity.ok(service.getAllFloors());
+    }
+
+    // Get floors by propertyId
+    @GetMapping("/property/{propertyId}")
+    public ResponseEntity<List<FloorResponseDTO>> getFloorsByPropertyId(@PathVariable java.util.UUID propertyId) {
+        return ResponseEntity.ok(service.getFloorsByPropertyId(propertyId));
     }
 
     // Get floor by ID

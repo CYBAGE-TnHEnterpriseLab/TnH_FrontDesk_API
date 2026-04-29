@@ -4,10 +4,8 @@ import com.frontdesk.pms.room.dto.RoomTypeRequestDTO;
 import com.frontdesk.pms.room.dto.RoomTypeResponseDTO;
 import com.frontdesk.pms.room.entity.RoomType;
 import com.frontdesk.pms.room.exception.BadRequestException;
-import com.frontdesk.pms.room.exception.PropertyNotFoundException;
 import com.frontdesk.pms.room.exception.RoomTypeNotFoundException;
 import com.frontdesk.pms.room.mapper.RoomTypeMapper;
-import com.frontdesk.pms.room.repository.PropertyReferenceRepository;
 import com.frontdesk.pms.room.repository.RoomTypeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,40 +19,52 @@ import java.util.UUID;
 public class RoomTypeServiceImpl implements RoomTypeService {
 
     private final RoomTypeRepository repository;
-    private final PropertyReferenceRepository propertyReferenceRepository;
+    private final PropertyValidationService propertyValidationService;
 
-    @Override
-    public RoomTypeResponseDTO createRoomType(RoomTypeRequestDTO request) {
-        assertPropertyExists(request.getPropertyId());
+        @Override
+        public RoomTypeResponseDTO createRoomType(RoomTypeRequestDTO request) {
+        if (request.getPropertyId() == null) {
+            throw new BadRequestException("Property ID must be provided in the path.");
+        }
+        propertyValidationService.assertPropertyExists(request.getPropertyId());
 
-        repository.findByName(request.getName())
-                .ifPresent(r -> {
-                    throw new BadRequestException("Room type already exists");
-                });
+        repository.findByNameAndPropertyId(request.getName(), request.getPropertyId())
+            .ifPresent(roomType -> {
+                throw new BadRequestException("Room type already exists");
+            });
 
         validateMasterMapping(request);
 
         RoomType entity = RoomType.builder()
-                .name(request.getName())
-                .propertyId(request.getPropertyId())
-                .isMaster(request.getIsMaster())
-                .masterRoomTypeId(request.getMasterRoomTypeId())
-                .createdAt(LocalDateTime.now())
-                .build();
+            .name(request.getName())
+            .propertyId(request.getPropertyId())
+            .isMaster(request.getIsMaster())
+            .masterRoomTypeId(request.getMasterRoomTypeId())
+            .createdAt(LocalDateTime.now())
+            .build();
 
         RoomType saved = repository.save(entity);
         return RoomTypeResponseDTO.builder()
-                .id(saved.getId())
-                .name(saved.getName())
-                .propertyId(saved.getPropertyId())
-                .isMaster(saved.getIsMaster())
-                .masterRoomTypeId(saved.getMasterRoomTypeId())
-                .build();
-    }
+            .id(saved.getId())
+            .name(saved.getName())
+            .propertyId(saved.getPropertyId())
+            .isMaster(saved.getIsMaster())
+            .masterRoomTypeId(saved.getMasterRoomTypeId())
+            .build();
+        }
 
     @Override
     public List<RoomTypeResponseDTO> getAllRoomTypes() {
         return repository.findAll()
+                .stream()
+                .map(RoomTypeMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    public List<RoomTypeResponseDTO> getRoomTypesByPropertyId(UUID propertyId) {
+        propertyValidationService.assertPropertyExists(propertyId);
+        return repository.findByPropertyId(propertyId)
                 .stream()
                 .map(RoomTypeMapper::toResponse)
                 .toList();
@@ -73,11 +83,11 @@ public class RoomTypeServiceImpl implements RoomTypeService {
         RoomType existing = repository.findById(id)
                 .orElseThrow(() -> new RoomTypeNotFoundException("Room type not found"));
 
-        assertPropertyExists(request.getPropertyId());
+        propertyValidationService.assertPropertyExists(request.getPropertyId());
 
-        repository.findByName(request.getName())
-                .filter(rt -> !rt.getId().equals(id))
-                .ifPresent(rt -> {
+        repository.findByNameAndPropertyId(request.getName(), request.getPropertyId())
+                .filter(roomType -> !roomType.getId().equals(id))
+                .ifPresent(roomType -> {
                     throw new BadRequestException("Room type name already exists");
                 });
 
@@ -120,12 +130,6 @@ public class RoomTypeServiceImpl implements RoomTypeService {
         }
         if (!master.getPropertyId().equals(request.getPropertyId())) {
             throw new BadRequestException("Assigned master room type must belong to the same property");
-        }
-    }
-
-    private void assertPropertyExists(UUID propertyId) {
-        if (!propertyReferenceRepository.existsById(propertyId)) {
-            throw new PropertyNotFoundException(propertyId);
         }
     }
 }

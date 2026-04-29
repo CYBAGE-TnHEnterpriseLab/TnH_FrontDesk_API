@@ -12,7 +12,7 @@ public class RoomTypeRequestDTO {
     @NotBlank(message = "Room type name is required")
     private String name;
 
-    @NotNull(message = "Property ID is required")
+    // propertyId is set by controller, not required in request body
     private UUID propertyId;
 
     @NotNull(message = "Master flag is required")

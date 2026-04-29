@@ -12,7 +12,10 @@ public interface RoomService {
 
     List<RoomResponseDTO> getAllRooms();
 
+
     List<RoomResponseDTO> getRoomsByFloor(Long floorId);
+
+    List<RoomResponseDTO> getRoomsByFloorAndPropertyId(Long floorId, java.util.UUID propertyId);
 
     List<RoomResponseDTO> getRoomsByProperty(UUID propertyId);
 
