@@ -28,7 +28,8 @@ public class PropertyServiceClient implements PropertyLookupService {
     public boolean exists(UUID propertyId) {
         URI uri = UriComponentsBuilder.fromHttpUrl(propertyServiceUrl)
                 .path("/api/properties/{propertyId}")
-                .build(propertyId);
+                .buildAndExpand(propertyId)
+                .toUri();
 
         try {
             ResponseEntity<Void> response = restTemplate.getForEntity(uri, Void.class);
