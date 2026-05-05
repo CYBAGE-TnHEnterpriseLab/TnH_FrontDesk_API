@@ -1,5 +1,6 @@
 package com.frontdesk.pms.content.mapper;
 
+import com.frontdesk.common.dto.PropertyDTO;
 import com.frontdesk.pms.content.dto.AmenitiesResponseDTO;
 import com.frontdesk.pms.content.dto.ContentConfigurationResponseDTO;
 import com.frontdesk.pms.content.dto.SpecialRequestOptionDTO;
@@ -15,9 +16,8 @@ public final class ContentMapper {
     private ContentMapper() {
     }
 
-    public static SpecialRequestsResponseDTO toSpecialRequestsResponse(PropertySpecialRequestsConfiguration entity, UUID propertyId) {
+    public static SpecialRequestsResponseDTO toSpecialRequestsResponse(PropertySpecialRequestsConfiguration entity) {
         return SpecialRequestsResponseDTO.builder()
-                .propertyId(propertyId)
                 .extraPillowEnabled(entity.isExtraPillowEnabled())
                 .babyCribEnabled(entity.isBabyCribEnabled())
                 .lateCheckOutEnabled(entity.isLateCheckOutEnabled())
@@ -27,9 +27,15 @@ public final class ContentMapper {
                 .build();
     }
 
-    public static AmenitiesResponseDTO toAmenitiesResponse(PropertyAmenitiesConfiguration entity, UUID propertyId) {
+    public static SpecialRequestsResponseDTO toSpecialRequestsResponse(
+            PropertySpecialRequestsConfiguration entity,
+            UUID propertyId
+    ) {
+        return toSpecialRequestsResponse(entity);
+    }
+
+    public static AmenitiesResponseDTO toAmenitiesResponse(PropertyAmenitiesConfiguration entity) {
         return AmenitiesResponseDTO.builder()
-                .propertyId(propertyId)
                 .airportCode(entity.getAirportCode())
                 .distanceJourneyTime(entity.getDistanceJourneyTime())
                 .directions(entity.getDirections())
@@ -39,16 +45,49 @@ public final class ContentMapper {
                 .build();
     }
 
+    public static AmenitiesResponseDTO toAmenitiesResponse(
+            PropertyAmenitiesConfiguration entity,
+            UUID propertyId
+    ) {
+        return toAmenitiesResponse(entity);
+    }
+
+    public static ContentConfigurationResponseDTO toContentConfigurationResponse(
+            PropertyDTO property,
+            PropertySpecialRequestsConfiguration specialRequests,
+            PropertyAmenitiesConfiguration amenities
+    ) {
+        return ContentConfigurationResponseDTO.builder()
+                .propertyId(property.getId())
+                .contactName(property.getContactName())
+                .email(property.getEmail())
+                .specialRequests(toSpecialRequestsResponse(specialRequests))
+                .amenities(toAmenitiesResponse(amenities))
+                .build();
+    }
+
     public static ContentConfigurationResponseDTO toContentConfigurationResponse(
             UUID propertyId,
+            String contactName,
+            String email,
             PropertySpecialRequestsConfiguration specialRequests,
             PropertyAmenitiesConfiguration amenities
     ) {
         return ContentConfigurationResponseDTO.builder()
                 .propertyId(propertyId)
+                .contactName(contactName)
+                .email(email)
                 .specialRequests(toSpecialRequestsResponse(specialRequests, propertyId))
                 .amenities(toAmenitiesResponse(amenities, propertyId))
                 .build();
+    }
+
+    public static ContentConfigurationResponseDTO toContentConfigurationResponse(
+            UUID propertyId,
+            PropertySpecialRequestsConfiguration specialRequests,
+            PropertyAmenitiesConfiguration amenities
+    ) {
+        return toContentConfigurationResponse(propertyId, null, null, specialRequests, amenities);
     }
 
     public static List<SpecialRequestOptionDTO> predefinedOptions() {

@@ -2,13 +2,14 @@ package com.frontdesk.pms.content.dto;
 
 import lombok.Builder;
 import lombok.Data;
-
-import java.util.UUID;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class SpecialRequestsResponseDTO {
-    private UUID propertyId;
     private boolean extraPillowEnabled;
     private boolean babyCribEnabled;
     private boolean lateCheckOutEnabled;

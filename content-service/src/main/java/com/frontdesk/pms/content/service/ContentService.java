@@ -12,6 +12,9 @@ import java.util.UUID;
 
 public interface ContentService {
     ContentConfigurationResponseDTO getContentConfiguration(UUID propertyId);
+    ContentConfigurationResponseDTO upsertContentConfiguration(UUID propertyId, ContentConfigurationResponseDTO request);
+    ContentConfigurationResponseDTO createContentConfiguration(UUID propertyId, ContentConfigurationResponseDTO request);
+
     SpecialRequestsResponseDTO getSpecialRequests(UUID propertyId);
     SpecialRequestsResponseDTO upsertSpecialRequests(UUID propertyId, SpecialRequestsRequestDTO request);
     AmenitiesResponseDTO getAmenities(UUID propertyId);

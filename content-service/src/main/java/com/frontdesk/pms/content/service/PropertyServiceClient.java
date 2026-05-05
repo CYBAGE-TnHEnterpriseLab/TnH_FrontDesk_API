@@ -1,5 +1,6 @@
 package com.frontdesk.pms.content.service;
 
+import com.frontdesk.common.dto.PropertyDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +42,25 @@ public class PropertyServiceClient implements PropertyLookupService {
             throw ex;
         } catch (RestClientException ex) {
             log.error("Unable to validate propertyId={} using property-service at {}", propertyId, propertyServiceUrl, ex);
+            throw ex;
+        }
+    }
+
+    public PropertyDTO getPropertyDetails(UUID propertyId) {
+        URI uri = UriComponentsBuilder.fromHttpUrl(propertyServiceUrl)
+                .path("/api/properties/{propertyId}")
+                .buildAndExpand(propertyId)
+                .toUri();
+
+        try {
+            return restTemplate.getForObject(uri, PropertyDTO.class);
+        } catch (HttpClientErrorException ex) {
+            if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return null;
+            }
+            throw ex;
+        } catch (RestClientException ex) {
+            log.error("Unable to fetch property details for propertyId={} using property-service at {}", propertyId, propertyServiceUrl, ex);
             throw ex;
         }
     }

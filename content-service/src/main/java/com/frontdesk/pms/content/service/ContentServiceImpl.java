@@ -1,3 +1,4 @@
+
 package com.frontdesk.pms.content.service;
 
 import com.frontdesk.pms.content.dto.AmenitiesRequestDTO;
@@ -112,6 +113,41 @@ public class ContentServiceImpl implements ContentService {
                     ex
             );
         }
+    }
+
+        @Override
+    public ContentConfigurationResponseDTO upsertContentConfiguration(UUID propertyId, ContentConfigurationResponseDTO request) {
+        assertPropertyExists(propertyId);
+        // Update special requests
+        if (request.getSpecialRequests() != null) {
+            SpecialRequestsRequestDTO specialReq = new SpecialRequestsRequestDTO();
+            specialReq.setExtraPillowEnabled(request.getSpecialRequests().isExtraPillowEnabled());
+            specialReq.setBabyCribEnabled(request.getSpecialRequests().isBabyCribEnabled());
+            specialReq.setLateCheckOutEnabled(request.getSpecialRequests().isLateCheckOutEnabled());
+            specialReq.setHypoallergenicBeddingEnabled(request.getSpecialRequests().isHypoallergenicBeddingEnabled());
+            specialReq.setAirportPickupEnabled(request.getSpecialRequests().isAirportPickupEnabled());
+            specialReq.setWheelchairAccessEnabled(request.getSpecialRequests().isWheelchairAccessEnabled());
+            upsertSpecialRequests(propertyId, specialReq);
+        }
+        // Update amenities
+        if (request.getAmenities() != null) {
+            AmenitiesRequestDTO amenitiesReq = new AmenitiesRequestDTO();
+            amenitiesReq.setAirportCode(request.getAmenities().getAirportCode());
+            amenitiesReq.setDistanceJourneyTime(request.getAmenities().getDistanceJourneyTime());
+            amenitiesReq.setDirections(request.getAmenities().getDirections());
+            amenitiesReq.setGroundTransportEnabled(request.getAmenities().isGroundTransportEnabled());
+            amenitiesReq.setShuttleServiceEnabled(request.getAmenities().isShuttleServiceEnabled());
+            amenitiesReq.setSwimmingPoolEnabled(request.getAmenities().isSwimmingPoolEnabled());
+            upsertAmenities(propertyId, amenitiesReq);
+        }
+        // Return the updated config
+        return getContentConfiguration(propertyId);
+    }
+
+    @Override
+    public ContentConfigurationResponseDTO createContentConfiguration(UUID propertyId, ContentConfigurationResponseDTO request) {
+        // For create, just delegate to upsert (idempotent for this use case)
+        return upsertContentConfiguration(propertyId, request);
     }
 
     private PropertySpecialRequestsConfiguration getOrCreateSpecialRequestsConfiguration(UUID propertyId) {
