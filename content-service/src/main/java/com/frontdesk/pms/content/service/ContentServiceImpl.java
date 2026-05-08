@@ -1,7 +1,6 @@
 
 package com.frontdesk.pms.content.service;
 
-import com.frontdesk.common.dto.PropertyDTO;
 import com.frontdesk.pms.content.dto.AmenitiesRequestDTO;
 import com.frontdesk.pms.content.dto.AmenitiesResponseDTO;
 import com.frontdesk.pms.content.dto.ContentConfigurationResponseDTO;
@@ -14,6 +13,7 @@ import com.frontdesk.pms.content.exception.PropertyNotFoundException;
 import com.frontdesk.pms.content.mapper.ContentMapper;
 import com.frontdesk.pms.content.repository.PropertyAmenitiesConfigurationRepository;
 import com.frontdesk.pms.content.repository.PropertySpecialRequestsConfigurationRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
+
 public class ContentServiceImpl implements ContentService {
 
     private final PropertyLookupService propertyLookupService;
@@ -33,22 +35,14 @@ public class ContentServiceImpl implements ContentService {
     private final PropertyAmenitiesConfigurationRepository amenitiesRepository;
     private final PropertySpecialRequestsConfigurationRepository specialRequestsRepository;
 
-    public ContentServiceImpl(
-            PropertyLookupService propertyLookupService,
-            PropertyServiceClient propertyServiceClient,
-            PropertyAmenitiesConfigurationRepository amenitiesRepository,
-            PropertySpecialRequestsConfigurationRepository specialRequestsRepository
-    ) {
-        this.propertyLookupService = propertyLookupService;
-        this.propertyServiceClient = propertyServiceClient;
-        this.amenitiesRepository = amenitiesRepository;
-        this.specialRequestsRepository = specialRequestsRepository;
-    }
-
     @Override
     public ContentConfigurationResponseDTO getContentConfiguration(UUID propertyId) {
         assertPropertyExists(propertyId);
-        PropertyDTO property = getExistingProperty(propertyId);
+        // Fetch property details for contact info
+        var property = propertyServiceClient.getPropertyDetails(propertyId);
+        if (property == null) {
+            throw new PropertyNotFoundException(propertyId);
+        }
         return ContentMapper.toContentConfigurationResponse(
                 property,
                 getOrCreateSpecialRequestsConfiguration(propertyId),
@@ -59,7 +53,7 @@ public class ContentServiceImpl implements ContentService {
     @Override
     public SpecialRequestsResponseDTO getSpecialRequests(UUID propertyId) {
         assertPropertyExists(propertyId);
-        return ContentMapper.toSpecialRequestsResponse(getOrCreateSpecialRequestsConfiguration(propertyId));
+        return ContentMapper.toSpecialRequestsResponse(getOrCreateSpecialRequestsConfiguration(propertyId), propertyId);
     }
 
     @Override
@@ -85,7 +79,7 @@ public class ContentServiceImpl implements ContentService {
     @Override
     public AmenitiesResponseDTO getAmenities(UUID propertyId) {
         assertPropertyExists(propertyId);
-        return ContentMapper.toAmenitiesResponse(getOrCreateAmenitiesConfiguration(propertyId));
+        return ContentMapper.toAmenitiesResponse(getOrCreateAmenitiesConfiguration(propertyId), propertyId);
     }
 
     @Override
@@ -128,7 +122,7 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
-    @Override
+        @Override
     public ContentConfigurationResponseDTO upsertContentConfiguration(UUID propertyId, ContentConfigurationResponseDTO request) {
         assertPropertyExists(propertyId);
         // Update special requests
@@ -153,13 +147,8 @@ public class ContentServiceImpl implements ContentService {
             amenitiesReq.setSwimmingPoolEnabled(request.getAmenities().isSwimmingPoolEnabled());
             upsertAmenities(propertyId, amenitiesReq);
         }
-        // Return the updated config with contact info
-        PropertyDTO property = getExistingProperty(propertyId);
-        return ContentMapper.toContentConfigurationResponse(
-                property,
-                getOrCreateSpecialRequestsConfiguration(propertyId),
-                getOrCreateAmenitiesConfiguration(propertyId)
-        );
+        // Return the updated config
+        return getContentConfiguration(propertyId);
     }
 
     @Override
@@ -171,24 +160,6 @@ public class ContentServiceImpl implements ContentService {
     private PropertySpecialRequestsConfiguration getOrCreateSpecialRequestsConfiguration(UUID propertyId) {
         return specialRequestsRepository.findByPropertyId(propertyId)
                 .orElseGet(() -> newSpecialRequestsConfiguration(propertyId));
-    }
-
-    private PropertyDTO getExistingProperty(UUID propertyId) {
-        try {
-            PropertyDTO property = propertyServiceClient.getPropertyDetails(propertyId);
-            if (property == null) {
-                throw new PropertyNotFoundException(propertyId);
-            }
-            return property;
-        } catch (PropertyNotFoundException ex) {
-            throw ex;
-        } catch (RestClientException ex) {
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "Unable to fetch property details because property-service is unavailable",
-                    ex
-            );
-        }
     }
 
     private PropertyAmenitiesConfiguration getOrCreateAmenitiesConfiguration(UUID propertyId) {
