@@ -10,10 +10,10 @@ import com.frontdesk.pms.content.entity.PropertySpecialRequestsConfiguration;
 import com.frontdesk.pms.content.exception.PropertyNotFoundException;
 import com.frontdesk.pms.content.repository.PropertyAmenitiesConfigurationRepository;
 import com.frontdesk.pms.content.repository.PropertySpecialRequestsConfigurationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestClientException;
@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,23 +37,35 @@ class ContentServiceImplTest {
     private PropertyLookupService propertyLookupService;
 
     @Mock
-    private PropertyServiceClient propertyServiceClient;
 
-    @Mock
     private PropertyAmenitiesConfigurationRepository amenitiesRepository;
 
     @Mock
     private PropertySpecialRequestsConfigurationRepository specialRequestsRepository;
 
-    @InjectMocks
+    @Mock
+    private PropertyServiceClient propertyServiceClient;
+
     private ContentServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        service = new ContentServiceImpl(
+                propertyLookupService,
+                propertyServiceClient,
+                amenitiesRepository,
+                specialRequestsRepository
+        );
+    }
 
     @Test
     void getContentConfigurationIncludesContactInfoAndNoNestedPropertyIds() {
         UUID propertyId = UUID.randomUUID();
-        when(propertyServiceClient.getPropertyDetails(propertyId)).thenReturn(property(propertyId));
-        when(specialRequestsRepository.findByPropertyId(propertyId)).thenReturn(Optional.of(specialRequests(propertyId)));
-        when(amenitiesRepository.findByPropertyId(propertyId)).thenReturn(Optional.of(amenities(propertyId)));
+        when(propertyLookupService.exists(eq(propertyId))).thenReturn(true);
+        when(specialRequestsRepository.findByPropertyId(eq(propertyId))).thenReturn(Optional.of(specialRequests(propertyId)));
+        when(amenitiesRepository.findByPropertyId(eq(propertyId))).thenReturn(Optional.of(amenities(propertyId)));
+
+        when(propertyServiceClient.getPropertyDetails(eq(propertyId))).thenReturn(property(propertyId));
 
         ContentConfigurationResponseDTO response = service.getContentConfiguration(propertyId);
 
@@ -66,16 +79,18 @@ class ContentServiceImplTest {
     @Test
     void getContentConfigurationThrowsWhenPropertyMissing() {
         UUID propertyId = UUID.randomUUID();
-        when(propertyServiceClient.getPropertyDetails(propertyId)).thenReturn(null);
+        when(propertyLookupService.exists(eq(propertyId))).thenReturn(false);
 
         assertThatThrownBy(() -> service.getContentConfiguration(propertyId))
                 .isInstanceOf(PropertyNotFoundException.class);
     }
 
+    // This test is not applicable since ContentServiceImpl does not call propertyServiceClient directly anymore.
+    // If you want to test service unavailability, mock propertyLookupService.exists to throw RestClientException.
     @Test
     void getContentConfigurationWrapsPropertyServiceFailure() {
         UUID propertyId = UUID.randomUUID();
-        when(propertyServiceClient.getPropertyDetails(propertyId)).thenThrow(new RestClientException("down"));
+        when(propertyLookupService.exists(eq(propertyId))).thenThrow(new RestClientException("down"));
 
         assertThatThrownBy(() -> service.getContentConfiguration(propertyId))
                 .isInstanceOf(ResponseStatusException.class)
@@ -94,8 +109,8 @@ class ContentServiceImplTest {
         request.setAirportPickupEnabled(true);
         request.setWheelchairAccessEnabled(false);
 
-        when(propertyLookupService.exists(propertyId)).thenReturn(true);
-        when(specialRequestsRepository.findByPropertyId(propertyId)).thenReturn(Optional.of(existing));
+        when(propertyLookupService.exists(eq(propertyId))).thenReturn(true);
+        when(specialRequestsRepository.findByPropertyId(eq(propertyId))).thenReturn(Optional.of(existing));
         when(specialRequestsRepository.save(existing)).thenReturn(existing);
 
         SpecialRequestsResponseDTO response = service.upsertSpecialRequests(propertyId, request);
@@ -117,8 +132,8 @@ class ContentServiceImplTest {
         request.setShuttleServiceEnabled(false);
         request.setSwimmingPoolEnabled(true);
 
-        when(propertyLookupService.exists(propertyId)).thenReturn(true);
-        when(amenitiesRepository.findByPropertyId(propertyId)).thenReturn(Optional.empty());
+        when(propertyLookupService.exists(eq(propertyId))).thenReturn(true);
+        when(amenitiesRepository.findByPropertyId(eq(propertyId))).thenReturn(Optional.empty());
         when(amenitiesRepository.save(any(PropertyAmenitiesConfiguration.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -132,24 +147,26 @@ class ContentServiceImplTest {
         assertThat(captor.getValue().getDirections()).isEqualTo("Take the airport road");
     }
 
-    @Test
-    void upsertContentConfigurationSavesBothSectionsAndReturnsContactInfo() {
+        @Test
+        void upsertContentConfigurationSavesBothSectionsAndReturnsContactInfo() {
         UUID propertyId = UUID.randomUUID();
         ContentConfigurationResponseDTO request = ContentConfigurationResponseDTO.builder()
-                .specialRequests(SpecialRequestsResponseDTO.builder().extraPillowEnabled(true).build())
-                .amenities(com.frontdesk.pms.content.dto.AmenitiesResponseDTO.builder()
-                        .airportCode("goi")
-                        .groundTransportEnabled(true)
-                        .build())
-                .build();
+            .specialRequests(SpecialRequestsResponseDTO.builder().extraPillowEnabled(true).build())
+            .amenities(com.frontdesk.pms.content.dto.AmenitiesResponseDTO.builder()
+                .airportCode("goi")
+                .groundTransportEnabled(true)
+                .build())
+            .build();
 
-        when(propertyServiceClient.getPropertyDetails(propertyId)).thenReturn(property(propertyId));
-        when(specialRequestsRepository.findByPropertyId(propertyId)).thenReturn(Optional.empty());
-        when(amenitiesRepository.findByPropertyId(propertyId)).thenReturn(Optional.empty());
+        when(propertyLookupService.exists(eq(propertyId))).thenReturn(true);
+        when(specialRequestsRepository.findByPropertyId(eq(propertyId))).thenReturn(Optional.empty());
+        when(amenitiesRepository.findByPropertyId(eq(propertyId))).thenReturn(Optional.empty());
         when(specialRequestsRepository.save(any(PropertySpecialRequestsConfiguration.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+            .thenAnswer(invocation -> invocation.getArgument(0));
         when(amenitiesRepository.save(any(PropertyAmenitiesConfiguration.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        when(propertyServiceClient.getPropertyDetails(eq(propertyId))).thenReturn(property(propertyId));
 
         ContentConfigurationResponseDTO response = service.upsertContentConfiguration(propertyId, request);
 
@@ -157,12 +174,12 @@ class ContentServiceImplTest {
         assertThat(response.getContactName()).isEqualTo("Riya D'Souza");
         verify(specialRequestsRepository).save(any(PropertySpecialRequestsConfiguration.class));
         verify(amenitiesRepository).save(any(PropertyAmenitiesConfiguration.class));
-    }
+        }
 
     @Test
     void upsertSpecialRequestsDoesNotSaveWhenPropertyMissing() {
         UUID propertyId = UUID.randomUUID();
-        when(propertyLookupService.exists(propertyId)).thenReturn(false);
+        when(propertyLookupService.exists(eq(propertyId))).thenReturn(false);
 
         assertThatThrownBy(() -> service.upsertSpecialRequests(propertyId, new SpecialRequestsRequestDTO()))
                 .isInstanceOf(PropertyNotFoundException.class);

@@ -12,7 +12,10 @@ public class RoomTypeRequestDTO {
     @NotBlank(message = "Room type name is required")
     private String name;
 
-    // propertyId is set by controller, not required in request body
+    /**
+     * propertyId is required for create, ignored for update (immutable).
+     * It is set by the controller for create endpoints.
+     */
     private UUID propertyId;
 
     @NotNull(message = "Master flag is required")

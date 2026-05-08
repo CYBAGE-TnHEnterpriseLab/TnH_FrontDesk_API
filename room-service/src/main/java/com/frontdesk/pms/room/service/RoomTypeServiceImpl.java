@@ -83,9 +83,11 @@ public class RoomTypeServiceImpl implements RoomTypeService {
         RoomType existing = repository.findById(id)
                 .orElseThrow(() -> new RoomTypeNotFoundException("Room type not found"));
 
-        propertyValidationService.assertPropertyExists(request.getPropertyId());
+        // Use the propertyId from the existing entity, not from the request
+        UUID propertyId = existing.getPropertyId();
+        propertyValidationService.assertPropertyExists(propertyId);
 
-        repository.findByNameAndPropertyId(request.getName(), request.getPropertyId())
+        repository.findByNameAndPropertyId(request.getName(), propertyId)
                 .filter(roomType -> !roomType.getId().equals(id))
                 .ifPresent(roomType -> {
                     throw new BadRequestException("Room type name already exists");
@@ -94,7 +96,7 @@ public class RoomTypeServiceImpl implements RoomTypeService {
         validateMasterMapping(request);
 
         existing.setName(request.getName());
-        existing.setPropertyId(request.getPropertyId());
+        // Do NOT update propertyId
         existing.setIsMaster(request.getIsMaster());
         existing.setMasterRoomTypeId(request.getMasterRoomTypeId());
 
