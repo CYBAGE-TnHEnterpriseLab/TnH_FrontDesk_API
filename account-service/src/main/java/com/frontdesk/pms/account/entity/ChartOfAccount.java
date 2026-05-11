@@ -38,7 +38,7 @@ public class ChartOfAccount extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private AccountType accountType;
+        private AccountType accountType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)

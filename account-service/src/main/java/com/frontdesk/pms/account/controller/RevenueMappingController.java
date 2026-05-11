@@ -1,5 +1,13 @@
 package com.frontdesk.pms.account.controller;
-
+import com.frontdesk.pms.account.enums.ChargeType;
+import com.frontdesk.pms.account.dto.ChargeTypeDTO;
+import com.frontdesk.pms.account.dto.ChargeTypeMappingDTO;
+import com.frontdesk.pms.account.dto.ChargeTypeMappingStatusDTO;
+import com.frontdesk.pms.account.entity.RevenueMapping;
+import com.frontdesk.pms.account.repository.RevenueMappingRepository;
+import com.frontdesk.pms.account.repository.ChartOfAccountRepository;
+import com.frontdesk.pms.account.entity.ChartOfAccount;
+import java.util.Arrays;
 import com.frontdesk.pms.account.dto.RevenueMappingValidationResponseDTO;
 import com.frontdesk.pms.account.dto.RevenueMappingRequestDTO;
 import com.frontdesk.pms.account.dto.RevenueMappingResponseDTO;
@@ -26,6 +34,8 @@ import java.util.UUID;
 public class RevenueMappingController {
 
     private final RevenueMappingService service;
+    private final RevenueMappingRepository revenueMappingRepository;
+    private final ChartOfAccountRepository chartOfAccountRepository;
 
     @PostMapping
     public RevenueMappingResponseDTO create(
@@ -38,6 +48,32 @@ public class RevenueMappingController {
     @GetMapping
     public List<RevenueMappingResponseDTO> list(@PathVariable UUID propertyId) {
         return service.listByProperty(propertyId);
+    }
+
+    @GetMapping("/charge-types")
+    public List<ChargeTypeMappingStatusDTO> getChargeTypes(@PathVariable UUID propertyId) {
+        List<RevenueMapping> mappings = revenueMappingRepository.findByPropertyId(propertyId);
+        List<ChartOfAccount> accounts = chartOfAccountRepository.findByPropertyId(propertyId);
+        return Arrays.stream(ChargeType.values())
+                .map(type -> {
+                    String mappedAccount = mappings.stream()
+                        .filter(m -> m.getChargeType() == type && m.isActive())
+                        .map(RevenueMapping::getChartOfAccountId)
+                        .filter(accountId -> accountId != null) // skip nulls
+                        .map(accountId -> {
+                            return accounts.stream()
+                                .filter(a -> a.getId().equals(accountId))
+                                .findFirst()
+                                .map(a -> a.getCode() + " - " + a.getName())
+                                .orElse(null);
+                        })
+                        .filter(str -> str != null)
+                        .findFirst()
+                        .orElse(null);
+                    String status = (mappedAccount != null && !mappedAccount.isBlank()) ? "mapped" : "not mapped";
+                    return new ChargeTypeMappingStatusDTO(type.name(), type.getDescription(), mappedAccount, status);
+                })
+                .toList();
     }
 
     @GetMapping("/validation/posting-readiness")

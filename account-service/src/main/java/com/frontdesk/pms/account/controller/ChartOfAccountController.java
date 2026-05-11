@@ -1,3 +1,4 @@
+   
 package com.frontdesk.pms.account.controller;
 
 import com.frontdesk.pms.account.dto.ChartOfAccountRequestDTO;
@@ -45,6 +46,12 @@ public class ChartOfAccountController {
             @PathVariable UUID accountId
     ) {
         return service.get(propertyId, accountId);
+    }
+
+     // Endpoint to list all accounts for mapping dropdown
+    @GetMapping("/dropdown")
+    public List<ChartOfAccountResponseDTO> dropdown(@PathVariable UUID propertyId) {
+        return service.listByProperty(propertyId);
     }
 
     @PutMapping("/{accountId}")

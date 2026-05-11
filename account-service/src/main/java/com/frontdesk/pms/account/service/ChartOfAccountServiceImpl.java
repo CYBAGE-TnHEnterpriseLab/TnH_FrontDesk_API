@@ -38,6 +38,42 @@ public class ChartOfAccountServiceImpl implements ChartOfAccountService {
             throw new BadRequestException("Chart of account name already exists for property");
         }
 
+        // Validate allowed LedgerType values
+        if (request.getLedgerType() == null ||
+            !(request.getLedgerType().name().equals("REVENUE") ||
+              request.getLedgerType().name().equals("LIABILITY") ||
+              request.getLedgerType().name().equals("ASSET") ||
+              request.getLedgerType().name().equals("EXPENSE"))) {
+            throw new BadRequestException("Ledger type must be one of: REVENUE, LIABILITY, ASSET, EXPENSE");
+        }
+
+        // Validate AccountType/LedgerType combinations as per FRD
+        switch (request.getAccountType()) {
+            case REVENUE:
+                if (request.getLedgerType() != com.frontdesk.common.enums.LedgerType.REVENUE) {
+                    throw new BadRequestException("Account type REVENUE must have ledger type REVENUE");
+                }
+                break;
+            case TAX:
+                if (request.getLedgerType() != com.frontdesk.common.enums.LedgerType.LIABILITY) {
+                    throw new BadRequestException("Account type TAX must have ledger type LIABILITY");
+                }
+                break;
+            case PAYMENT:
+            case DEPOSIT:
+                if (request.getLedgerType() != com.frontdesk.common.enums.LedgerType.ASSET && request.getLedgerType() != com.frontdesk.common.enums.LedgerType.LIABILITY) {
+                    throw new BadRequestException("Account type PAYMENT or DEPOSIT must have ledger type ASSET or LIABILITY");
+                }
+                break;
+            case EXPENSE:
+                if (request.getLedgerType() != com.frontdesk.common.enums.LedgerType.EXPENSE) {
+                    throw new BadRequestException("Account type EXPENSE must have ledger type EXPENSE");
+                }
+                break;
+            default:
+                throw new BadRequestException("Invalid account type");
+        }
+
         ChartOfAccount entity = new ChartOfAccount();
         entity.setPropertyId(propertyId);
         entity.setCode(code);

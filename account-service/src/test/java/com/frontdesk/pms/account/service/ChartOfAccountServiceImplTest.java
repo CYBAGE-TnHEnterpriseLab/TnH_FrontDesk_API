@@ -1,7 +1,7 @@
 package com.frontdesk.pms.account.service;
 
-import com.frontdesk.common.enums.AccountType;
 import com.frontdesk.common.enums.LedgerType;
+import com.frontdesk.common.enums.AccountType;
 import com.frontdesk.pms.account.dto.ChartOfAccountRequestDTO;
 import com.frontdesk.pms.account.dto.ChartOfAccountResponseDTO;
 import com.frontdesk.pms.account.entity.ChartOfAccount;
@@ -165,5 +165,109 @@ class ChartOfAccountServiceImplTest {
         entity.setLedgerType(LedgerType.REVENUE);
         entity.setActive(true);
         return entity;
+    }
+
+    @Test
+    void createRejectsInvalidLedgerTypeForRevenue() {
+        UUID propertyId = UUID.randomUUID();
+        when(propertyLookupService.exists(propertyId)).thenReturn(true);
+        when(repository.existsByPropertyIdAndCodeIgnoreCase(propertyId, "ROOM_REV")).thenReturn(false);
+        when(repository.existsByPropertyIdAndNameIgnoreCase(propertyId, "Room Revenue")).thenReturn(false);
+
+        ChartOfAccountRequestDTO request = new ChartOfAccountRequestDTO();
+        request.setCode("ROOM_REV");
+        request.setName("Room Revenue");
+        request.setAccountType(AccountType.REVENUE);
+        request.setLedgerType(LedgerType.LIABILITY); // Invalid
+        request.setDescription("desc");
+        request.setActive(true);
+
+        assertThatThrownBy(() -> service.create(propertyId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Account type REVENUE must have ledger type REVENUE");
+    }
+
+    @Test
+    void createRejectsInvalidLedgerTypeForTax() {
+        UUID propertyId = UUID.randomUUID();
+        when(propertyLookupService.exists(propertyId)).thenReturn(true);
+        when(repository.existsByPropertyIdAndCodeIgnoreCase(propertyId, "TAX_ACC")).thenReturn(false);
+        when(repository.existsByPropertyIdAndNameIgnoreCase(propertyId, "VAT Payable")).thenReturn(false);
+
+        ChartOfAccountRequestDTO request = new ChartOfAccountRequestDTO();
+        request.setCode("TAX_ACC");
+        request.setName("VAT Payable");
+        request.setAccountType(AccountType.TAX);
+        request.setLedgerType(LedgerType.REVENUE); // Invalid
+        request.setDescription("desc");
+        request.setActive(true);
+
+        assertThatThrownBy(() -> service.create(propertyId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Account type TAX must have ledger type LIABILITY");
+    }
+
+    @Test
+    void createRejectsInvalidLedgerTypeForExpense() {
+        UUID propertyId = UUID.randomUUID();
+        when(propertyLookupService.exists(propertyId)).thenReturn(true);
+        when(repository.existsByPropertyIdAndCodeIgnoreCase(propertyId, "EXP_ACC")).thenReturn(false);
+        when(repository.existsByPropertyIdAndNameIgnoreCase(propertyId, "Maintenance")).thenReturn(false);
+
+        ChartOfAccountRequestDTO request = new ChartOfAccountRequestDTO();
+        request.setCode("EXP_ACC");
+        request.setName("Maintenance");
+        request.setAccountType(AccountType.EXPENSE);
+        request.setLedgerType(LedgerType.REVENUE); // Invalid
+        request.setDescription("desc");
+        request.setActive(true);
+
+        assertThatThrownBy(() -> service.create(propertyId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Account type EXPENSE must have ledger type EXPENSE");
+    }
+
+    @Test
+    void createRejectsInvalidLedgerTypeForPayment() {
+        UUID propertyId = UUID.randomUUID();
+        when(propertyLookupService.exists(propertyId)).thenReturn(true);
+        when(repository.existsByPropertyIdAndCodeIgnoreCase(propertyId, "PAY_ACC")).thenReturn(false);
+        when(repository.existsByPropertyIdAndNameIgnoreCase(propertyId, "Cash")).thenReturn(false);
+
+        ChartOfAccountRequestDTO request = new ChartOfAccountRequestDTO();
+        request.setCode("PAY_ACC");
+        request.setName("Cash");
+        request.setAccountType(AccountType.PAYMENT);
+        request.setLedgerType(LedgerType.REVENUE); // Invalid
+        request.setDescription("desc");
+        request.setActive(true);
+
+        assertThatThrownBy(() -> service.create(propertyId, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Account type PAYMENT or DEPOSIT must have ledger type ASSET or LIABILITY");
+    }
+
+    @Test
+    void createAcceptsValidLedgerTypeForPayment() {
+        UUID propertyId = UUID.randomUUID();
+        when(propertyLookupService.exists(propertyId)).thenReturn(true);
+        when(repository.existsByPropertyIdAndCodeIgnoreCase(propertyId, "PAY_ACC")).thenReturn(false);
+        when(repository.existsByPropertyIdAndNameIgnoreCase(propertyId, "Cash")).thenReturn(false);
+        when(repository.save(any(ChartOfAccount.class))).thenAnswer(invocation -> {
+            ChartOfAccount entity = invocation.getArgument(0);
+            entity.setId(UUID.randomUUID());
+            return entity;
+        });
+
+        ChartOfAccountRequestDTO request = new ChartOfAccountRequestDTO();
+        request.setCode("PAY_ACC");
+        request.setName("Cash");
+        request.setAccountType(AccountType.PAYMENT);
+        request.setLedgerType(LedgerType.ASSET); // Valid
+        request.setDescription("desc");
+        request.setActive(true);
+
+        ChartOfAccountResponseDTO response = service.create(propertyId, request);
+        assertThat(response.getCode()).isEqualTo("PAY_ACC");
     }
 }
