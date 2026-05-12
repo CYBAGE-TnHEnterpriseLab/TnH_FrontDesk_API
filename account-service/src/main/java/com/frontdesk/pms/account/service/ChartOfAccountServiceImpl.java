@@ -8,6 +8,7 @@ import com.frontdesk.pms.account.exception.ChartOfAccountNotFoundException;
 import com.frontdesk.pms.account.exception.PropertyNotFoundException;
 import com.frontdesk.pms.account.mapper.ChartOfAccountMapper;
 import com.frontdesk.pms.account.repository.ChartOfAccountRepository;
+import com.frontdesk.pms.account.repository.RevenueMappingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
@@ -25,6 +26,7 @@ public class ChartOfAccountServiceImpl implements ChartOfAccountService {
     private final ChartOfAccountRepository repository;
     private final PropertyLookupService propertyLookupService;
     private final TransactionReferenceService transactionReferenceService;
+    private final RevenueMappingRepository revenueMappingRepository;
 
     @Override
     public ChartOfAccountResponseDTO create(UUID propertyId, ChartOfAccountRequestDTO request) {
@@ -134,6 +136,10 @@ public class ChartOfAccountServiceImpl implements ChartOfAccountService {
         if (transactionReferenceService.hasTransactionsForAccount(propertyId, accountId)) {
             throw new BadRequestException("Cannot delete account because transactions exist");
         }
+        // Delete all revenue mappings referencing this account
+        revenueMappingRepository.findByPropertyId(propertyId).stream()
+            .filter(mapping -> accountId.equals(mapping.getChartOfAccountId()))
+            .forEach(revenueMappingRepository::delete);
         repository.delete(entity);
     }
 

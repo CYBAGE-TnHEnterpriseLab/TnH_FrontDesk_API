@@ -37,16 +37,24 @@ public class RevenueMappingServiceImpl implements RevenueMappingService {
     @Override
     public RevenueMappingResponseDTO create(UUID propertyId, RevenueMappingRequestDTO request) {
         assertPropertyExists(propertyId);
-        if (repository.existsByPropertyIdAndChargeType(propertyId, request.getChargeType())) {
-            throw new BadRequestException("Revenue mapping already exists for charge type");
-        }
+        // If mapping exists, update it instead of throwing error
+        List<RevenueMapping> existingMappings = repository.findByPropertyId(propertyId);
+        RevenueMapping existing = existingMappings.stream()
+            .filter(m -> m.getChargeType() == request.getChargeType())
+            .findFirst()
+            .orElse(null);
 
         ChartOfAccount chartOfAccount = findChartOfAccount(propertyId, request.getChartOfAccountId());
         validateAccountMapping(request.getChargeType(), chartOfAccount);
 
-        RevenueMapping entity = new RevenueMapping();
-        entity.setPropertyId(propertyId);
-        entity.setChargeType(request.getChargeType());
+        RevenueMapping entity;
+        if (existing != null) {
+            entity = existing;
+        } else {
+            entity = new RevenueMapping();
+            entity.setPropertyId(propertyId);
+            entity.setChargeType(request.getChargeType());
+        }
         entity.setChartOfAccountId(chartOfAccount.getId());
         entity.setActive(request.isActive());
         touch(entity);
