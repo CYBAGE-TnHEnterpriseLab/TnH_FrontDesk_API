@@ -113,23 +113,26 @@ public class RoomTypeServiceImpl implements RoomTypeService {
     }
 
     private void validateMasterMapping(RoomTypeRequestDTO request) {
-        if (request.getIsMaster()) {
+ 
+        if (Boolean.TRUE.equals(request.getIsMaster())) {
             if (request.getMasterRoomTypeId() != null) {
                 throw new BadRequestException("Master room cannot have masterRoomTypeId");
             }
             return;
         }
-
+    
+        // ✅ allow null safely
         if (request.getMasterRoomTypeId() == null) {
-            throw new BadRequestException("Non-master must have masterRoomTypeId");
+            return;
         }
-
+    
         RoomType master = repository.findById(request.getMasterRoomTypeId())
                 .orElseThrow(() -> new RoomTypeNotFoundException("Master room type not found"));
-
+    
         if (!master.getIsMaster()) {
             throw new BadRequestException("Assigned room is not a master");
         }
+    
         if (!master.getPropertyId().equals(request.getPropertyId())) {
             throw new BadRequestException("Assigned master room type must belong to the same property");
         }
