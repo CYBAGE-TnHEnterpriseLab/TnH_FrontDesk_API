@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface PaymentMethodService {
     PaymentMethodResponseDTO create(PaymentMethodRequestDTO request);
-    List<PaymentMethodResponseDTO> list();
+    List<PaymentMethodResponseDTO> list(UUID propertyId);
     PaymentMethodResponseDTO update(UUID id, PaymentMethodRequestDTO request);
     void delete(UUID id);
 }

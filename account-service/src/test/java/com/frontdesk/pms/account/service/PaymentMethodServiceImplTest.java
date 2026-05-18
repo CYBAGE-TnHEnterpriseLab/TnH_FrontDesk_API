@@ -74,12 +74,14 @@ class PaymentMethodServiceImplTest {
     void updatePaymentMethodWithValidLedgerType() {
         UUID id = UUID.randomUUID();
         UUID accountId = UUID.randomUUID();
+        UUID propertyId = UUID.randomUUID();
         PaymentMethod entity = new PaymentMethod();
         entity.setId(id);
         entity.setName("UPI");
         entity.setAccountId(accountId);
         entity.setAllowRefund(false);
         entity.setActive(true);
+        entity.setPropertyId(propertyId);
         ChartOfAccount account = new ChartOfAccount();
         account.setId(accountId);
         account.setLedgerType(LedgerType.LIABILITY);
@@ -91,6 +93,7 @@ class PaymentMethodServiceImplTest {
         request.setAccountId(accountId);
         request.setAllowRefund(true);
         request.setActive(true);
+        request.setPropertyId(propertyId);
         PaymentMethodResponseDTO response = service.update(id, request);
         assertThat(response.getAccountId()).isEqualTo(accountId);
         assertThat(response.isAllowRefund()).isTrue();
@@ -100,12 +103,14 @@ class PaymentMethodServiceImplTest {
     void updatePaymentMethodWithInvalidLedgerTypeThrows() {
         UUID id = UUID.randomUUID();
         UUID accountId = UUID.randomUUID();
+        UUID propertyId = UUID.randomUUID();
         PaymentMethod entity = new PaymentMethod();
         entity.setId(id);
         entity.setName("UPI");
         entity.setAccountId(accountId);
         entity.setAllowRefund(false);
         entity.setActive(true);
+        entity.setPropertyId(propertyId);
         ChartOfAccount account = new ChartOfAccount();
         account.setId(accountId);
         account.setLedgerType(LedgerType.EXPENSE);
@@ -116,8 +121,9 @@ class PaymentMethodServiceImplTest {
         request.setAccountId(accountId);
         request.setAllowRefund(true);
         request.setActive(true);
+        request.setPropertyId(propertyId);
         assertThatThrownBy(() -> service.update(id, request))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Payment must map to Asset or Liability ledger");
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("Payment must map to Asset or Liability ledger");
     }
 }

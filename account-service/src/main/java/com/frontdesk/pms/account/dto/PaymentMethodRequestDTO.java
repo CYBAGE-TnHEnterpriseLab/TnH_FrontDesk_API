@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 public class PaymentMethodRequestDTO {
     private String name;
+    private UUID propertyId;
     private UUID accountId;
     private boolean allowRefund;
     private boolean active = true;

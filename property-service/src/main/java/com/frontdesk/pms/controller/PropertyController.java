@@ -32,18 +32,20 @@ public class PropertyController {
     }
 
     @PutMapping("/{propertyId}")
-    public PropertyResponseDTO update(
+    public String update(
             @PathVariable UUID propertyId,
             @RequestBody @Validated PropertyRequestDTO request
     ) {
         log.info("Update property request: propertyId={}, name='{}', email='{}', timeZone='{}'", propertyId, request.getName(), request.getEmail(), request.getTimeZone());
-        return service.updateProperty(propertyId, request);
+        service.updateProperty(propertyId, request);
+        return "Property updated successfully";
     }
 
     @DeleteMapping("/{propertyId}")
-    public void delete(@PathVariable UUID propertyId) {
+    public String delete(@PathVariable UUID propertyId) {
         log.info("Delete property request: propertyId={}", propertyId);
         service.deleteProperty(propertyId);
+        return "Property deleted successfully";
     }
 
     /**

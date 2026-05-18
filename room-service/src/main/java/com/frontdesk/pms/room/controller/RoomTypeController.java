@@ -52,12 +52,13 @@ public class RoomTypeController {
 
     // propertyId is ignored on update; it is immutable
     @PutMapping("/{id}")
-    public ResponseEntity<RoomTypeResponseDTO> updateRoomType(
+    public ResponseEntity<String> updateRoomType(
             @PathVariable Long id,
             @RequestBody RoomTypeRequestDTO request) {
         // Defensive: null out propertyId to avoid confusion
         request.setPropertyId(null);
-        return ResponseEntity.ok(service.updateRoomType(id, request));
+        service.updateRoomType(id, request);
+        return ResponseEntity.ok("Room type updated successfully");
     }
 
     @DeleteMapping("/{id}")

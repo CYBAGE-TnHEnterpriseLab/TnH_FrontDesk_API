@@ -11,24 +11,27 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/accounts/payment-methods")
+@RequestMapping("/api/accounts/properties/{propertyId}/payment-methods")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class PaymentMethodController {
     private final PaymentMethodService paymentMethodService;
 
+
     @PostMapping
-    public PaymentMethodResponseDTO create(@RequestBody @Valid PaymentMethodRequestDTO request) {
+    public PaymentMethodResponseDTO create(@PathVariable UUID propertyId, @RequestBody @Valid PaymentMethodRequestDTO request) {
+        request.setPropertyId(propertyId);
         return paymentMethodService.create(request);
     }
 
     @GetMapping
-    public List<PaymentMethodResponseDTO> list() {
-        return paymentMethodService.list();
+    public List<PaymentMethodResponseDTO> list(@PathVariable UUID propertyId) {
+        return paymentMethodService.list(propertyId);
     }
 
     @PutMapping("/{id}")
-    public PaymentMethodResponseDTO update(@PathVariable UUID id, @RequestBody @Valid PaymentMethodRequestDTO request) {
+    public PaymentMethodResponseDTO update(@PathVariable UUID propertyId, @PathVariable UUID id, @RequestBody @Valid PaymentMethodRequestDTO request) {
+        request.setPropertyId(propertyId);
         return paymentMethodService.update(id, request);
     }
 

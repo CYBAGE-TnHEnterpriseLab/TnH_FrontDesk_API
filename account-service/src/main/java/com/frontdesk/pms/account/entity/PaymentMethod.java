@@ -18,6 +18,9 @@ public class PaymentMethod {
     private String name;
 
     @Column(nullable = false)
+    private UUID propertyId;
+
+    @Column(nullable = false)
     private UUID accountId;
 
     @Column(nullable = false)

@@ -30,6 +30,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
         }
         PaymentMethod entity = new PaymentMethod();
         entity.setName(request.getName());
+        entity.setPropertyId(request.getPropertyId());
         entity.setAccountId(request.getAccountId());
         entity.setAllowRefund(request.isAllowRefund());
         entity.setActive(request.isActive());
@@ -38,8 +39,8 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     }
 
     @Override
-    public List<PaymentMethodResponseDTO> list() {
-        return paymentMethodRepository.findByActiveTrue().stream()
+    public List<PaymentMethodResponseDTO> list(UUID propertyId) {
+        return paymentMethodRepository.findByPropertyIdAndActiveTrue(propertyId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
@@ -48,6 +49,9 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     public PaymentMethodResponseDTO update(UUID id, PaymentMethodRequestDTO request) {
         PaymentMethod entity = paymentMethodRepository.findById(id)
                 .orElseThrow(() -> new BadRequestException("Payment method not found"));
+        if (!entity.getPropertyId().equals(request.getPropertyId())) {
+            throw new BadRequestException("Property ID mismatch for payment method update");
+        }
         ChartOfAccount account = chartOfAccountRepository.findById(request.getAccountId())
                 .orElseThrow(() -> new BadRequestException("Account not found"));
         if (account.getLedgerType() != LedgerType.ASSET && account.getLedgerType() != LedgerType.LIABILITY) {
@@ -70,6 +74,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
         return PaymentMethodResponseDTO.builder()
                 .id(entity.getId())
                 .name(entity.getName())
+                .propertyId(entity.getPropertyId())
                 .accountId(entity.getAccountId())
                 .allowRefund(entity.isAllowRefund())
                 .active(entity.isActive())
