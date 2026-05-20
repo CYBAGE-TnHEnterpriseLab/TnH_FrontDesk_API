@@ -11,6 +11,7 @@ public class PaymentMethodResponseDTO {
     private String name;
     private UUID propertyId;
     private UUID accountId;
+    private String accountName;
     private boolean allowRefund;
     private boolean active;
 }

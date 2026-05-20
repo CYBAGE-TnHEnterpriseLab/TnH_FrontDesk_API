@@ -54,6 +54,14 @@ public class ChartOfAccountController {
         return service.listByProperty(propertyId);
     }
 
+    // Endpoint to fetch only ASSET and LIABILITY ledger type accounts
+    @GetMapping("/asset-liability")
+    public List<ChartOfAccountResponseDTO> assetAndLiabilityAccounts(@PathVariable UUID propertyId) {
+        return service.listByProperty(propertyId).stream()
+                .filter(a -> a.getLedgerType() == com.frontdesk.common.enums.LedgerType.ASSET || a.getLedgerType() == com.frontdesk.common.enums.LedgerType.LIABILITY)
+                .toList();
+    }
+
     @PutMapping("/{accountId}")
     public ChartOfAccountResponseDTO update(
             @PathVariable UUID propertyId,

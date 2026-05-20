@@ -71,11 +71,18 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     }
 
     private PaymentMethodResponseDTO toResponse(PaymentMethod entity) {
+        String accountName = null;
+        if (entity.getAccountId() != null) {
+            accountName = chartOfAccountRepository.findById(entity.getAccountId())
+                .map(ChartOfAccount::getName)
+                .orElse(null);
+        }
         return PaymentMethodResponseDTO.builder()
                 .id(entity.getId())
                 .name(entity.getName())
                 .propertyId(entity.getPropertyId())
                 .accountId(entity.getAccountId())
+                .accountName(accountName)
                 .allowRefund(entity.isAllowRefund())
                 .active(entity.isActive())
                 .build();
