@@ -3,6 +3,11 @@ package com.frontdesk.pms.rate_management.entity;
 import jakarta.persistence.*;
 
 @Entity
+@Table(
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_room_type_occupancy", columnNames = {"room_type_id", "occupancy_type"})
+    }
+)
 public class MasterRoomPricing {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

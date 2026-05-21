@@ -20,7 +20,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -62,8 +64,14 @@ public class MasterRoomService {
     @Transactional
     public MasterRoomPricingResponseDTO addOrUpdatePricing(Long masterRoomId, MasterRoomPricingRequestDTO pricingRequestDTO) {
         MasterRoom masterRoom = masterRoomRepository.findById(masterRoomId).orElseThrow();
-        MasterRoomPricing pricing = new MasterRoomPricing();
+        MasterRoomPricing pricing = masterRoomPricingRepository
+            .findByMasterRoomIdAndOccupancyType(masterRoomId, pricingRequestDTO.getOccupancyType())
+            .orElseGet(MasterRoomPricing::new);
+
         pricing.setMasterRoom(masterRoom);
+        pricing.setRoomTypeId(null);
+        pricing.setInherited(false);
+        pricing.setParentPricingId(null);
         pricing.setOccupancyType(pricingRequestDTO.getOccupancyType());
         pricing.setPrice(pricingRequestDTO.getPrice());
         MasterRoomPricing saved = masterRoomPricingRepository.save(pricing);
@@ -76,8 +84,7 @@ public class MasterRoomService {
 
 
     public List<MasterRoomPricingResponseDTO> getPricingByMasterRoom(Long masterRoomId) {
-        return masterRoomPricingRepository.findAll().stream()
-                .filter(p -> p.getMasterRoom().getId().equals(masterRoomId))
+        return masterRoomPricingRepository.findByMasterRoomId(masterRoomId).stream()
                 .map(masterRoomMapper::toPricingResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -90,20 +97,13 @@ public class MasterRoomService {
         mapping.setRoomTypeId(mappingRequestDTO.getRoomTypeId());
         MasterRoomRoomTypeMapping saved = mappingRepository.save(mapping);
 
-        // Inherit all pricing from master room to this room type
+        // Inherit all pricing from master room to this room type.
+        // If the pricing row already exists (manual or inherited), keep manual override intact.
         Long roomTypeId = mappingRequestDTO.getRoomTypeId();
-        masterRoomPricingRepository.findAll().stream()
-            .filter(p -> p.getMasterRoom() != null && p.getMasterRoom().getId().equals(masterRoomId))
-            .forEach(masterPricing -> {
-                MasterRoomPricing inheritedPricing = new MasterRoomPricing();
-                inheritedPricing.setRoomTypeId(roomTypeId);
-                inheritedPricing.setInherited(true);
-                inheritedPricing.setParentPricingId(masterPricing.getId());
-                inheritedPricing.setOccupancyType(masterPricing.getOccupancyType());
-                inheritedPricing.setPrice(masterPricing.getPrice());
-                // masterRoom is null for child pricing
-                masterRoomPricingRepository.save(inheritedPricing);
-            });
+        List<MasterRoomPricing> masterPricings = masterRoomPricingRepository.findByMasterRoomId(masterRoomId);
+        for (MasterRoomPricing masterPricing : masterPricings) {
+            upsertInheritedPricingForRoomType(masterPricing, roomTypeId);
+        }
 
         return masterRoomMapper.toMappingResponseDTO(saved);
     }
@@ -111,48 +111,56 @@ public class MasterRoomService {
     // Manual override: set a specific price for a room type and occupancy, breaking inheritance for that entry
             @Transactional
             public void overrideRoomTypePricing(Long roomTypeId, String occupancyType, Double newPrice) {
-                masterRoomPricingRepository.findAll().stream()
-                    .filter(p -> p.getRoomTypeId() != null && p.getRoomTypeId().equals(roomTypeId)
-                            && p.getOccupancyType().equals(occupancyType))
-                    .forEach(p -> {
-                        p.setPrice(newPrice);
-                        p.setInherited(false);
-                        masterRoomPricingRepository.save(p);
-                    });
+                masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, occupancyType)
+                        .ifPresent(p -> {
+                            p.setPrice(newPrice);
+                            p.setInherited(false);
+                            masterRoomPricingRepository.save(p);
+                        });
             }
 
             // Break inheritance for all pricing of a room type
             @Transactional
             public void breakInheritanceForRoomType(Long roomTypeId) {
-                masterRoomPricingRepository.findAll().stream()
-                    .filter(p -> p.getRoomTypeId() != null && p.getRoomTypeId().equals(roomTypeId) && Boolean.TRUE.equals(p.getInherited()))
-                    .forEach(p -> {
-                        p.setInherited(false);
-                        masterRoomPricingRepository.save(p);
-                    });
+                masterRoomPricingRepository.findByRoomTypeId(roomTypeId).stream()
+                        .filter(p -> Boolean.TRUE.equals(p.getInherited()))
+                        .forEach(p -> {
+                            p.setInherited(false);
+                            masterRoomPricingRepository.save(p);
+                        });
             }
 
         // Update all inherited pricing for mapped room types when master pricing changes
         @Transactional
         public void updateInheritedPricingForMasterRoom(Long masterRoomId) {
             // Get all master pricing for this master room
-            List<MasterRoomPricing> masterPricings = masterRoomPricingRepository.findAll().stream()
-                    .filter(p -> p.getMasterRoom() != null && p.getMasterRoom().getId().equals(masterRoomId))
-                    .collect(Collectors.toList());
+            List<MasterRoomPricing> masterPricings = masterRoomPricingRepository.findByMasterRoomId(masterRoomId);
+            List<Long> mappedRoomTypeIds = mappingRepository.findByMasterRoomId(masterRoomId)
+                    .stream()
+                    .map(MasterRoomRoomTypeMapping::getRoomTypeId)
+                    .toList();
 
-            // For each master pricing, update all inherited child pricing (only if still inherited)
+            // For each master pricing, update inherited child pricing and create missing inherited rows.
             for (MasterRoomPricing masterPricing : masterPricings) {
-                List<MasterRoomPricing> inheritedPricings = masterRoomPricingRepository.findAll().stream()
-                        .filter(p -> Boolean.TRUE.equals(p.getInherited()) &&
-                                p.getParentPricingId() != null &&
-                                p.getParentPricingId().equals(masterPricing.getId()))
-                        .collect(Collectors.toList());
+                List<MasterRoomPricing> inheritedPricings = masterRoomPricingRepository
+                        .findByInheritedTrueAndParentPricingId(masterPricing.getId());
+
+                Map<Long, MasterRoomPricing> inheritedByRoomType = new HashMap<>();
                 for (MasterRoomPricing inherited : inheritedPricings) {
-                    // Only update if still inherited
-                    if (Boolean.TRUE.equals(inherited.getInherited())) {
+                    if (inherited.getRoomTypeId() != null) {
+                        inheritedByRoomType.put(inherited.getRoomTypeId(), inherited);
+                    }
+                }
+
+                for (Long roomTypeId : mappedRoomTypeIds) {
+                    MasterRoomPricing inherited = inheritedByRoomType.get(roomTypeId);
+                    if (inherited != null) {
                         inherited.setPrice(masterPricing.getPrice());
                         masterRoomPricingRepository.save(inherited);
+                        continue;
                     }
+
+                    upsertInheritedPricingForRoomType(masterPricing, roomTypeId);
                 }
             }
         }
@@ -176,9 +184,32 @@ public class MasterRoomService {
 
     // Fetch pricing for a specific room type (inherited or overridden)
     public List<MasterRoomPricingResponseDTO> getPricingByRoomType(Long roomTypeId) {
-        return masterRoomPricingRepository.findAll().stream()
-                .filter(p -> p.getRoomTypeId() != null && p.getRoomTypeId().equals(roomTypeId))
+        return masterRoomPricingRepository.findByRoomTypeId(roomTypeId).stream()
                 .map(masterRoomMapper::toPricingResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    private void upsertInheritedPricingForRoomType(MasterRoomPricing masterPricing, Long roomTypeId) {
+        Optional<MasterRoomPricing> existingForRoomTypeAndOccupancy = masterRoomPricingRepository
+                .findByRoomTypeIdAndOccupancyType(roomTypeId, masterPricing.getOccupancyType());
+
+        if (existingForRoomTypeAndOccupancy.isPresent()) {
+            MasterRoomPricing existing = existingForRoomTypeAndOccupancy.get();
+            if (Boolean.TRUE.equals(existing.getInherited())) {
+                existing.setParentPricingId(masterPricing.getId());
+                existing.setPrice(masterPricing.getPrice());
+                masterRoomPricingRepository.save(existing);
+            }
+            return;
+        }
+
+        MasterRoomPricing inheritedPricing = new MasterRoomPricing();
+        inheritedPricing.setRoomTypeId(roomTypeId);
+        inheritedPricing.setInherited(true);
+        inheritedPricing.setParentPricingId(masterPricing.getId());
+        inheritedPricing.setOccupancyType(masterPricing.getOccupancyType());
+        inheritedPricing.setPrice(masterPricing.getPrice());
+        // masterRoom is null for child pricing
+        masterRoomPricingRepository.save(inheritedPricing);
     }
 }
