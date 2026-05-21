@@ -1,0 +1,25 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: rate-management-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rate_db
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+        hbm2ddl.create_namespaces: true
+
+services:
+  room-service:
+    base-url: http://localhost:8082
