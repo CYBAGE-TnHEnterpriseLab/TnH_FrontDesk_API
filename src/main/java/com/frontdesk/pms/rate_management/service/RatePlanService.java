@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,7 +31,7 @@ public class RatePlanService {
 
     @Transactional
     public RatePlanResponseDTO createRatePlan(RatePlanRequestDTO requestDTO) {
-        validateRatePlanRequest(requestDTO);
+        validateRatePlanRequest(requestDTO, null);
         if (ratePlanRepository.existsByCodeIgnoreCase(requestDTO.getCode())) {
             throw new InvalidRatePlanException("Rate code already exists: " + requestDTO.getCode());
         }
@@ -50,7 +51,7 @@ public class RatePlanService {
 
     @Transactional
     public RatePlanResponseDTO updateRatePlan(Long id, RatePlanRequestDTO requestDTO) {
-        validateRatePlanRequest(requestDTO);
+        validateRatePlanRequest(requestDTO, id);
         RatePlan existing = ratePlanRepository.findById(id).orElseThrow(() -> new RatePlanNotFoundException(id));
 
         if (!existing.getCode().equalsIgnoreCase(requestDTO.getCode())
@@ -68,6 +69,7 @@ public class RatePlanService {
         existing.setCalculationMethod(requestDTO.getCalculationMethod());
         existing.setAdjustmentValue(requestDTO.getAdjustmentValue());
         existing.setManualAmount(requestDTO.getManualAmount());
+        existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
 
         if (existing.getStatus() == RatePlanStatus.ACTIVE) {
@@ -129,42 +131,16 @@ public class RatePlanService {
     }
 
     public RatePlanPriceResponseDTO calculatePriceFromMasterBar(Long ratePlanId, Long roomTypeId) {
-        RatePlan ratePlan = ratePlanRepository.findById(ratePlanId)
-                .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
-
-        Double masterBarAmount = null;
-        Double finalAmount;
-        switch (ratePlan.getCalculationMethod()) {
-            case MANUAL -> {
-                finalAmount = ratePlan.getManualAmount();
-            }
-            case PERCENT_OFF_BAR -> {
-                masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId);
-                finalAmount = masterBarAmount - (masterBarAmount * ratePlan.getAdjustmentValue() / 100.0);
-            }
-            case PERCENT_ADD_BAR -> {
-                masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId);
-                finalAmount = masterBarAmount + (masterBarAmount * ratePlan.getAdjustmentValue() / 100.0);
-            }
-            case FLAT_OFF_BAR -> {
-                masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId);
-                finalAmount = masterBarAmount - ratePlan.getAdjustmentValue();
-            }
-            case FLAT_ADD_BAR -> {
-                masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId);
-                finalAmount = masterBarAmount + ratePlan.getAdjustmentValue();
-            }
-            default -> throw new InvalidRatePlanException("Unsupported calculation method");
-        }
+        CalculationResult calculation = calculateRatePlanAmount(ratePlanId, roomTypeId, new HashSet<>());
 
         RatePlanPriceResponseDTO responseDTO = new RatePlanPriceResponseDTO();
         responseDTO.setRatePlanId(ratePlanId);
-        responseDTO.setMasterBarAmount(masterBarAmount);
-        responseDTO.setFinalAmount(Math.max(0.0, finalAmount));
+        responseDTO.setMasterBarAmount(calculation.masterBarAmount());
+        responseDTO.setFinalAmount(calculation.finalAmount());
         return responseDTO;
     }
 
-    private void validateRatePlanRequest(RatePlanRequestDTO requestDTO) {
+    private void validateRatePlanRequest(RatePlanRequestDTO requestDTO, Long currentRatePlanId) {
         if (requestDTO.getName() == null || requestDTO.getName().isBlank()) {
             throw new InvalidRatePlanException("Rate plan name is required");
         }
@@ -191,6 +167,20 @@ public class RatePlanService {
         }
         if (requestDTO.getApplicableRoomTypeIds() == null || requestDTO.getApplicableRoomTypeIds().isEmpty()) {
             throw new InvalidRatePlanException("At least one room type must be selected");
+        }
+
+        if (requestDTO.getParentRatePlanId() != null) {
+            if (requestDTO.getParentRatePlanId().equals(currentRatePlanId)) {
+                throw new InvalidRatePlanException("Rate plan cannot derive from itself");
+            }
+
+            RatePlan parentRatePlan = ratePlanRepository.findById(requestDTO.getParentRatePlanId())
+                    .orElseThrow(() -> new InvalidRatePlanException(
+                            "Parent rate plan not found: " + requestDTO.getParentRatePlanId()));
+
+            if (!parentRatePlan.getOccupancyType().equals(requestDTO.getOccupancyType())) {
+                throw new InvalidRatePlanException("Parent and child rate plans must have the same occupancy type");
+            }
         }
 
         if (requestDTO.getCalculationMethod() == RatePlanCalculationMethod.MANUAL) {
@@ -222,6 +212,7 @@ public class RatePlanService {
         entity.setCalculationMethod(dto.getCalculationMethod());
         entity.setAdjustmentValue(dto.getAdjustmentValue());
         entity.setManualAmount(dto.getManualAmount());
+        entity.setParentRatePlanId(dto.getParentRatePlanId());
         entity.setApplicableRoomTypeIds(new HashSet<>(dto.getApplicableRoomTypeIds()));
         return entity;
     }
@@ -241,6 +232,7 @@ public class RatePlanService {
         dto.setCalculationMethod(entity.getCalculationMethod());
         dto.setAdjustmentValue(entity.getAdjustmentValue());
         dto.setManualAmount(entity.getManualAmount());
+        dto.setParentRatePlanId(entity.getParentRatePlanId());
         return dto;
     }
 
@@ -267,6 +259,59 @@ public class RatePlanService {
 
         validateMasterBarAmount(pricing.getPrice());
         return pricing.getPrice();
+    }
+
+    private CalculationResult calculateRatePlanAmount(Long ratePlanId, Long roomTypeId, Set<Long> visitedRatePlanIds) {
+        if (!visitedRatePlanIds.add(ratePlanId)) {
+            throw new InvalidRatePlanException("Circular rate plan derivation detected");
+        }
+
+        RatePlan ratePlan = ratePlanRepository.findById(ratePlanId)
+                .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
+
+        if (ratePlan.getApplicableRoomTypeIds() == null || !ratePlan.getApplicableRoomTypeIds().contains(roomTypeId)) {
+            throw new InvalidRatePlanException("Room type is not applicable for this rate plan");
+        }
+
+        try {
+            return switch (ratePlan.getCalculationMethod()) {
+                case MANUAL -> new CalculationResult(null, Math.max(0.0, ratePlan.getManualAmount()));
+                case PERCENT_OFF_BAR, PERCENT_ADD_BAR, FLAT_OFF_BAR, FLAT_ADD_BAR -> {
+                    CalculationResult baseCalculation = resolveBaseCalculation(ratePlan, roomTypeId, visitedRatePlanIds);
+                    Double baseAmount = baseCalculation.finalAmount();
+                    Double derivedFinalAmount = applyAdjustment(ratePlan, baseAmount);
+                    yield new CalculationResult(baseCalculation.masterBarAmount(), Math.max(0.0, derivedFinalAmount));
+                }
+            };
+        } finally {
+            visitedRatePlanIds.remove(ratePlanId);
+        }
+    }
+
+    private CalculationResult resolveBaseCalculation(RatePlan ratePlan, Long roomTypeId, Set<Long> visitedRatePlanIds) {
+        if (ratePlan.getParentRatePlanId() != null) {
+            CalculationResult parentCalculation = calculateRatePlanAmount(
+                    ratePlan.getParentRatePlanId(),
+                    roomTypeId,
+                    visitedRatePlanIds);
+            return new CalculationResult(parentCalculation.masterBarAmount(), parentCalculation.finalAmount());
+        }
+
+        Double masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId);
+        return new CalculationResult(masterBarAmount, masterBarAmount);
+    }
+
+    private Double applyAdjustment(RatePlan ratePlan, Double baseAmount) {
+        return switch (ratePlan.getCalculationMethod()) {
+            case PERCENT_OFF_BAR -> baseAmount - (baseAmount * ratePlan.getAdjustmentValue() / 100.0);
+            case PERCENT_ADD_BAR -> baseAmount + (baseAmount * ratePlan.getAdjustmentValue() / 100.0);
+            case FLAT_OFF_BAR -> baseAmount - ratePlan.getAdjustmentValue();
+            case FLAT_ADD_BAR -> baseAmount + ratePlan.getAdjustmentValue();
+            case MANUAL -> ratePlan.getManualAmount();
+        };
+    }
+
+    private record CalculationResult(Double masterBarAmount, Double finalAmount) {
     }
 
     private void validateNoOverlapForActivePlan(java.util.Set<Long> roomTypeIds,

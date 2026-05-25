@@ -65,6 +65,9 @@ public class RatePlan {
     @Column
     private Double manualAmount;
 
+        @Column(name = "parent_rate_plan_id")
+        private Long parentRatePlanId;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "rate_plan_room_type", joinColumns = @JoinColumn(name = "rate_plan_id"))
     @Column(name = "room_type_id", nullable = false)

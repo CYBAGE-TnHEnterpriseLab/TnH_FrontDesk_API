@@ -120,6 +120,39 @@ class RatePlanServiceTest {
     }
 
     @Test
+    void calculatePriceFromMasterBar_shouldDeriveFromParentRatePlan() {
+        RatePlan barPlan = new RatePlan();
+        barPlan.setId(10L);
+        barPlan.setOccupancyType("2P");
+        barPlan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        barPlan.setAdjustmentValue(10.0);
+        barPlan.setApplicableRoomTypeIds(Set.of(101L));
+
+        RatePlan childPlan = new RatePlan();
+        childPlan.setId(11L);
+        childPlan.setOccupancyType("2P");
+        childPlan.setCalculationMethod(RatePlanCalculationMethod.FLAT_OFF_BAR);
+        childPlan.setAdjustmentValue(100.0);
+        childPlan.setParentRatePlanId(10L);
+        childPlan.setApplicableRoomTypeIds(Set.of(101L));
+
+        MasterRoomPricing pricing = new MasterRoomPricing();
+        pricing.setRoomTypeId(101L);
+        pricing.setOccupancyType("2P");
+        pricing.setPrice(2000.0);
+
+        when(ratePlanRepository.findById(11L)).thenReturn(Optional.of(childPlan));
+        when(ratePlanRepository.findById(10L)).thenReturn(Optional.of(barPlan));
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2P"))
+                .thenReturn(Optional.of(pricing));
+
+        RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(11L, 101L);
+
+        assertEquals(2000.0, priceResponseDTO.getMasterBarAmount());
+        assertEquals(1700.0, priceResponseDTO.getFinalAmount());
+    }
+
+    @Test
     void createRatePlan_shouldFailWhenMealInclusionMissing() {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setMealInclusion(null);

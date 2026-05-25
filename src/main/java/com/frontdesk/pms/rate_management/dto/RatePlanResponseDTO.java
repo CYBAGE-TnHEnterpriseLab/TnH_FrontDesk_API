@@ -24,4 +24,5 @@ public class RatePlanResponseDTO {
     private RatePlanCalculationMethod calculationMethod;
     private Double adjustmentValue;
     private Double manualAmount;
+    private Long parentRatePlanId;
 }
