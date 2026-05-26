@@ -1,0 +1,3 @@
+com\pms\property\publish\mapper\PublishMapperTest.class
+com\pms\property\PropertyServiceApplicationTests.class
+com\pms\property\draft\service\DraftServiceTest.class
