@@ -6,7 +6,7 @@ spring:
     name: room-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/room_db
+    url: jdbc:postgresql://localhost:5432/pms_db
     username: postgres
     password: postgres
 

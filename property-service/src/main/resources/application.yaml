@@ -9,13 +9,18 @@ spring:
   application:
     name: property-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/property_db
+    url: jdbc:postgresql://localhost:5432/pms_db
     username: postgres
     password: postgres
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: property
+        hbm2ddl.create_namespaces: true
 
   jackson:
     time-zone: UTC

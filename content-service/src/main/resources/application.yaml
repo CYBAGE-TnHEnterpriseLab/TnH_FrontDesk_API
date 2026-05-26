@@ -5,7 +5,7 @@ spring:
   application:
     name: content-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/content_db
+    url: jdbc:postgresql://localhost:5432/pms_db
     username: postgres
     password: postgres
   jpa:
