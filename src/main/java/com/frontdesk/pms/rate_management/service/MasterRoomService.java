@@ -109,15 +109,15 @@ public class MasterRoomService {
     }
 
     // Manual override: set a specific price for a room type and occupancy, breaking inheritance for that entry
-            @Transactional
-            public void overrideRoomTypePricing(Long roomTypeId, String occupancyType, Double newPrice) {
-                masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, occupancyType)
-                        .ifPresent(p -> {
-                            p.setPrice(newPrice);
-                            p.setInherited(false);
-                            masterRoomPricingRepository.save(p);
-                        });
-            }
+        @Transactional
+        public void overrideRoomTypePricing(Long roomTypeId, String occupancyType, Double newPrice) {
+            masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, occupancyType)
+                    .ifPresent(p -> {
+                        p.setPrice(newPrice);
+                        p.setInherited(false);
+                        masterRoomPricingRepository.save(p);
+                    });
+        }
 
             // Break inheritance for all pricing of a room type
             @Transactional
@@ -196,6 +196,7 @@ public class MasterRoomService {
         if (existingForRoomTypeAndOccupancy.isPresent()) {
             MasterRoomPricing existing = existingForRoomTypeAndOccupancy.get();
             if (Boolean.TRUE.equals(existing.getInherited())) {
+                    existing.setMasterRoom(masterPricing.getMasterRoom());
                 existing.setParentPricingId(masterPricing.getId());
                 existing.setPrice(masterPricing.getPrice());
                 masterRoomPricingRepository.save(existing);
@@ -204,6 +205,7 @@ public class MasterRoomService {
         }
 
         MasterRoomPricing inheritedPricing = new MasterRoomPricing();
+        inheritedPricing.setMasterRoom(masterPricing.getMasterRoom());
         inheritedPricing.setRoomTypeId(roomTypeId);
         inheritedPricing.setInherited(true);
         inheritedPricing.setParentPricingId(masterPricing.getId());
