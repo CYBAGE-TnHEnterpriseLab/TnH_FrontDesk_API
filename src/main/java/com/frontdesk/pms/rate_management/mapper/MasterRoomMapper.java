@@ -31,6 +31,7 @@ public class MasterRoomMapper {
     public MasterRoomResponseDTO toResponseDTO(MasterRoom entity) {
         MasterRoomResponseDTO dto = new MasterRoomResponseDTO();
         dto.setId(entity.getId());
+        dto.setPropertyId(entity.getPropertyId());
         dto.setName(entity.getName());
         if (entity.getPricingList() != null) {
             dto.setPricingList(entity.getPricingList().stream().map(this::toPricingResponseDTO).collect(Collectors.toList()));

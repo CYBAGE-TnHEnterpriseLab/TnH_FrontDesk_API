@@ -6,7 +6,10 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import java.util.List;
 
 public interface MasterRoomRepository extends JpaRepository<MasterRoom, Long> {
-    boolean existsByName(String name);
+    boolean existsByPropertyIdAndName(String propertyId, String name);
+
+    @EntityGraph(attributePaths = {"pricingList"})
+    List<MasterRoom> findByPropertyId(String propertyId);
 
     @Override
     @EntityGraph(attributePaths = {"pricingList"})

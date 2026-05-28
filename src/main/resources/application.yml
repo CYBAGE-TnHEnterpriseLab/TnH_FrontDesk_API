@@ -23,3 +23,5 @@ spring:
 services:
   room-service:
     base-url: http://localhost:8082
+  property-service:
+    base-url: http://localhost:8081

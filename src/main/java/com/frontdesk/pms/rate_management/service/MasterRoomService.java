@@ -9,9 +9,13 @@ import com.frontdesk.pms.rate_management.dto.MasterRoomPricingRequestDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomPricingResponseDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingRequestDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingResponseDTO;
+import com.frontdesk.pms.rate_management.dto.PropertyRoomTypeMappingResponseDTO;
+import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoom;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
+import com.frontdesk.pms.rate_management.exception.MasterRoomNotFoundException;
+import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
 import com.frontdesk.pms.rate_management.mapper.MasterRoomMapper;
 import com.frontdesk.pms.rate_management.repository.MasterRoomRepository;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
@@ -24,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,13 +41,37 @@ public class MasterRoomService {
     private MasterRoomRoomTypeMappingRepository mappingRepository;
     @Autowired
     private MasterRoomMapper masterRoomMapper;
+    @Autowired
+    private PropertyServiceClient propertyServiceClient;
+    @Autowired
+    private RoomServiceClient roomServiceClient;
 
     @Transactional
 
 
-    public MasterRoomResponseDTO createOrUpdateMasterRoom(MasterRoomRequestDTO masterRoomRequestDTO) {
+    public MasterRoomResponseDTO createMasterRoom(String propertyId, MasterRoomRequestDTO masterRoomRequestDTO) {
+        if (propertyId == null) {
+            throw new IllegalArgumentException("propertyId is required in path");
+        }
+        if (!propertyServiceClient.propertyExists(propertyId)) {
+            throw new PropertyNotFoundException(propertyId);
+        }
+
         MasterRoom masterRoom = masterRoomMapper.toEntity(masterRoomRequestDTO);
+        masterRoom.setPropertyId(propertyId);
         MasterRoom saved = masterRoomRepository.save(masterRoom);
+        return masterRoomMapper.toResponseDTO(saved);
+    }
+
+    @Transactional
+    public MasterRoomResponseDTO updateMasterRoom(String propertyId, Long id, MasterRoomRequestDTO masterRoomRequestDTO) {
+        MasterRoom existing = getMasterRoomInProperty(propertyId, id);
+
+        if (masterRoomRequestDTO.getName() != null) {
+            existing.setName(masterRoomRequestDTO.getName());
+        }
+
+        MasterRoom saved = masterRoomRepository.save(existing);
         return masterRoomMapper.toResponseDTO(saved);
     }
 
@@ -56,14 +85,22 @@ public class MasterRoomService {
         return masterRoomRepository.findAll().stream().map(masterRoomMapper::toResponseDTO).collect(Collectors.toList());
     }
 
+    public List<MasterRoomResponseDTO> getMasterRoomsByPropertyId(String propertyId) {
+        return masterRoomRepository.findByPropertyId(propertyId)
+                .stream()
+                .map(masterRoomMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
-    public void deleteMasterRoom(Long id) {
+    public void deleteMasterRoom(String propertyId, Long id) {
+        getMasterRoomInProperty(propertyId, id);
         masterRoomRepository.deleteById(id);
     }
 
     @Transactional
-    public MasterRoomPricingResponseDTO addOrUpdatePricing(Long masterRoomId, MasterRoomPricingRequestDTO pricingRequestDTO) {
-        MasterRoom masterRoom = masterRoomRepository.findById(masterRoomId).orElseThrow();
+    public MasterRoomPricingResponseDTO addOrUpdatePricing(String propertyId, Long masterRoomId, MasterRoomPricingRequestDTO pricingRequestDTO) {
+        MasterRoom masterRoom = getMasterRoomInProperty(propertyId, masterRoomId);
         MasterRoomPricing pricing = masterRoomPricingRepository
             .findByMasterRoomIdAndOccupancyType(masterRoomId, pricingRequestDTO.getOccupancyType())
             .orElseGet(MasterRoomPricing::new);
@@ -90,16 +127,31 @@ public class MasterRoomService {
     }
 
     @Transactional
-    public MasterRoomRoomTypeMappingResponseDTO mapRoomType(Long masterRoomId, MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
-        MasterRoom masterRoom = masterRoomRepository.findById(masterRoomId).orElseThrow();
-        MasterRoomRoomTypeMapping mapping = new MasterRoomRoomTypeMapping();
+    public MasterRoomRoomTypeMappingResponseDTO mapRoomType(String propertyId, Long masterRoomId, MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
+        return upsertRoomTypeMapping(propertyId, mappingRequestDTO.getRoomTypeId(), masterRoomId);
+    }
+
+    @Transactional
+    public MasterRoomRoomTypeMappingResponseDTO upsertRoomTypeMapping(String propertyId, Long roomTypeId, Long masterRoomId) {
+        if (roomTypeId == null) {
+            throw new IllegalArgumentException("roomTypeId is required");
+        }
+        if (masterRoomId == null) {
+            throw new IllegalArgumentException("masterRoomId is required");
+        }
+
+        MasterRoom masterRoom = getMasterRoomInProperty(propertyId, masterRoomId);
+
+        MasterRoomRoomTypeMapping mapping = mappingRepository
+                .findByMasterRoomPropertyIdAndRoomTypeId(propertyId, roomTypeId)
+                .orElseGet(MasterRoomRoomTypeMapping::new);
+
         mapping.setMasterRoom(masterRoom);
-        mapping.setRoomTypeId(mappingRequestDTO.getRoomTypeId());
+        mapping.setRoomTypeId(roomTypeId);
         MasterRoomRoomTypeMapping saved = mappingRepository.save(mapping);
 
-        // Inherit all pricing from master room to this room type.
-        // If the pricing row already exists (manual or inherited), keep manual override intact.
-        Long roomTypeId = mappingRequestDTO.getRoomTypeId();
+        // Inherit all pricing from selected master room to this room type.
+        // If a manual override exists for an occupancy, it is preserved.
         List<MasterRoomPricing> masterPricings = masterRoomPricingRepository.findByMasterRoomId(masterRoomId);
         for (MasterRoomPricing masterPricing : masterPricings) {
             upsertInheritedPricingForRoomType(masterPricing, roomTypeId);
@@ -173,6 +225,78 @@ public class MasterRoomService {
                 .collect(Collectors.toList());
     }
 
+    public List<PropertyRoomTypeMappingResponseDTO> getMappingsByPropertyId(String propertyId) {
+        List<MasterRoomRoomTypeMapping> mappings = mappingRepository.findByMasterRoomPropertyId(propertyId);
+        Map<Long, MasterRoomRoomTypeMapping> mappingByRoomTypeId = mappings.stream()
+                .collect(Collectors.toMap(MasterRoomRoomTypeMapping::getRoomTypeId, Function.identity(), (first, second) -> first));
+
+        RoomDTO[] roomTypes = roomServiceClient.getRoomTypesByProperty(propertyId);
+        if (roomTypes == null || roomTypes.length == 0) {
+            // Fallback: if room-service returns no data, still return persisted mappings.
+            return mappings.stream()
+                    .map(mapping -> {
+                        PropertyRoomTypeMappingResponseDTO dto = new PropertyRoomTypeMappingResponseDTO();
+                        dto.setMappingId(mapping.getId());
+                        dto.setRoomTypeId(mapping.getRoomTypeId());
+                        dto.setMapped(true);
+                        dto.setMasterRoomId(mapping.getMasterRoom().getId());
+                        dto.setMasterRoomName(mapping.getMasterRoom().getName());
+                        dto.setInheritedRates(masterRoomPricingRepository.findByRoomTypeId(mapping.getRoomTypeId()).stream()
+                                .map(masterRoomMapper::toPricingResponseDTO)
+                                .collect(Collectors.toList()));
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        List<PropertyRoomTypeMappingResponseDTO> response = java.util.Arrays.stream(roomTypes)
+                .map(roomType -> {
+                    MasterRoomRoomTypeMapping mapping = mappingByRoomTypeId.get(roomType.getId());
+
+                    PropertyRoomTypeMappingResponseDTO dto = new PropertyRoomTypeMappingResponseDTO();
+                    dto.setRoomTypeId(roomType.getId());
+                    dto.setRoomTypeName(roomType.getName());
+                    dto.setMapped(mapping != null);
+
+                    if (mapping != null) {
+                        dto.setMappingId(mapping.getId());
+                        dto.setMasterRoomId(mapping.getMasterRoom().getId());
+                        dto.setMasterRoomName(mapping.getMasterRoom().getName());
+                    }
+
+                    dto.setInheritedRates(masterRoomPricingRepository.findByRoomTypeId(roomType.getId()).stream()
+                            .map(masterRoomMapper::toPricingResponseDTO)
+                            .collect(Collectors.toList()));
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+                // Include mapped room types that room-service did not return, so UI does not show an empty table.
+                java.util.Set<Long> roomTypeIdsFromRoomService = response.stream()
+                    .map(PropertyRoomTypeMappingResponseDTO::getRoomTypeId)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+                List<PropertyRoomTypeMappingResponseDTO> missingMappedRows = mappings.stream()
+                    .filter(mapping -> !roomTypeIdsFromRoomService.contains(mapping.getRoomTypeId()))
+                    .map(mapping -> {
+                        PropertyRoomTypeMappingResponseDTO dto = new PropertyRoomTypeMappingResponseDTO();
+                        dto.setMappingId(mapping.getId());
+                        dto.setRoomTypeId(mapping.getRoomTypeId());
+                        dto.setMapped(true);
+                        dto.setMasterRoomId(mapping.getMasterRoom().getId());
+                        dto.setMasterRoomName(mapping.getMasterRoom().getName());
+                        dto.setInheritedRates(masterRoomPricingRepository.findByRoomTypeId(mapping.getRoomTypeId()).stream()
+                            .map(masterRoomMapper::toPricingResponseDTO)
+                            .collect(Collectors.toList()));
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+
+                response.addAll(missingMappedRows);
+                return response;
+    }
+
     public boolean isAllRoomTypesMapped(List<Long> activeRoomTypeIds) {
         List<Long> mappedRoomTypeIds = mappingRepository.findAll().stream()
                 .map(MasterRoomRoomTypeMapping::getRoomTypeId)
@@ -213,5 +337,17 @@ public class MasterRoomService {
         inheritedPricing.setPrice(masterPricing.getPrice());
         // masterRoom is null for child pricing
         masterRoomPricingRepository.save(inheritedPricing);
+    }
+
+    private MasterRoom getMasterRoomInProperty(String propertyId, Long masterRoomId) {
+        if (propertyId == null) {
+            throw new IllegalArgumentException("propertyId is required in path");
+        }
+        MasterRoom masterRoom = masterRoomRepository.findById(masterRoomId)
+                .orElseThrow(() -> new MasterRoomNotFoundException(masterRoomId));
+        if (!propertyId.equals(masterRoom.getPropertyId())) {
+            throw new MasterRoomNotFoundException(masterRoomId);
+        }
+        return masterRoom;
     }
 }

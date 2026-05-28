@@ -8,7 +8,7 @@ import com.frontdesk.pms.rate_management.dto.MasterRoomPricingRequestDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomPricingResponseDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingRequestDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingResponseDTO;
-import com.frontdesk.pms.rate_management.exception.MasterRoomNotFoundException;
+import com.frontdesk.pms.rate_management.dto.PropertyRoomTypeMappingResponseDTO;
 import com.frontdesk.pms.rate_management.service.MasterRoomService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -23,78 +23,80 @@ public class MasterRoomController {
     private MasterRoomService masterRoomService;
 
 
-    @PostMapping
-    public ResponseEntity<MasterRoomResponseDTO> createOrUpdateMasterRoom(@RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
-        MasterRoomResponseDTO saved = masterRoomService.createOrUpdateMasterRoom(masterRoomRequestDTO);
+    // Create a new master room under a specific property.
+    @PostMapping("/property/{propertyId}")
+    public ResponseEntity<MasterRoomResponseDTO> createMasterRoom(@PathVariable String propertyId, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
+        MasterRoomResponseDTO saved = masterRoomService.createMasterRoom(propertyId, masterRoomRequestDTO);
         return ResponseEntity.ok(saved);
     }
 
-
-    @GetMapping("/{id}")
-    public ResponseEntity<MasterRoomResponseDTO> getMasterRoom(@PathVariable Long id) {
-        return masterRoomService.getMasterRoom(id)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new MasterRoomNotFoundException(id));
+    // Update an existing master room within a specific property.
+    @PutMapping("/property/{propertyId}/{id}")
+    public ResponseEntity<MasterRoomResponseDTO> updateMasterRoom(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
+        MasterRoomResponseDTO saved = masterRoomService.updateMasterRoom(propertyId, id, masterRoomRequestDTO);
+        return ResponseEntity.ok(saved);
     }
 
-
-    @GetMapping
-    public List<MasterRoomResponseDTO> getAllMasterRooms() {
-        return masterRoomService.getAllMasterRooms();
+    // List all master rooms configured for a property.
+    @GetMapping("/property/{propertyId}")
+    public List<MasterRoomResponseDTO> getMasterRoomsByProperty(@PathVariable String propertyId) {
+        return masterRoomService.getMasterRoomsByPropertyId(propertyId);
     }
 
-    // Get pricing for a specific room type (inherited or overridden)
-    @GetMapping("/room-type/{roomTypeId}/pricing")
-    public List<MasterRoomPricingResponseDTO> getPricingByRoomType(@PathVariable Long roomTypeId) {
-        return masterRoomService.getPricingByRoomType(roomTypeId);
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMasterRoom(@PathVariable Long id) {
-        masterRoomService.deleteMasterRoom(id);
+    // Delete a master room scoped to a property.
+    @DeleteMapping("/property/{propertyId}/{id}")
+    public ResponseEntity<Void> deleteMasterRoom(@PathVariable String propertyId, @PathVariable Long id) {
+        masterRoomService.deleteMasterRoom(propertyId, id);
         return ResponseEntity.noContent().build();
     }
 
-
-    @PostMapping("/{id}/pricing")
-    public ResponseEntity<MasterRoomPricingResponseDTO> addOrUpdatePricing(@PathVariable Long id, @RequestBody MasterRoomPricingRequestDTO pricingRequestDTO) {
-        MasterRoomPricingResponseDTO saved = masterRoomService.addOrUpdatePricing(id, pricingRequestDTO);
+    // Add or update master pricing for a specific occupancy type.
+    @PostMapping("/property/{propertyId}/{id}/pricing")
+    public ResponseEntity<MasterRoomPricingResponseDTO> addOrUpdatePricing(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomPricingRequestDTO pricingRequestDTO) {
+        MasterRoomPricingResponseDTO saved = masterRoomService.addOrUpdatePricing(propertyId, id, pricingRequestDTO);
         return ResponseEntity.ok(saved);
     }
 
-
+    // Get all pricing rows directly associated with a master room.
     @GetMapping("/{id}/pricing")
     public List<MasterRoomPricingResponseDTO> getPricingByMasterRoom(@PathVariable Long id) {
         return masterRoomService.getPricingByMasterRoom(id);
     }
 
-
-    @PostMapping("/{id}/map-room-type")
-    public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable Long id, @RequestBody MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
-        MasterRoomRoomTypeMappingResponseDTO saved = masterRoomService.mapRoomType(id, mappingRequestDTO);
+    // Map a room type to a master room and inherit pricing.
+    @PostMapping("/property/{propertyId}/{id}/map-room-type")
+    public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
+        MasterRoomRoomTypeMappingResponseDTO saved = masterRoomService.upsertRoomTypeMapping(propertyId, mappingRequestDTO.getRoomTypeId(), id);
         return ResponseEntity.ok(saved);
     }
 
-
+    // Get all room-type mappings for a master room.
     @GetMapping("/{id}/mappings")
     public List<MasterRoomRoomTypeMappingResponseDTO> getMappingsByMasterRoom(@PathVariable Long id) {
         return masterRoomService.getMappingsByMasterRoom(id);
     }
 
+    // Get all room-type mappings for a property including inherited rates.
+    @GetMapping("/property/{propertyId}/mappings")
+    public List<PropertyRoomTypeMappingResponseDTO> getMappingsByProperty(@PathVariable String propertyId) {
+        return masterRoomService.getMappingsByPropertyId(propertyId);
+    }
+
+    // Validate whether all active room types are mapped.
     @PostMapping("/validate-mappings")
     public ResponseEntity<Boolean> validateMappings(@RequestBody List<Long> activeRoomTypeIds) {
         boolean allMapped = masterRoomService.isAllRoomTypesMapped(activeRoomTypeIds);
         return ResponseEntity.ok(allMapped);
     }
 
-            // Manual override: set a specific price for a room type and occupancy
+    // Manually override pricing for one room type and occupancy.
     @PostMapping("/room-type/{roomTypeId}/override-pricing")
     public ResponseEntity<Void> overrideRoomTypePricing(@PathVariable Long roomTypeId, @RequestParam String occupancyType, @RequestParam Double newPrice) {
         masterRoomService.overrideRoomTypePricing(roomTypeId, occupancyType, newPrice);
         return ResponseEntity.ok().build();
     }
 
-    // Break inheritance for all pricing of a room type
+    // Break inherited pricing links for all pricing rows of a room type.
     @PostMapping("/room-type/{roomTypeId}/break-inheritance")
     public ResponseEntity<Void> breakInheritanceForRoomType(@PathVariable Long roomTypeId) {
         masterRoomService.breakInheritanceForRoomType(roomTypeId);

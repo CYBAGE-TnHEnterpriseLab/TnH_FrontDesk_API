@@ -6,6 +6,7 @@ import java.util.List;
 @Data
 public class MasterRoomResponseDTO {
     private Long id;
+    private String propertyId;
     private String name;
     private List<MasterRoomPricingResponseDTO> pricingList;
     private List<MasterRoomRoomTypeMappingResponseDTO> roomTypeMappings;

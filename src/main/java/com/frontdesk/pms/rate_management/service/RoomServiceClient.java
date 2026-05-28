@@ -22,4 +22,13 @@ public class RoomServiceClient {
                 .bodyToMono(RoomDTO[].class)
                 .block(); // Use block() for sync, or return Mono for async
     }
+
+    public RoomDTO[] getRoomTypesByProperty(String propertyId) {
+        return webClientBuilder.build()
+                .get()
+                .uri(roomServiceBaseUrl + "/api/room-types/property/" + propertyId)
+                .retrieve()
+                .bodyToMono(RoomDTO[].class)
+                .block();
+    }
 }

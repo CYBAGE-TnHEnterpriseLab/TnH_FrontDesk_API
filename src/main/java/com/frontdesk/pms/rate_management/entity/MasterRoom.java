@@ -4,12 +4,18 @@ import jakarta.persistence.*;
 import java.util.List;
 
 @Entity
+@Table(
+    uniqueConstraints = @UniqueConstraint(name = "uk_master_room_property_name", columnNames = {"property_id", "name"})
+)
 public class MasterRoom {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "property_id")
+    private String propertyId;
+
+    @Column(nullable = false)
     private String name; // e.g., Standard, Deluxe, Suite
 
     @OneToMany(mappedBy = "masterRoom", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
@@ -32,6 +38,14 @@ public class MasterRoom {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getPropertyId() {
+        return propertyId;
+    }
+
+    public void setPropertyId(String propertyId) {
+        this.propertyId = propertyId;
     }
 
     public List<MasterRoomPricing> getPricingList() {
