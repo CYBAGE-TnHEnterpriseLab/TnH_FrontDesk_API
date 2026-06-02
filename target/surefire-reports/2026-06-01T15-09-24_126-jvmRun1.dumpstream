@@ -1,0 +1,18 @@
+# Created at 2026-06-01T15:09:29.673
+Corrupted channel by directly writing to native stream in forked JVM 1. Stream '#'.
+
+# Created at 2026-06-01T15:09:29.822
+Corrupted channel by directly writing to native stream in forked JVM 1. Stream '# There is insufficient memory for the Java Runtime Environment to continue.'.
+
+# Created at 2026-06-01T15:09:29.901
+Corrupted channel by directly writing to native stream in forked JVM 1. Stream '# Native memory allocation (mmap) failed to map 65536 bytes for Failed to commit metaspace.'.
+
+# Created at 2026-06-01T15:09:29.930
+Corrupted channel by directly writing to native stream in forked JVM 1. Stream '# An error report file with more information is saved as:'.
+
+# Created at 2026-06-01T15:09:29.939
+Corrupted channel by directly writing to native stream in forked JVM 1. Stream '# E:\frontDesk-dashboard\hs_err_pid26516.log'.
+
+# Created at 2026-06-01T15:09:30.088
+Corrupted channel by directly writing to native stream in forked JVM 1. Stream '[4.405s][warning][os] Loading hsdis library failed'.
+

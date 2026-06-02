@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.hotel.pms.frontdesk.guestlisting.service.impl.ArrivalServiceImplTest
+-------------------------------------------------------------------------------
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.518 s -- in com.hotel.pms.frontdesk.guestlisting.service.impl.ArrivalServiceImplTest
