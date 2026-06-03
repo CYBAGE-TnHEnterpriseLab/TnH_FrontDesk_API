@@ -91,4 +91,87 @@ class ArrivalSpecificationTest {
                 .extracting(ArrivalRecord::getConfirmationNumber)
                 .containsExactly("CNF-1001");
     }
+
+    @Test
+    void byCriteriaShouldApplyAllOptionalFiltersAndSearch() {
+        LocalDate businessDate = LocalDate.of(2026, 6, 2);
+
+        ArrivalRecord matching = ArrivalRecord.builder()
+                .propertyId("PROP001")
+                .businessDate(businessDate)
+                .checkInDate(businessDate)
+                .checkOutDate(businessDate.plusDays(2))
+                .status("DNM")
+                .salutation("Mr.")
+                .firstName("John")
+                .lastName("Smith")
+                .roomNo("305")
+                .reservationType("Guaranteed")
+                .city("Mumbai")
+                .rateCode("BAR")
+                .roomNights(2)
+                .roomStatus("Clean")
+                .corporateCode("CORP001")
+                .roomType("Deluxe King")
+                .confirmationNumber("CNF-ABC-123")
+                .company("ABC Travels")
+                .sharingStatus("Y")
+                .floor(3)
+                .loyaltyMembershipStatus("Gold Member")
+                .sourceLastSyncedAt(LocalDateTime.now())
+                .build();
+
+        ArrivalRecord nonMatching = ArrivalRecord.builder()
+                .propertyId("PROP001")
+                .businessDate(businessDate)
+                .checkInDate(businessDate)
+                .checkOutDate(businessDate.plusDays(1))
+                .status("ARR")
+                .salutation("Ms.")
+                .firstName("Jane")
+                .lastName("Doe")
+                .roomNo("999")
+                .reservationType("Non-Guaranteed")
+                .city("Pune")
+                .rateCode("WKND")
+                .roomNights(1)
+                .roomStatus("Dirty")
+                .corporateCode("CORP999")
+                .roomType("Standard")
+                .confirmationNumber("CNF-XYZ-999")
+                .company("Other Co")
+                .sharingStatus("N")
+                .floor(9)
+                .loyaltyMembershipStatus("Blue")
+                .sourceLastSyncedAt(LocalDateTime.now())
+                .build();
+
+        arrivalRecordRepository.saveAll(List.of(matching, nonMatching));
+
+        ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
+        request.setPropertyId("PROP001");
+        request.setBusinessDate(businessDate);
+        request.setStatus("DNM");
+        request.setReservationType("Guaranteed");
+        request.setCity("mum");
+        request.setRoomStatus("Clean");
+        request.setCorporateCode("CORP001");
+        request.setRoomType("deluxe");
+        request.setCompany("abc");
+        request.setSharingStatus("Y");
+        request.setLoyaltyMembershipStatus("gold");
+        request.setSearch("abc-123");
+        request.setPage(0);
+        request.setSize(20);
+
+        var result = arrivalRecordRepository.findAll(
+                ArrivalSpecification.byCriteria(request),
+                PageRequest.of(0, 20)
+        );
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent())
+                .extracting(ArrivalRecord::getConfirmationNumber)
+                .containsExactly("CNF-ABC-123");
+    }
 }

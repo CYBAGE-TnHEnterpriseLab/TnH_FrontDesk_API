@@ -97,4 +97,23 @@ class ArrivalControllerTest {
         org.junit.jupiter.api.Assertions.assertEquals("desc", captured.getSortDir());
     }
 
+        @Test
+        void getArrivalsShouldReturnBadRequestWhenPropertyIdIsMissing() throws Exception {
+                mockMvc.perform(get("/api/v1/arrivals/list")
+                                                .param("businessDate", "2026-06-01"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Validation failed"));
+        }
+
+        @Test
+        void getArrivalsShouldReturnBadRequestWhenBusinessDateFormatIsInvalid() throws Exception {
+                mockMvc.perform(get("/api/v1/arrivals/list")
+                                                .param("propertyId", "PROP001")
+                                                .param("businessDate", "06-01-2026"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Validation failed"));
+        }
+
 }

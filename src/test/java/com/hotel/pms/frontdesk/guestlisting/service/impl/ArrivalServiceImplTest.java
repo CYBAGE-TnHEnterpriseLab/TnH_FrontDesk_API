@@ -33,6 +33,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class ArrivalServiceImplTest {
@@ -100,6 +101,31 @@ class ArrivalServiceImplTest {
         verify(arrivalRecordRepository, times(2)).save(any(ArrivalRecord.class));
         verify(arrivalRecordRepository, never())
                 .findByPropertyIdAndBusinessDateAndConfirmationNumber(eq(PROPERTY_ID), eq(businessDate), eq((String) null));
+    }
+
+    @Test
+    void syncArrivalsShouldSkipRowsMissingMandatoryGuestOrDateFields() {
+        ReservationArrivalDto missingFirstName = validArrival("CNF2001", null, "Last");
+        ReservationArrivalDto missingLastName = validArrival("CNF2002", "First", null);
+        ReservationArrivalDto missingCheckIn = validArrival("CNF2003", "John", "Smith");
+        missingCheckIn.setCheckInDate(null);
+        ReservationArrivalDto missingCheckOut = validArrival("CNF2004", "John", "Smith");
+        missingCheckOut.setCheckOutDate(null);
+        ReservationArrivalDto valid = validArrival("CNF2005", "Jane", "Doe");
+
+        ArrivalRecord validEntity = ArrivalRecord.builder().confirmationNumber("CNF2005").build();
+
+        when(reservationServiceClient.fetchArrivals(PROPERTY_ID, businessDate))
+                .thenReturn(List.of(missingFirstName, missingLastName, missingCheckIn, missingCheckOut, valid));
+        when(arrivalRecordRepository.findByPropertyIdAndBusinessDateAndConfirmationNumber(PROPERTY_ID, businessDate, "CNF2005"))
+                .thenReturn(Optional.empty());
+        when(arrivalMapper.toEntity(valid, PROPERTY_ID, businessDate)).thenReturn(validEntity);
+
+        SyncResultDto result = arrivalService.syncArrivals(PROPERTY_ID, businessDate);
+
+        assertThat(result.getFetchedCount()).isEqualTo(5);
+        assertThat(result.getUpsertedCount()).isEqualTo(1);
+        verify(arrivalRecordRepository, times(1)).save(any(ArrivalRecord.class));
     }
 
     @Test
@@ -224,6 +250,49 @@ class ArrivalServiceImplTest {
         assertThat(sort.getOrderFor("lastName").getDirection()).isEqualTo(Sort.Direction.DESC);
         assertThat(sort.getOrderFor("firstName").getDirection()).isEqualTo(Sort.Direction.DESC);
     }
+
+        @Test
+        void searchArrivalsShouldSkipSyncWhenCacheExistsInCacheMissMode() {
+                ReflectionTestUtils.setField(arrivalService, "searchSyncMode", "cache-miss");
+
+                ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
+                request.setPropertyId(PROPERTY_ID);
+                request.setBusinessDate(businessDate);
+                request.setSortBy("checkInDate");
+                request.setSortDir("asc");
+
+                when(arrivalRecordRepository.existsByPropertyIdAndBusinessDate(PROPERTY_ID, businessDate)).thenReturn(true);
+                when(arrivalRecordRepository.findAll(
+                                org.mockito.ArgumentMatchers.<Specification<ArrivalRecord>>any(),
+                                org.mockito.ArgumentMatchers.<Pageable>any()))
+                                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+                arrivalService.searchArrivals(request);
+
+                verify(reservationServiceClient, never()).fetchArrivals(PROPERTY_ID, businessDate);
+        }
+
+        @Test
+        void searchArrivalsShouldSyncWhenCacheMissingInCacheMissMode() {
+                ReflectionTestUtils.setField(arrivalService, "searchSyncMode", "cache-miss");
+
+                ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
+                request.setPropertyId(PROPERTY_ID);
+                request.setBusinessDate(businessDate);
+                request.setSortBy("checkInDate");
+                request.setSortDir("asc");
+
+                when(arrivalRecordRepository.existsByPropertyIdAndBusinessDate(PROPERTY_ID, businessDate)).thenReturn(false);
+                when(reservationServiceClient.fetchArrivals(PROPERTY_ID, businessDate)).thenReturn(List.of());
+                when(arrivalRecordRepository.findAll(
+                                org.mockito.ArgumentMatchers.<Specification<ArrivalRecord>>any(),
+                                org.mockito.ArgumentMatchers.<Pageable>any()))
+                                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+                arrivalService.searchArrivals(request);
+
+                verify(reservationServiceClient, times(1)).fetchArrivals(PROPERTY_ID, businessDate);
+        }
 
     private ReservationArrivalDto validArrival(String confirmationNumber, String firstName, String lastName) {
         ReservationArrivalDto dto = new ReservationArrivalDto();
