@@ -11,7 +11,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class ArrivalSearchRequestDto {
+public class DepartureSearchRequestDto {
 
     @NotBlank(message = "propertyId is required")
     private String propertyId;
@@ -37,7 +37,7 @@ public class ArrivalSearchRequestDto {
     @Max(value = 100, message = "size must be <= 100")
     private Integer size = 20;
 
-    private String sortBy = "checkInDate";
+    private String sortBy = "checkOutDate";
 
     @Pattern(regexp = "(?i)asc|desc", message = "sortDir must be asc or desc")
     private String sortDir = "asc";

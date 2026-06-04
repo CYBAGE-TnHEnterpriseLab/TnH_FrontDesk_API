@@ -19,6 +19,9 @@ public class ReservationServiceProperties {
     @NotBlank(message = "reservation-service.arrivals-path is required")
     private String arrivalsPath;
 
+    @NotBlank(message = "reservation-service.departures-path is required")
+    private String departuresPath;
+
     @Min(value = 100, message = "reservation-service.connect-timeout-ms must be >= 100")
     private int connectTimeoutMs;
 

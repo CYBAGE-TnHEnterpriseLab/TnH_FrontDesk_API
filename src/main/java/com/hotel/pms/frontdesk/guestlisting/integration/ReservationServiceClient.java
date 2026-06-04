@@ -42,4 +42,25 @@ public class ReservationServiceClient {
             throw new ExternalServiceException("Failed to fetch arrivals from Reservation Service", ex);
         }
     }
+
+    public List<ReservationArrivalDto> fetchDepartures(String propertyId, LocalDate businessDate) {
+        String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+                .path(properties.getDeparturesPath())
+                .queryParam("propertyId", propertyId)
+                .queryParam("businessDate", businessDate)
+                .toUriString();
+
+        try {
+            ResponseEntity<List<ReservationArrivalDto>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<>() {
+                    }
+            );
+            return response.getBody() == null ? Collections.emptyList() : response.getBody();
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to fetch departures from Reservation Service", ex);
+        }
+    }
 }

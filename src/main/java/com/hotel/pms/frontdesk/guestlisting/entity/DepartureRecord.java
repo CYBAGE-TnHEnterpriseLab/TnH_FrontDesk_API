@@ -18,21 +18,21 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "arrival_records", indexes = {
-        @Index(name = "idx_arrival_property_business_date", columnList = "propertyId,businessDate"),
-    @Index(name = "idx_arrival_property_business_checkin", columnList = "propertyId,businessDate,checkInDate"),
-        @Index(name = "idx_arrival_business_date", columnList = "businessDate"),
-        @Index(name = "idx_arrival_confirmation", columnList = "confirmationNumber"),
-        @Index(name = "idx_arrival_guest_name", columnList = "firstName,lastName")
+@Table(name = "departure_records", indexes = {
+        @Index(name = "idx_departure_property_business_date", columnList = "propertyId,businessDate"),
+        @Index(name = "idx_departure_property_business_checkout", columnList = "propertyId,businessDate,checkOutDate"),
+        @Index(name = "idx_departure_business_date", columnList = "businessDate"),
+        @Index(name = "idx_departure_confirmation", columnList = "confirmationNumber"),
+        @Index(name = "idx_departure_guest_name", columnList = "firstName,lastName")
 }, uniqueConstraints = {
-    @UniqueConstraint(name = "uk_arrival_property_business_confirmation", columnNames = {"propertyId", "businessDate", "confirmationNumber"})
+        @UniqueConstraint(name = "uk_departure_property_business_confirmation", columnNames = {"propertyId", "businessDate", "confirmationNumber"})
 })
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ArrivalRecord {
+public class DepartureRecord {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

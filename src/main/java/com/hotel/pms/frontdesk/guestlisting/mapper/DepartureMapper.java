@@ -1,18 +1,18 @@
 package com.hotel.pms.frontdesk.guestlisting.mapper;
 
-import com.hotel.pms.frontdesk.guestlisting.dto.ArrivalResponseDto;
+import com.hotel.pms.frontdesk.guestlisting.dto.DepartureResponseDto;
 import com.hotel.pms.frontdesk.guestlisting.dto.ReservationArrivalDto;
-import com.hotel.pms.frontdesk.guestlisting.entity.ArrivalRecord;
+import com.hotel.pms.frontdesk.guestlisting.entity.DepartureRecord;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import org.springframework.stereotype.Component;
 
 @Component
-public class ArrivalMapper {
+public class DepartureMapper {
 
-    public ArrivalRecord toEntity(ReservationArrivalDto source, String propertyId, LocalDate businessDate) {
-        return ArrivalRecord.builder()
+    public DepartureRecord toEntity(ReservationArrivalDto source, String propertyId, LocalDate businessDate) {
+        return DepartureRecord.builder()
                 .businessDate(businessDate)
                 .propertyId(propertyId)
                 .status(source.getStatus())
@@ -39,7 +39,7 @@ public class ArrivalMapper {
                 .build();
     }
 
-    public void updateEntity(ArrivalRecord target, ReservationArrivalDto source) {
+    public void updateEntity(DepartureRecord target, ReservationArrivalDto source) {
         target.setStatus(source.getStatus());
         target.setSalutation(source.getSalutation());
         target.setFirstName(source.getFirstName());
@@ -62,8 +62,8 @@ public class ArrivalMapper {
         target.setSourceLastSyncedAt(LocalDateTime.now());
     }
 
-    public ArrivalResponseDto toResponse(ArrivalRecord source) {
-        return ArrivalResponseDto.builder()
+    public DepartureResponseDto toResponse(DepartureRecord source) {
+        return DepartureResponseDto.builder()
                 .id(source.getId())
                 .propertyId(source.getPropertyId())
                 .status(source.getStatus())

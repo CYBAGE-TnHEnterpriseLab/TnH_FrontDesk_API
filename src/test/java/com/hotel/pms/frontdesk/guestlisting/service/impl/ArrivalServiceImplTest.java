@@ -252,6 +252,36 @@ class ArrivalServiceImplTest {
     }
 
         @Test
+        void searchArrivalsShouldPopulateFilterOptionsWhenRequested() {
+                ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
+                request.setPropertyId(PROPERTY_ID);
+                request.setBusinessDate(businessDate);
+                request.setSortBy("checkInDate");
+                request.setSortDir("asc");
+                request.setIncludeOptions(true);
+
+                when(reservationServiceClient.fetchArrivals(PROPERTY_ID, businessDate)).thenReturn(List.of());
+                when(arrivalRecordRepository.findAll(
+                                org.mockito.ArgumentMatchers.<Specification<ArrivalRecord>>any(),
+                                org.mockito.ArgumentMatchers.<Pageable>any()))
+                                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+                when(arrivalRecordRepository.findDistinctStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("DNM"));
+                when(arrivalRecordRepository.findDistinctReservationTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Guaranteed"));
+                when(arrivalRecordRepository.findDistinctCities(PROPERTY_ID, businessDate)).thenReturn(List.of("Mumbai"));
+                when(arrivalRecordRepository.findDistinctRoomStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Clean"));
+                when(arrivalRecordRepository.findDistinctRoomTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Deluxe King"));
+                when(arrivalRecordRepository.findDistinctCompanies(PROPERTY_ID, businessDate)).thenReturn(List.of("ABC Travels"));
+                when(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Gold Member"));
+
+                var result = arrivalService.searchArrivals(request);
+
+                assertThat(result.getFilterOptions()).isNotNull();
+                assertThat(result.getFilterOptions().getStatuses()).containsExactly("DNM");
+                assertThat(result.getFilterOptions().getRoomTypes()).containsExactly("Deluxe King");
+                assertThat(result.getFilterOptions().getSortFields()).containsExactly("guestName", "roomNo", "checkInDate", "roomType", "company");
+        }
+
+        @Test
         void searchArrivalsShouldSkipSyncWhenCacheExistsInCacheMissMode() {
                 ReflectionTestUtils.setField(arrivalService, "searchSyncMode", "cache-miss");
 

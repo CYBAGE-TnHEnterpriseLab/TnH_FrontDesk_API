@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hotel.pms.frontdesk.guestlisting.dto.ReservationArrivalDto;
 import com.hotel.pms.frontdesk.guestlisting.entity.ArrivalRecord;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
@@ -21,11 +22,13 @@ class ArrivalMapperTest {
         source.setCheckInDate(LocalDate.of(2026, 6, 3));
         source.setCheckOutDate(LocalDate.of(2026, 6, 5));
         source.setRoomNights(7);
+        source.setBalance(new BigDecimal("123.45"));
 
         ArrivalRecord record = mapper.toEntity(source, "PROP001", LocalDate.of(2026, 6, 3));
 
         assertThat(record.getStatus()).isEqualTo("DNM");
         assertThat(record.getRoomNights()).isEqualTo(7);
+        assertThat(record.getBalance()).isEqualByComparingTo("123.45");
     }
 
     @Test
@@ -89,6 +92,7 @@ class ArrivalMapperTest {
         source.setCompany("ABC Travels");
         source.setSharingStatus("Y");
         source.setFloor(3);
+        source.setBalance(new BigDecimal("780.25"));
         source.setLoyaltyMembershipStatus("Gold Member");
 
         mapper.updateEntity(target, source);
@@ -110,6 +114,7 @@ class ArrivalMapperTest {
         assertThat(target.getCompany()).isEqualTo("ABC Travels");
         assertThat(target.getSharingStatus()).isEqualTo("Y");
         assertThat(target.getFloor()).isEqualTo(3);
+        assertThat(target.getBalance()).isEqualByComparingTo("780.25");
         assertThat(target.getLoyaltyMembershipStatus()).isEqualTo("Gold Member");
         assertThat(target.getSourceLastSyncedAt()).isNotNull();
     }
@@ -137,6 +142,7 @@ class ArrivalMapperTest {
                 .company("ABC Travels")
                 .sharingStatus("Y")
                 .floor(3)
+                .balance(new BigDecimal("990.00"))
                 .loyaltyMembershipStatus("Gold Member")
                 .build();
 
@@ -162,6 +168,7 @@ class ArrivalMapperTest {
         assertThat(response.getCompany()).isEqualTo("ABC Travels");
         assertThat(response.getSharingStatus()).isEqualTo("Y");
         assertThat(response.getFloor()).isEqualTo(3);
+        assertThat(response.getBalance()).isEqualByComparingTo("990.00");
         assertThat(response.getLoyaltyMembershipStatus()).isEqualTo("Gold Member");
     }
 }

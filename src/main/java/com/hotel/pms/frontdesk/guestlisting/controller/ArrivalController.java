@@ -47,7 +47,8 @@ public class ArrivalController {
                         @RequestParam(defaultValue = "0") @Min(value = 0, message = "page must be >= 0") Integer page,
                         @RequestParam(defaultValue = "20") @Min(value = 1, message = "size must be >= 1") @Max(value = 100, message = "size must be <= 100") Integer size,
                         @RequestParam(defaultValue = "checkInDate") String sortBy,
-                        @RequestParam(defaultValue = "asc") @Pattern(regexp = "(?i)asc|desc", message = "sortDir must be asc or desc") String sortDir
+                        @RequestParam(defaultValue = "asc") @Pattern(regexp = "(?i)asc|desc", message = "sortDir must be asc or desc") String sortDir,
+                        @RequestParam(defaultValue = "false") Boolean includeOptions
         ) {
                 ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
                 request.setPropertyId(propertyId);
@@ -66,6 +67,7 @@ public class ArrivalController {
                 request.setSize(size);
                 request.setSortBy(sortBy);
                 request.setSortDir(sortDir);
+                request.setIncludeOptions(includeOptions);
 
                 PagedResponse<ArrivalResponseDto> result = arrivalService.searchArrivals(request);
                 return ResponseEntity.ok(ApiResponse.success("Arrival list fetched successfully", result));

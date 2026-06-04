@@ -7,7 +7,7 @@ import lombok.Value;
 
 @Value
 @Builder
-public class ArrivalResponseDto {
+public class DepartureResponseDto {
     Long id;
     String propertyId;
     String status;

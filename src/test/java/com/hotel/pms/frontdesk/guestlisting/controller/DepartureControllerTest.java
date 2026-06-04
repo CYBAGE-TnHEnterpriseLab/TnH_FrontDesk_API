@@ -7,11 +7,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.hotel.pms.frontdesk.guestlisting.dto.ArrivalResponseDto;
-import com.hotel.pms.frontdesk.guestlisting.dto.ArrivalSearchRequestDto;
+import com.hotel.pms.frontdesk.guestlisting.dto.DepartureResponseDto;
+import com.hotel.pms.frontdesk.guestlisting.dto.DepartureSearchRequestDto;
 import com.hotel.pms.frontdesk.guestlisting.dto.PagedResponse;
 import com.hotel.pms.frontdesk.guestlisting.exception.GlobalExceptionHandler;
-import com.hotel.pms.frontdesk.guestlisting.service.ArrivalService;
+import com.hotel.pms.frontdesk.guestlisting.service.DepartureService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -21,26 +21,26 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = ArrivalController.class)
+@WebMvcTest(controllers = DepartureController.class)
 @Import(GlobalExceptionHandler.class)
-class ArrivalControllerTest {
+class DepartureControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
-    private ArrivalService arrivalService;
+    private DepartureService departureService;
 
     @Test
-    void getArrivalsShouldReturnPagedResponse() throws Exception {
-        ArrivalResponseDto dto = ArrivalResponseDto.builder()
+    void getDeparturesShouldReturnPagedResponse() throws Exception {
+        DepartureResponseDto dto = DepartureResponseDto.builder()
                 .id(1L)
                 .confirmationNumber("CNF458721")
                 .firstName("John")
                 .lastName("Smith")
                 .build();
 
-        PagedResponse<ArrivalResponseDto> response = PagedResponse.<ArrivalResponseDto>builder()
+        PagedResponse<DepartureResponseDto> response = PagedResponse.<DepartureResponseDto>builder()
                 .content(List.of(dto))
                 .page(0)
                 .size(100)
@@ -48,13 +48,13 @@ class ArrivalControllerTest {
                 .totalPages(1)
                 .first(true)
                 .last(true)
-                .sortBy("checkInDate")
+                .sortBy("checkOutDate")
                 .sortDir("asc")
                 .build();
 
-        when(arrivalService.searchArrivals(any())).thenReturn(response);
+        when(departureService.searchDepartures(any())).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/arrivals/list")
+        mockMvc.perform(get("/api/v1/departures/list")
                         .param("propertyId", "PROP001")
                         .param("businessDate", "2026-06-01")
                         .param("search", "smith")
@@ -77,10 +77,10 @@ class ArrivalControllerTest {
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].confirmationNumber").value("CNF458721"));
 
-        ArgumentCaptor<ArrivalSearchRequestDto> requestCaptor = ArgumentCaptor.forClass(ArrivalSearchRequestDto.class);
-        verify(arrivalService).searchArrivals(requestCaptor.capture());
+        ArgumentCaptor<DepartureSearchRequestDto> requestCaptor = ArgumentCaptor.forClass(DepartureSearchRequestDto.class);
+        verify(departureService).searchDepartures(requestCaptor.capture());
 
-        ArrivalSearchRequestDto captured = requestCaptor.getValue();
+        DepartureSearchRequestDto captured = requestCaptor.getValue();
         org.junit.jupiter.api.Assertions.assertEquals("PROP001", captured.getPropertyId());
         org.junit.jupiter.api.Assertions.assertEquals("smith", captured.getSearch());
         org.junit.jupiter.api.Assertions.assertEquals("DNM", captured.getStatus());
@@ -96,26 +96,25 @@ class ArrivalControllerTest {
         org.junit.jupiter.api.Assertions.assertEquals(25, captured.getSize());
         org.junit.jupiter.api.Assertions.assertEquals("lastName", captured.getSortBy());
         org.junit.jupiter.api.Assertions.assertEquals("desc", captured.getSortDir());
-                org.junit.jupiter.api.Assertions.assertEquals(Boolean.TRUE, captured.getIncludeOptions());
+        org.junit.jupiter.api.Assertions.assertEquals(Boolean.TRUE, captured.getIncludeOptions());
     }
 
-        @Test
-        void getArrivalsShouldReturnBadRequestWhenPropertyIdIsMissing() throws Exception {
-                mockMvc.perform(get("/api/v1/arrivals/list")
-                                                .param("businessDate", "2026-06-01"))
-                                .andExpect(status().isBadRequest())
-                                .andExpect(jsonPath("$.success").value(false))
-                                .andExpect(jsonPath("$.message").value("Validation failed"));
-        }
+    @Test
+    void getDeparturesShouldReturnBadRequestWhenPropertyIdIsMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/departures/list")
+                        .param("businessDate", "2026-06-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
 
-        @Test
-        void getArrivalsShouldReturnBadRequestWhenBusinessDateFormatIsInvalid() throws Exception {
-                mockMvc.perform(get("/api/v1/arrivals/list")
-                                                .param("propertyId", "PROP001")
-                                                .param("businessDate", "06-01-2026"))
-                                .andExpect(status().isBadRequest())
-                                .andExpect(jsonPath("$.success").value(false))
-                                .andExpect(jsonPath("$.message").value("Validation failed"));
-        }
-
+    @Test
+    void getDeparturesShouldReturnBadRequestWhenBusinessDateFormatIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/v1/departures/list")
+                        .param("propertyId", "PROP001")
+                        .param("businessDate", "06-01-2026"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
 }

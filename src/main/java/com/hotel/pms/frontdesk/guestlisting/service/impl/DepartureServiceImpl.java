@@ -1,18 +1,18 @@
 package com.hotel.pms.frontdesk.guestlisting.service.impl;
 
-import com.hotel.pms.frontdesk.guestlisting.dto.ArrivalResponseDto;
-import com.hotel.pms.frontdesk.guestlisting.dto.ArrivalSearchRequestDto;
+import com.hotel.pms.frontdesk.guestlisting.dto.DepartureResponseDto;
+import com.hotel.pms.frontdesk.guestlisting.dto.DepartureSearchRequestDto;
 import com.hotel.pms.frontdesk.guestlisting.dto.FilterOptionsDto;
 import com.hotel.pms.frontdesk.guestlisting.dto.PagedResponse;
 import com.hotel.pms.frontdesk.guestlisting.dto.ReservationArrivalDto;
 import com.hotel.pms.frontdesk.guestlisting.dto.SyncResultDto;
-import com.hotel.pms.frontdesk.guestlisting.entity.ArrivalRecord;
+import com.hotel.pms.frontdesk.guestlisting.entity.DepartureRecord;
 import com.hotel.pms.frontdesk.guestlisting.exception.BadRequestException;
 import com.hotel.pms.frontdesk.guestlisting.integration.ReservationServiceClient;
-import com.hotel.pms.frontdesk.guestlisting.mapper.ArrivalMapper;
-import com.hotel.pms.frontdesk.guestlisting.repository.ArrivalRecordRepository;
-import com.hotel.pms.frontdesk.guestlisting.service.ArrivalService;
-import com.hotel.pms.frontdesk.guestlisting.spec.ArrivalSpecification;
+import com.hotel.pms.frontdesk.guestlisting.mapper.DepartureMapper;
+import com.hotel.pms.frontdesk.guestlisting.repository.DepartureRecordRepository;
+import com.hotel.pms.frontdesk.guestlisting.service.DepartureService;
+import com.hotel.pms.frontdesk.guestlisting.spec.DepartureSpecification;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +29,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class ArrivalServiceImpl implements ArrivalService {
+public class DepartureServiceImpl implements DepartureService {
 
     private static final String SYNC_MODE_ALWAYS = "always";
     private static final String SYNC_MODE_CACHE_MISS = "cache-miss";
@@ -40,16 +40,16 @@ public class ArrivalServiceImpl implements ArrivalService {
             "company", "guestName"
     );
 
-    @Value("${arrivals.search.sync-mode:always}")
+    @Value("${departures.search.sync-mode:always}")
     private String searchSyncMode;
 
-    private final ArrivalRecordRepository arrivalRecordRepository;
+    private final DepartureRecordRepository departureRecordRepository;
     private final ReservationServiceClient reservationServiceClient;
-    private final ArrivalMapper arrivalMapper;
+    private final DepartureMapper departureMapper;
 
     @Override
     @Transactional
-    public SyncResultDto syncArrivals(String propertyId, LocalDate businessDate) {
+    public SyncResultDto syncDepartures(String propertyId, LocalDate businessDate) {
         if (!StringUtils.hasText(propertyId)) {
             throw new BadRequestException("propertyId is required");
         }
@@ -57,53 +57,52 @@ public class ArrivalServiceImpl implements ArrivalService {
             throw new BadRequestException("businessDate is required");
         }
 
-        log.info("Syncing arrivals for propertyId={} businessDate={}", propertyId, businessDate);
-        List<ReservationArrivalDto> arrivals = reservationServiceClient.fetchArrivals(propertyId, businessDate);
+        log.info("Syncing departures for propertyId={} businessDate={}", propertyId, businessDate);
+        List<ReservationArrivalDto> departures = reservationServiceClient.fetchDepartures(propertyId, businessDate);
         int upsertedCount = 0;
         int skippedCount = 0;
 
-        for (ReservationArrivalDto reservationArrival : arrivals) {
-            if (!isValidForUpsert(reservationArrival)) {
+        for (ReservationArrivalDto reservationDeparture : departures) {
+            if (!isValidForUpsert(reservationDeparture)) {
                 skippedCount++;
                 continue;
             }
 
-            ArrivalRecord existing = arrivalRecordRepository
+            DepartureRecord existing = departureRecordRepository
                     .findByPropertyIdAndBusinessDateAndConfirmationNumber(
                             propertyId,
                             businessDate,
-                            reservationArrival.getConfirmationNumber()
+                            reservationDeparture.getConfirmationNumber()
                     )
                     .orElse(null);
 
             if (existing == null) {
-                arrivalRecordRepository.save(arrivalMapper.toEntity(reservationArrival, propertyId, businessDate));
+                departureRecordRepository.save(departureMapper.toEntity(reservationDeparture, propertyId, businessDate));
             } else {
-                arrivalMapper.updateEntity(existing, reservationArrival);
-                arrivalRecordRepository.save(existing);
+                departureMapper.updateEntity(existing, reservationDeparture);
+                departureRecordRepository.save(existing);
             }
             upsertedCount++;
         }
 
-        log.info("Arrival sync completed for propertyId={} businessDate={} fetched={} upserted={} skipped={}",
-            propertyId, businessDate, arrivals.size(), upsertedCount, skippedCount);
+        log.info("Departure sync completed for propertyId={} businessDate={} fetched={} upserted={} skipped={}",
+                propertyId, businessDate, departures.size(), upsertedCount, skippedCount);
 
         return SyncResultDto.builder()
-            .propertyId(propertyId)
+                .propertyId(propertyId)
                 .businessDate(businessDate)
-                .fetchedCount(arrivals.size())
+                .fetchedCount(departures.size())
                 .upsertedCount(upsertedCount)
                 .build();
     }
 
     @Override
     @Transactional
-    public PagedResponse<ArrivalResponseDto> searchArrivals(ArrivalSearchRequestDto request) {
+    public PagedResponse<DepartureResponseDto> searchDepartures(DepartureSearchRequestDto request) {
         validateSortBy(request.getSortBy());
 
         if (shouldSyncBeforeSearch(request.getPropertyId(), request.getBusinessDate())) {
-            // Refresh local cache before serving search for the given business date and property.
-            syncArrivals(request.getPropertyId(), request.getBusinessDate());
+            syncDepartures(request.getPropertyId(), request.getBusinessDate());
         }
 
         Sort.Direction direction = "desc".equalsIgnoreCase(request.getSortDir())
@@ -113,21 +112,21 @@ public class ArrivalServiceImpl implements ArrivalService {
         Pageable pageable = PageRequest.of(
                 request.getPage(),
                 request.getSize(),
-            buildSort(request.getSortBy(), direction)
+                buildSort(request.getSortBy(), direction)
         );
 
-        Page<ArrivalRecord> page = arrivalRecordRepository.findAll(
-                ArrivalSpecification.byCriteria(request),
+        Page<DepartureRecord> page = departureRecordRepository.findAll(
+                DepartureSpecification.byCriteria(request),
                 pageable
         );
 
-        List<ArrivalResponseDto> content = page.getContent().stream()
-                .map(arrivalMapper::toResponse)
+        List<DepartureResponseDto> content = page.getContent().stream()
+                .map(departureMapper::toResponse)
                 .toList();
 
-        return PagedResponse.<ArrivalResponseDto>builder()
-            .propertyId(request.getPropertyId())
-            .businessDate(request.getBusinessDate())
+        return PagedResponse.<DepartureResponseDto>builder()
+                .propertyId(request.getPropertyId())
+                .businessDate(request.getBusinessDate())
                 .filterOptions(Boolean.TRUE.equals(request.getIncludeOptions())
                         ? buildFilterOptions(request.getPropertyId(), request.getBusinessDate())
                         : null)
@@ -145,14 +144,14 @@ public class ArrivalServiceImpl implements ArrivalService {
 
     private FilterOptionsDto buildFilterOptions(String propertyId, LocalDate businessDate) {
         return FilterOptionsDto.builder()
-                .statuses(arrivalRecordRepository.findDistinctStatuses(propertyId, businessDate))
-                .reservationTypes(arrivalRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
-                .cities(arrivalRecordRepository.findDistinctCities(propertyId, businessDate))
-                .roomStatuses(arrivalRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
-                .roomTypes(arrivalRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
-                .companies(arrivalRecordRepository.findDistinctCompanies(propertyId, businessDate))
-                .loyaltyMembershipStatuses(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
-                .sortFields(List.of("guestName", "roomNo", "checkInDate", "roomType", "company"))
+                .statuses(departureRecordRepository.findDistinctStatuses(propertyId, businessDate))
+                .reservationTypes(departureRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
+                .cities(departureRecordRepository.findDistinctCities(propertyId, businessDate))
+                .roomStatuses(departureRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
+                .roomTypes(departureRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
+                .companies(departureRecordRepository.findDistinctCompanies(propertyId, businessDate))
+                .loyaltyMembershipStatuses(departureRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
+                .sortFields(List.of("guestName", "roomNo", "checkOutDate", "roomType", "company"))
                 .build();
     }
 
@@ -162,7 +161,7 @@ public class ArrivalServiceImpl implements ArrivalService {
                 : SYNC_MODE_ALWAYS;
 
         if (SYNC_MODE_CACHE_MISS.equals(configuredMode)) {
-            return !arrivalRecordRepository.existsByPropertyIdAndBusinessDate(propertyId, businessDate);
+            return !departureRecordRepository.existsByPropertyIdAndBusinessDate(propertyId, businessDate);
         }
         return true;
     }
@@ -175,18 +174,17 @@ public class ArrivalServiceImpl implements ArrivalService {
 
     private Sort buildSort(String sortBy, Sort.Direction direction) {
         if ("guestName".equals(sortBy)) {
-            // Keep guest name sorting stable across duplicate first/last names.
             return Sort.by(new Sort.Order(direction, "lastName"), new Sort.Order(direction, "firstName"));
         }
         return Sort.by(direction, sortBy);
     }
 
-    private boolean isValidForUpsert(ReservationArrivalDto arrival) {
-        return arrival != null
-                && StringUtils.hasText(arrival.getConfirmationNumber())
-                && StringUtils.hasText(arrival.getFirstName())
-                && StringUtils.hasText(arrival.getLastName())
-                && arrival.getCheckInDate() != null
-                && arrival.getCheckOutDate() != null;
+    private boolean isValidForUpsert(ReservationArrivalDto departure) {
+        return departure != null
+                && StringUtils.hasText(departure.getConfirmationNumber())
+                && StringUtils.hasText(departure.getFirstName())
+                && StringUtils.hasText(departure.getLastName())
+                && departure.getCheckInDate() != null
+                && departure.getCheckOutDate() != null;
     }
 }

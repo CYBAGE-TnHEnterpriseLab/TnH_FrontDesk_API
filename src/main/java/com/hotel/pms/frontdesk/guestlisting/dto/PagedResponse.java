@@ -10,6 +10,7 @@ import lombok.Value;
 public class PagedResponse<T> {
     String propertyId;
     LocalDate businessDate;
+    FilterOptionsDto filterOptions;
     List<T> content;
     int page;
     int size;

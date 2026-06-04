@@ -1,5 +1,6 @@
 package com.hotel.pms.frontdesk.guestlisting.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,5 +26,6 @@ public class ReservationArrivalDto {
     private String company;
     private String sharingStatus;
     private Integer floor;
+    private BigDecimal balance;
     private String loyaltyMembershipStatus;
 }
