@@ -12,6 +12,7 @@ import java.util.Set;
 @Data
 public class RatePlanResponseDTO {
     private Long id;
+    private String propertyId;
     private String name;
     private String code;
     private String occupancyType;

@@ -3,6 +3,7 @@ package com.frontdesk.pms.rate_management.service;
 import com.frontdesk.pms.rate_management.dto.RatePlanRequestDTO;
 import com.frontdesk.pms.rate_management.dto.RatePlanPriceResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
+import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.entity.RatePlan;
 import com.frontdesk.pms.rate_management.enums.MealInclusion;
@@ -26,7 +27,6 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,11 +34,19 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class RatePlanServiceTest {
 
+    private static final String PROPERTY_ID = "11111111-1111-1111-1111-111111111111";
+
     @Mock
     private RatePlanRepository ratePlanRepository;
 
     @Mock
     private MasterRoomPricingRepository masterRoomPricingRepository;
+
+    @Mock
+    private PropertyServiceClient propertyServiceClient;
+
+    @Mock
+    private RoomServiceClient roomServiceClient;
 
     @InjectMocks
     private RatePlanService ratePlanService;
@@ -46,9 +54,11 @@ class RatePlanServiceTest {
     @Test
     void createRatePlan_shouldFailWhenCodeAlreadyExists() {
         RatePlanRequestDTO requestDTO = validRequest();
-        when(ratePlanRepository.existsByCodeIgnoreCase("BAR10")).thenReturn(true);
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, "BAR10")).thenReturn(true);
 
-        assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(requestDTO));
+        assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
         verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
     }
 
@@ -57,8 +67,9 @@ class RatePlanServiceTest {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setStartDate(LocalDate.of(2026, 6, 10));
         requestDTO.setEndDate(LocalDate.of(2026, 6, 1));
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
 
-        assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(requestDTO));
+        assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
         verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
     }
 
@@ -79,14 +90,18 @@ class RatePlanServiceTest {
         plan.setApplicableRoomTypeIds(Set.of(101L, 102L));
 
         when(ratePlanRepository.findAvailableByRoomTypeOccupancyMealAndDate(
+            PROPERTY_ID,
             101L,
             "2P",
             MealInclusion.BREAKFAST_INCLUDED,
             LocalDate.of(2026, 6, 10),
             RatePlanStatus.ACTIVE))
                 .thenReturn(List.of(plan));
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
 
         List<RatePlanResponseDTO> result = ratePlanService.getAvailableRatePlans(
+            PROPERTY_ID,
             101L,
             "2P",
             MealInclusion.BREAKFAST_INCLUDED,
@@ -110,11 +125,13 @@ class RatePlanServiceTest {
         pricing.setOccupancyType("2P");
         pricing.setPrice(2000.0);
 
-        when(ratePlanRepository.findById(anyLong())).thenReturn(java.util.Optional.of(plan));
         when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2P"))
                 .thenReturn(Optional.of(pricing));
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(plan));
 
-        RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(10L, 101L);
+        RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 10L, 101L);
         assertEquals(2000.0, priceResponseDTO.getMasterBarAmount());
         assertEquals(1800.0, priceResponseDTO.getFinalAmount());
     }
@@ -141,12 +158,14 @@ class RatePlanServiceTest {
         pricing.setOccupancyType("2P");
         pricing.setPrice(2000.0);
 
-        when(ratePlanRepository.findById(11L)).thenReturn(Optional.of(childPlan));
-        when(ratePlanRepository.findById(10L)).thenReturn(Optional.of(barPlan));
+        when(ratePlanRepository.findByIdAndPropertyId(11L, PROPERTY_ID)).thenReturn(Optional.of(childPlan));
+        when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(barPlan));
         when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2P"))
                 .thenReturn(Optional.of(pricing));
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
 
-        RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(11L, 101L);
+        RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 11L, 101L);
 
         assertEquals(2000.0, priceResponseDTO.getMasterBarAmount());
         assertEquals(1700.0, priceResponseDTO.getFinalAmount());
@@ -156,17 +175,37 @@ class RatePlanServiceTest {
     void createRatePlan_shouldFailWhenMealInclusionMissing() {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setMealInclusion(null);
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
 
         InvalidRatePlanException exception =
-                assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(requestDTO));
+            assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
         assertTrue(exception.getMessage().contains("Meal inclusion"));
+    }
+
+    @Test
+    void createRatePlan_shouldFailWhenRoomTypeDoesNotBelongToProperty() {
+        RatePlanRequestDTO requestDTO = validRequest();
+        requestDTO.setApplicableRoomTypeIds(Set.of(999L));
+
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+
+        InvalidRatePlanException exception = assertThrows(
+                InvalidRatePlanException.class,
+                () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
+
+        assertTrue(exception.getMessage().contains("do not belong to property"));
+        verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
     }
 
         @Test
         void createRatePlan_shouldFailWhenOverlappingActivePlanExists() {
         RatePlanRequestDTO requestDTO = validRequest();
-        when(ratePlanRepository.existsByCodeIgnoreCase("BAR10")).thenReturn(false);
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, "BAR10")).thenReturn(false);
         when(ratePlanRepository.countOverlappingActivePlans(
+            PROPERTY_ID,
             requestDTO.getApplicableRoomTypeIds(),
             requestDTO.getOccupancyType(),
             requestDTO.getMealInclusion(),
@@ -176,7 +215,7 @@ class RatePlanServiceTest {
             null)).thenReturn(1L);
 
         InvalidRatePlanException exception =
-            assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(requestDTO));
+            assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
 
         assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
         verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
@@ -193,8 +232,10 @@ class RatePlanServiceTest {
         existing.setStartDate(LocalDate.of(2026, 6, 1));
         existing.setEndDate(LocalDate.of(2026, 6, 30));
 
-        when(ratePlanRepository.findById(22L)).thenReturn(Optional.of(existing));
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(ratePlanRepository.findByIdAndPropertyId(22L, PROPERTY_ID)).thenReturn(Optional.of(existing));
         when(ratePlanRepository.countOverlappingActivePlans(
+            PROPERTY_ID,
             existing.getApplicableRoomTypeIds(),
             existing.getOccupancyType(),
             existing.getMealInclusion(),
@@ -205,7 +246,7 @@ class RatePlanServiceTest {
 
         InvalidRatePlanException exception = assertThrows(
             InvalidRatePlanException.class,
-            () -> ratePlanService.updateRatePlanStatus(22L, RatePlanStatus.ACTIVE));
+            () -> ratePlanService.updateRatePlanStatus(PROPERTY_ID, 22L, RatePlanStatus.ACTIVE));
 
         assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
         verify(ratePlanRepository, never()).save(existing);
@@ -224,5 +265,16 @@ class RatePlanServiceTest {
         requestDTO.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
         requestDTO.setAdjustmentValue(10.0);
         return requestDTO;
+    }
+
+    private RoomDTO[] roomTypes(Long... roomTypeIds) {
+        RoomDTO[] roomTypes = new RoomDTO[roomTypeIds.length];
+        for (int i = 0; i < roomTypeIds.length; i++) {
+            RoomDTO roomType = new RoomDTO();
+            roomType.setId(roomTypeIds[i]);
+            roomType.setActive(true);
+            roomTypes[i] = roomType;
+        }
+        return roomTypes;
     }
 }

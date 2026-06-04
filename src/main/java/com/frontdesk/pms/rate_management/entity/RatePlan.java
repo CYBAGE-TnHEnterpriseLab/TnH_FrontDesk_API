@@ -28,6 +28,9 @@ public class RatePlan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "property_id", nullable = false)
+    private String propertyId;
+
     @Column(nullable = false)
     private String name;
 

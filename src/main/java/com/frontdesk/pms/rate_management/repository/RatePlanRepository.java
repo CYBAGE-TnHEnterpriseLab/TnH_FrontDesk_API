@@ -12,22 +12,28 @@ import java.util.List;
 import java.util.Set;
 
 public interface RatePlanRepository extends JpaRepository<RatePlan, Long> {
-    boolean existsByCodeIgnoreCase(String code);
+    boolean existsByPropertyIdAndCodeIgnoreCase(String propertyId, String code);
+
+    java.util.Optional<RatePlan> findByIdAndPropertyId(Long id, String propertyId);
+
+    List<RatePlan> findByPropertyId(String propertyId);
 
     @Query("select distinct rp from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
-            "where roomTypeId = :roomTypeId and rp.occupancyType = :occupancyType and rp.mealInclusion = :mealInclusion " +
+            "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId and rp.occupancyType = :occupancyType and rp.mealInclusion = :mealInclusion " +
             "and rp.status = :status and :stayDate between rp.startDate and rp.endDate")
-    List<RatePlan> findAvailableByRoomTypeOccupancyMealAndDate(@Param("roomTypeId") Long roomTypeId,
+    List<RatePlan> findAvailableByRoomTypeOccupancyMealAndDate(@Param("propertyId") String propertyId,
+                                                                @Param("roomTypeId") Long roomTypeId,
                                                                 @Param("occupancyType") String occupancyType,
                                                                 @Param("mealInclusion") MealInclusion mealInclusion,
                                                                 @Param("stayDate") LocalDate stayDate,
                                                                 @Param("status") RatePlanStatus status);
 
     @Query("select count(distinct rp) from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
-            "where rp.status = :status and rp.occupancyType = :occupancyType and rp.mealInclusion = :mealInclusion " +
+            "where rp.propertyId = :propertyId and rp.status = :status and rp.occupancyType = :occupancyType and rp.mealInclusion = :mealInclusion " +
             "and roomTypeId in :roomTypeIds and rp.startDate <= :endDate and rp.endDate >= :startDate " +
             "and (:excludeRatePlanId is null or rp.id <> :excludeRatePlanId)")
-    long countOverlappingActivePlans(@Param("roomTypeIds") Set<Long> roomTypeIds,
+    long countOverlappingActivePlans(@Param("propertyId") String propertyId,
+                                     @Param("roomTypeIds") Set<Long> roomTypeIds,
                                      @Param("occupancyType") String occupancyType,
                                      @Param("mealInclusion") MealInclusion mealInclusion,
                                      @Param("startDate") LocalDate startDate,
