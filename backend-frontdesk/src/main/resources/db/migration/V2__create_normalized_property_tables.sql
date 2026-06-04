@@ -4,7 +4,7 @@ create table property (
     address varchar(500) not null,
     city varchar(150) not null,
     country varchar(150) not null,
-    created_at timestamp not null
+    created_at timestamp with time zone not null
 );
 
 create table room (
