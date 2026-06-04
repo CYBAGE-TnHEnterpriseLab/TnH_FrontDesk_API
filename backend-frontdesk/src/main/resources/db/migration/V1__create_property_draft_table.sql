@@ -5,8 +5,8 @@ create table property_draft (
     status varchar(32) not null,
     published_property_id bigint,
     version bigint,
-    created_at timestamp not null,
-    updated_at timestamp not null
+    created_at timestamp with time zone not null,
+    updated_at timestamp with time zone not null
 );
 
 create index idx_property_draft_status on property_draft(status);
