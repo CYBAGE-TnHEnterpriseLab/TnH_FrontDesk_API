@@ -18,10 +18,11 @@ Backend MVP for a 7-step Property Wizard.
   - `POST /api/property/drafts/{draftId}/publish`
 
 ## Quick start
-```powershell
-mvn clean test
-mvn spring-boot:run
-```
+
+Ensure PostgreSQL is running and `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` are set (or use the defaults in `application.properties`).
+
+    mvn clean test
+    mvn spring-boot:run
 
 ## Sample payload for create/update draft
 ```json
