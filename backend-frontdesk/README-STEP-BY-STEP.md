@@ -6,9 +6,9 @@ This document explains what the current application does, end-to-end, in practic
 
 1. `PropertyServiceApplication` boots Spring Boot.
 2. Configuration is loaded from `src/main/resources/application.properties`.
-3. H2 in-memory DB is started in PostgreSQL compatibility mode.
-4. Flyway runs migrations (`V1` to `V5`) and creates/updates schema.
-5. JPA starts with `ddl-auto=validate`, so entity mappings must match migration schema.
+3. A PostgreSQL datasource is used by default (tests use H2 in-memory DB in PostgreSQL compatibility mode).
+4. Flyway runs migrations (`V1` to `V5`) and creates/updates the schema.
+5. JPA starts with `ddl-auto=validate`, so entity mappings must match the migration schema.
 6. REST endpoints become available.
 
 ## 2) Core API surface
