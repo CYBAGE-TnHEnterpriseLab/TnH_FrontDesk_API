@@ -149,6 +149,7 @@ public class DepartureServiceImpl implements DepartureService {
                 .cities(departureRecordRepository.findDistinctCities(propertyId, businessDate))
                 .roomStatuses(departureRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
                 .roomTypes(departureRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
+                .floors(departureRecordRepository.findDistinctFloors(propertyId, businessDate))
                 .companies(departureRecordRepository.findDistinctCompanies(propertyId, businessDate))
                 .loyaltyMembershipStatuses(departureRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
                 .sortFields(List.of("guestName", "roomNo", "checkOutDate", "roomType", "company"))

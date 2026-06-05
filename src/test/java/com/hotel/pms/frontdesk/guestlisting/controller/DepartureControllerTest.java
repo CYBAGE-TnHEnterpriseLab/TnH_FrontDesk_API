@@ -64,6 +64,7 @@ class DepartureControllerTest {
                         .param("roomStatus", "Clean")
                         .param("corporateCode", "CORP001")
                         .param("roomType", "Deluxe King")
+                        .param("floor", "5")
                         .param("company", "ABC Travels")
                         .param("sharingStatus", "Y")
                         .param("loyaltyMembershipStatus", "Gold Member")
@@ -89,6 +90,7 @@ class DepartureControllerTest {
         org.junit.jupiter.api.Assertions.assertEquals("Clean", captured.getRoomStatus());
         org.junit.jupiter.api.Assertions.assertEquals("CORP001", captured.getCorporateCode());
         org.junit.jupiter.api.Assertions.assertEquals("Deluxe King", captured.getRoomType());
+        org.junit.jupiter.api.Assertions.assertEquals(5, captured.getFloor());
         org.junit.jupiter.api.Assertions.assertEquals("ABC Travels", captured.getCompany());
         org.junit.jupiter.api.Assertions.assertEquals("Y", captured.getSharingStatus());
         org.junit.jupiter.api.Assertions.assertEquals("Gold Member", captured.getLoyaltyMembershipStatus());
@@ -117,4 +119,15 @@ class DepartureControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }
+
+        @Test
+        void getDeparturesShouldReturnBadRequestWhenPageIsNegative() throws Exception {
+                mockMvc.perform(get("/api/v1/departures/list")
+                                                .param("propertyId", "PROP001")
+                                                .param("businessDate", "2026-06-01")
+                                                .param("page", "-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Validation failed"));
+        }
 }

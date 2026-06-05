@@ -15,9 +15,14 @@ spring:
 reservation-service:
   base-url: http://localhost:${server.port}
   arrivals-path: /internal/mock/reservations/arrivals
+  departures-path: /internal/mock/reservations/departures
   connect-timeout-ms: 1000
   read-timeout-ms: 2000
 
 arrivals:
+  search:
+    sync-mode: always
+
+departures:
   search:
     sync-mode: always

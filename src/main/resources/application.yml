@@ -22,10 +22,15 @@ spring:
 reservation-service:
   base-url: http://localhost:8081
   arrivals-path: /api/v1/reservations/arrivals
+  departures-path: /api/v1/reservations/departures
   connect-timeout-ms: 3000
   read-timeout-ms: 6000
 
 arrivals:
+  search:
+    sync-mode: always
+
+departures:
   search:
     sync-mode: always
 

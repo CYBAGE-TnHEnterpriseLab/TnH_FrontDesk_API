@@ -157,6 +157,7 @@ class ArrivalSpecificationTest {
         request.setRoomStatus("Clean");
         request.setCorporateCode("CORP001");
         request.setRoomType("deluxe");
+        request.setFloor(3);
         request.setCompany("abc");
         request.setSharingStatus("Y");
         request.setLoyaltyMembershipStatus("gold");

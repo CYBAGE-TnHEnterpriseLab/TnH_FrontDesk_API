@@ -39,6 +39,9 @@ public final class ArrivalSpecification {
             if (StringUtils.hasText(criteria.getRoomType())) {
                 predicates.add(cb.like(cb.lower(root.get("roomType")), like(criteria.getRoomType())));
             }
+            if (criteria.getFloor() != null) {
+                predicates.add(cb.equal(root.get("floor"), criteria.getFloor()));
+            }
             if (StringUtils.hasText(criteria.getCompany())) {
                 predicates.add(cb.like(cb.lower(root.get("company")), like(criteria.getCompany())));
             }

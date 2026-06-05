@@ -33,6 +33,9 @@ public interface ArrivalRecordRepository extends JpaRepository<ArrivalRecord, Lo
     @Query("select distinct a.roomType from ArrivalRecord a where a.propertyId = :propertyId and a.businessDate = :businessDate and a.checkInDate = :businessDate and a.roomType is not null and a.roomType <> '' order by a.roomType")
     List<String> findDistinctRoomTypes(String propertyId, LocalDate businessDate);
 
+    @Query("select distinct a.floor from ArrivalRecord a where a.propertyId = :propertyId and a.businessDate = :businessDate and a.checkInDate = :businessDate and a.floor is not null order by a.floor")
+    List<Integer> findDistinctFloors(String propertyId, LocalDate businessDate);
+
     @Query("select distinct a.company from ArrivalRecord a where a.propertyId = :propertyId and a.businessDate = :businessDate and a.checkInDate = :businessDate and a.company is not null and a.company <> '' order by a.company")
     List<String> findDistinctCompanies(String propertyId, LocalDate businessDate);
 

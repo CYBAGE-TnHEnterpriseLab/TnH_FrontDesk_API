@@ -12,6 +12,7 @@ public class FilterOptionsDto {
     List<String> cities;
     List<String> roomStatuses;
     List<String> roomTypes;
+    List<Integer> floors;
     List<String> companies;
     List<String> loyaltyMembershipStatuses;
     List<String> sortFields;

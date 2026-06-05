@@ -78,6 +78,7 @@ class DepartureSpecificationTest {
         DepartureSearchRequestDto request = new DepartureSearchRequestDto();
         request.setPropertyId("PROP001");
         request.setBusinessDate(businessDate);
+        request.setFloor(3);
         request.setPage(0);
         request.setSize(20);
 

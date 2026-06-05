@@ -33,6 +33,9 @@ public interface DepartureRecordRepository extends JpaRepository<DepartureRecord
     @Query("select distinct d.roomType from DepartureRecord d where d.propertyId = :propertyId and d.businessDate = :businessDate and d.checkOutDate = :businessDate and d.roomType is not null and d.roomType <> '' order by d.roomType")
     List<String> findDistinctRoomTypes(String propertyId, LocalDate businessDate);
 
+    @Query("select distinct d.floor from DepartureRecord d where d.propertyId = :propertyId and d.businessDate = :businessDate and d.checkOutDate = :businessDate and d.floor is not null order by d.floor")
+    List<Integer> findDistinctFloors(String propertyId, LocalDate businessDate);
+
     @Query("select distinct d.company from DepartureRecord d where d.propertyId = :propertyId and d.businessDate = :businessDate and d.checkOutDate = :businessDate and d.company is not null and d.company <> '' order by d.company")
     List<String> findDistinctCompanies(String propertyId, LocalDate businessDate);
 

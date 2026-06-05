@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/departures")
 @RequiredArgsConstructor
 @Tag(name = "Departure Screen", description = "APIs for hotel front desk departures")
+@Validated
 public class DepartureController {
 
     private final DepartureService departureService;
@@ -41,6 +43,7 @@ public class DepartureController {
             @RequestParam(required = false) String roomStatus,
             @RequestParam(required = false) String corporateCode,
             @RequestParam(required = false) String roomType,
+            @RequestParam(required = false) Integer floor,
             @RequestParam(required = false) String company,
             @RequestParam(required = false) String sharingStatus,
             @RequestParam(required = false) String loyaltyMembershipStatus,
@@ -60,6 +63,7 @@ public class DepartureController {
         request.setRoomStatus(roomStatus);
         request.setCorporateCode(corporateCode);
         request.setRoomType(roomType);
+        request.setFloor(floor);
         request.setCompany(company);
         request.setSharingStatus(sharingStatus);
         request.setLoyaltyMembershipStatus(loyaltyMembershipStatus);

@@ -26,6 +26,7 @@ public class ArrivalSearchRequestDto {
     private String roomStatus;
     private String corporateCode;
     private String roomType;
+    private Integer floor;
     private String company;
     private String sharingStatus;
     private String loyaltyMembershipStatus;

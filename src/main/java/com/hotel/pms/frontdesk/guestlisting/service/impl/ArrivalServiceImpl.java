@@ -150,6 +150,7 @@ public class ArrivalServiceImpl implements ArrivalService {
                 .cities(arrivalRecordRepository.findDistinctCities(propertyId, businessDate))
                 .roomStatuses(arrivalRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
                 .roomTypes(arrivalRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
+                .floors(arrivalRecordRepository.findDistinctFloors(propertyId, businessDate))
                 .companies(arrivalRecordRepository.findDistinctCompanies(propertyId, businessDate))
                 .loyaltyMembershipStatuses(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
                 .sortFields(List.of("guestName", "roomNo", "checkInDate", "roomType", "company"))
