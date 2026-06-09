@@ -17,7 +17,7 @@ Backend MVP for a 7-step Property Wizard.
   - `GET /api/property/drafts/{draftId}`
   - `POST /api/property/drafts/{draftId}/publish`
 
-## Quick start
+## Quick start here
 
 Ensure PostgreSQL is running and `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` are set (or use the defaults in `application.properties`).
 
