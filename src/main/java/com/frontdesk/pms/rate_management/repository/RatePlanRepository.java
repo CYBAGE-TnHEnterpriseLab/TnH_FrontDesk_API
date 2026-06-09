@@ -19,14 +19,13 @@ public interface RatePlanRepository extends JpaRepository<RatePlan, Long> {
     List<RatePlan> findByPropertyId(String propertyId);
 
     @Query("select distinct rp from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
-            "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId and rp.occupancyType = :occupancyType and rp.mealInclusion = :mealInclusion " +
+            "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId and rp.mealInclusion = :mealInclusion " +
             "and rp.status = :status and :stayDate between rp.startDate and rp.endDate")
-    List<RatePlan> findAvailableByRoomTypeOccupancyMealAndDate(@Param("propertyId") String propertyId,
-                                                                @Param("roomTypeId") Long roomTypeId,
-                                                                @Param("occupancyType") String occupancyType,
-                                                                @Param("mealInclusion") MealInclusion mealInclusion,
-                                                                @Param("stayDate") LocalDate stayDate,
-                                                                @Param("status") RatePlanStatus status);
+    List<RatePlan> findAvailableByRoomTypeMealAndDate(@Param("propertyId") String propertyId,
+                                                      @Param("roomTypeId") Long roomTypeId,
+                                                      @Param("mealInclusion") MealInclusion mealInclusion,
+                                                      @Param("stayDate") LocalDate stayDate,
+                                                      @Param("status") RatePlanStatus status);
 
     @Query("select count(distinct rp) from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
             "where rp.propertyId = :propertyId and rp.status = :status and rp.occupancyType = :occupancyType and rp.mealInclusion = :mealInclusion " +

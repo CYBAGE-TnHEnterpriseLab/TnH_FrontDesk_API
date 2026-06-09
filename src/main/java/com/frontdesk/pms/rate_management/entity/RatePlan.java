@@ -10,7 +10,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 @Entity
@@ -67,6 +69,12 @@ public class RatePlan {
 
     @Column
     private Double manualAmount;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "rate_plan_manual_occupancy_price", joinColumns = @JoinColumn(name = "rate_plan_id"))
+    @MapKeyColumn(name = "occupancy_type")
+    @Column(name = "manual_amount")
+    private Map<String, Double> manualPricingByOccupancy = new HashMap<>();
 
         @Column(name = "parent_rate_plan_id")
         private Long parentRatePlanId;

@@ -11,6 +11,8 @@ public class MasterRoomMapper {
     public MasterRoom toEntity(MasterRoomRequestDTO dto) {
         MasterRoom entity = new MasterRoom();
         entity.setName(dto.getName());
+        entity.setMealOption(dto.getMealOption());
+        entity.setInclusion(dto.getInclusion());
 
         // Map pricingList
         if (dto.getPricingList() != null && !dto.getPricingList().isEmpty()) {
@@ -33,6 +35,8 @@ public class MasterRoomMapper {
         dto.setId(entity.getId());
         dto.setPropertyId(entity.getPropertyId());
         dto.setName(entity.getName());
+        dto.setMealOption(entity.getMealOption());
+        dto.setInclusion(entity.getInclusion());
         if (entity.getPricingList() != null) {
             dto.setPricingList(entity.getPricingList().stream().map(this::toPricingResponseDTO).collect(Collectors.toList()));
         }

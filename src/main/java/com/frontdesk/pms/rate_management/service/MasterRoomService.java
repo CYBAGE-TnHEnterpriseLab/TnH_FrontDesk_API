@@ -14,6 +14,7 @@ import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoom;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
+import com.frontdesk.pms.rate_management.enums.OccupancyType;
 import com.frontdesk.pms.rate_management.exception.MasterRoomNotFoundException;
 import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
 import com.frontdesk.pms.rate_management.mapper.MasterRoomMapper;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,6 +72,12 @@ public class MasterRoomService {
         if (masterRoomRequestDTO.getName() != null) {
             existing.setName(masterRoomRequestDTO.getName());
         }
+        if (masterRoomRequestDTO.getMealOption() != null) {
+            existing.setMealOption(masterRoomRequestDTO.getMealOption());
+        }
+        if (masterRoomRequestDTO.getInclusion() != null) {
+            existing.setInclusion(masterRoomRequestDTO.getInclusion());
+        }
 
         MasterRoom saved = masterRoomRepository.save(existing);
         return masterRoomMapper.toResponseDTO(saved);
@@ -82,12 +90,16 @@ public class MasterRoomService {
 
 
     public List<MasterRoomResponseDTO> getAllMasterRooms() {
-        return masterRoomRepository.findAll().stream().map(masterRoomMapper::toResponseDTO).collect(Collectors.toList());
+        return masterRoomRepository.findAll().stream()
+                .sorted(Comparator.comparing(MasterRoom::getId, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .map(masterRoomMapper::toResponseDTO)
+                .collect(Collectors.toList());
     }
 
     public List<MasterRoomResponseDTO> getMasterRoomsByPropertyId(String propertyId) {
         return masterRoomRepository.findByPropertyId(propertyId)
                 .stream()
+                .sorted(Comparator.comparing(MasterRoom::getId, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
                 .map(masterRoomMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -101,15 +113,17 @@ public class MasterRoomService {
     @Transactional
     public MasterRoomPricingResponseDTO addOrUpdatePricing(String propertyId, Long masterRoomId, MasterRoomPricingRequestDTO pricingRequestDTO) {
         MasterRoom masterRoom = getMasterRoomInProperty(propertyId, masterRoomId);
+        String normalizedOccupancyType = OccupancyType.normalizeOrThrow(pricingRequestDTO.getOccupancyType());
+
         MasterRoomPricing pricing = masterRoomPricingRepository
-            .findByMasterRoomIdAndOccupancyType(masterRoomId, pricingRequestDTO.getOccupancyType())
+            .findByMasterRoomIdAndOccupancyType(masterRoomId, normalizedOccupancyType)
             .orElseGet(MasterRoomPricing::new);
 
         pricing.setMasterRoom(masterRoom);
         pricing.setRoomTypeId(null);
         pricing.setInherited(false);
         pricing.setParentPricingId(null);
-        pricing.setOccupancyType(pricingRequestDTO.getOccupancyType());
+        pricing.setOccupancyType(normalizedOccupancyType);
         pricing.setPrice(pricingRequestDTO.getPrice());
         MasterRoomPricing saved = masterRoomPricingRepository.save(pricing);
 
@@ -163,7 +177,8 @@ public class MasterRoomService {
     // Manual override: set a specific price for a room type and occupancy, breaking inheritance for that entry
         @Transactional
         public void overrideRoomTypePricing(Long roomTypeId, String occupancyType, Double newPrice) {
-            masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, occupancyType)
+            String normalizedOccupancyType = OccupancyType.normalizeOrThrow(occupancyType);
+            masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, normalizedOccupancyType)
                     .ifPresent(p -> {
                         p.setPrice(newPrice);
                         p.setInherited(false);

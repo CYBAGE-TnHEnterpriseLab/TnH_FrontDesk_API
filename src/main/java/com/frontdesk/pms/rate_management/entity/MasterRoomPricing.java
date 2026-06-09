@@ -32,7 +32,7 @@ public class MasterRoomPricing {
     private Long parentPricingId;
 
     @Column(nullable = false)
-    private String occupancyType; // 1P, 2P, 3P, 4P, Extra 1P, Extra 2P
+    private String occupancyType; // 1 Guest, 2 Guest, 3 Guest, 4 Guest, Extra Guest Charges(1P), Extra Guest Charges(2P)
 
     @Column(nullable = false)
     private Double price;

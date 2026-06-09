@@ -7,6 +7,7 @@ import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
 import com.frontdesk.pms.rate_management.entity.RatePlan;
 import com.frontdesk.pms.rate_management.enums.MealInclusion;
+import com.frontdesk.pms.rate_management.enums.OccupancyType;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
 import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
@@ -20,8 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -46,7 +49,7 @@ public class RatePlanService {
         validateNoOverlapForActivePlan(
             propertyId,
             requestDTO.getApplicableRoomTypeIds(),
-            requestDTO.getOccupancyType(),
+            extractSupportedOccupancies(requestDTO),
             requestDTO.getMealInclusion(),
             requestDTO.getStartDate(),
             requestDTO.getEndDate(),
@@ -71,7 +74,7 @@ public class RatePlanService {
 
         existing.setName(requestDTO.getName());
         existing.setCode(requestDTO.getCode());
-        existing.setOccupancyType(requestDTO.getOccupancyType());
+        existing.setOccupancyType(normalizeOccupancyType(requestDTO.getOccupancyType()));
         existing.setMealInclusion(requestDTO.getMealInclusion());
         existing.setType(requestDTO.getType());
         existing.setStartDate(requestDTO.getStartDate());
@@ -79,6 +82,7 @@ public class RatePlanService {
         existing.setCalculationMethod(requestDTO.getCalculationMethod());
         existing.setAdjustmentValue(requestDTO.getAdjustmentValue());
         existing.setManualAmount(requestDTO.getManualAmount());
+        existing.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy()));
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
 
@@ -86,7 +90,7 @@ public class RatePlanService {
             validateNoOverlapForActivePlan(
                     propertyId,
                     existing.getApplicableRoomTypeIds(),
-                    existing.getOccupancyType(),
+                    extractSupportedOccupancies(existing),
                     existing.getMealInclusion(),
                     existing.getStartDate(),
                     existing.getEndDate(),
@@ -120,7 +124,7 @@ public class RatePlanService {
             validateNoOverlapForActivePlan(
                     propertyId,
                     ratePlan.getApplicableRoomTypeIds(),
-                    ratePlan.getOccupancyType(),
+                    extractSupportedOccupancies(ratePlan),
                     ratePlan.getMealInclusion(),
                     ratePlan.getStartDate(),
                     ratePlan.getEndDate(),
@@ -138,14 +142,15 @@ public class RatePlanService {
                                                             LocalDate stayDate) {
         validateProperty(propertyId);
         validateRoomTypeBelongsToProperty(propertyId, roomTypeId);
-        return ratePlanRepository.findAvailableByRoomTypeOccupancyMealAndDate(
+        String normalizedOccupancyType = normalizeOccupancyType(occupancyType);
+        return ratePlanRepository.findAvailableByRoomTypeMealAndDate(
                         propertyId,
                         roomTypeId,
-                        occupancyType,
                         mealInclusion,
                         stayDate,
                         RatePlanStatus.ACTIVE)
                 .stream()
+            .filter(ratePlan -> supportsOccupancy(ratePlan, normalizedOccupancyType))
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -172,6 +177,7 @@ public class RatePlanService {
         if (requestDTO.getOccupancyType() == null || requestDTO.getOccupancyType().isBlank()) {
             throw new InvalidRatePlanException("Occupancy type is required");
         }
+        normalizeOccupancyType(requestDTO.getOccupancyType());
         if (requestDTO.getType() == null) {
             throw new InvalidRatePlanException("Rate plan type is required");
         }
@@ -201,15 +207,15 @@ public class RatePlanService {
                     .orElseThrow(() -> new InvalidRatePlanException(
                             "Parent rate plan not found: " + requestDTO.getParentRatePlanId()));
 
-            if (!parentRatePlan.getOccupancyType().equals(requestDTO.getOccupancyType())) {
-                throw new InvalidRatePlanException("Parent and child rate plans must have the same occupancy type");
+            Set<String> requestedOccupancies = extractSupportedOccupancies(requestDTO);
+            Set<String> parentOccupancies = extractSupportedOccupancies(parentRatePlan);
+            if (!parentOccupancies.containsAll(requestedOccupancies)) {
+                throw new InvalidRatePlanException("Parent and child rate plans must have compatible occupancy types");
             }
         }
 
         if (requestDTO.getCalculationMethod() == RatePlanCalculationMethod.MANUAL) {
-            if (requestDTO.getManualAmount() == null || requestDTO.getManualAmount() < 0) {
-                throw new InvalidRatePlanException("Manual amount must be provided and cannot be negative");
-            }
+            validateManualPricing(requestDTO);
             return;
         }
 
@@ -228,7 +234,7 @@ public class RatePlanService {
         entity.setPropertyId(propertyId);
         entity.setName(dto.getName());
         entity.setCode(dto.getCode());
-        entity.setOccupancyType(dto.getOccupancyType());
+        entity.setOccupancyType(normalizeOccupancyType(dto.getOccupancyType()));
         entity.setMealInclusion(dto.getMealInclusion());
         entity.setType(dto.getType());
         entity.setStartDate(dto.getStartDate());
@@ -236,6 +242,7 @@ public class RatePlanService {
         entity.setCalculationMethod(dto.getCalculationMethod());
         entity.setAdjustmentValue(dto.getAdjustmentValue());
         entity.setManualAmount(dto.getManualAmount());
+        entity.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(dto.getManualPricingByOccupancy()));
         entity.setParentRatePlanId(dto.getParentRatePlanId());
         entity.setApplicableRoomTypeIds(new HashSet<>(dto.getApplicableRoomTypeIds()));
         return entity;
@@ -257,6 +264,7 @@ public class RatePlanService {
         dto.setCalculationMethod(entity.getCalculationMethod());
         dto.setAdjustmentValue(entity.getAdjustmentValue());
         dto.setManualAmount(entity.getManualAmount());
+        dto.setManualPricingByOccupancy(copyManualPricingByOccupancy(entity.getManualPricingByOccupancy()));
         dto.setParentRatePlanId(entity.getParentRatePlanId());
         return dto;
     }
@@ -300,7 +308,7 @@ public class RatePlanService {
 
         try {
             return switch (ratePlan.getCalculationMethod()) {
-                case MANUAL -> new CalculationResult(null, Math.max(0.0, ratePlan.getManualAmount()));
+                case MANUAL -> new CalculationResult(null, Math.max(0.0, resolveManualAmount(ratePlan)));
                 case PERCENT_OFF_BAR, PERCENT_ADD_BAR, FLAT_OFF_BAR, FLAT_ADD_BAR -> {
                     CalculationResult baseCalculation = resolveBaseCalculation(propertyId, ratePlan, roomTypeId, visitedRatePlanIds);
                     Double baseAmount = baseCalculation.finalAmount();
@@ -333,7 +341,7 @@ public class RatePlanService {
             case PERCENT_ADD_BAR -> baseAmount + (baseAmount * ratePlan.getAdjustmentValue() / 100.0);
             case FLAT_OFF_BAR -> baseAmount - ratePlan.getAdjustmentValue();
             case FLAT_ADD_BAR -> baseAmount + ratePlan.getAdjustmentValue();
-            case MANUAL -> ratePlan.getManualAmount();
+            case MANUAL -> resolveManualAmount(ratePlan);
         };
     }
 
@@ -351,25 +359,128 @@ public class RatePlanService {
 
     private void validateNoOverlapForActivePlan(String propertyId,
                                                 java.util.Set<Long> roomTypeIds,
-                                                String occupancyType,
+                                                Set<String> occupancyTypes,
                                                 MealInclusion mealInclusion,
                                                 LocalDate startDate,
                                                 LocalDate endDate,
                                                 Long excludeRatePlanId) {
-        long overlappingPlanCount = ratePlanRepository.countOverlappingActivePlans(
-                propertyId,
-                roomTypeIds,
-                occupancyType,
-                mealInclusion,
-                startDate,
-                endDate,
-                RatePlanStatus.ACTIVE,
-                excludeRatePlanId);
+        Set<String> normalizedOccupancies = occupancyTypes.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toSet());
 
-        if (overlappingPlanCount > 0) {
-            throw new InvalidRatePlanException(
-                    "Overlapping active rate plan exists for same room type, occupancy, meal inclusion, and date range");
+        for (String occupancyType : normalizedOccupancies) {
+            long overlappingPlanCount = ratePlanRepository.countOverlappingActivePlans(
+                    propertyId,
+                    roomTypeIds,
+                    occupancyType,
+                    mealInclusion,
+                    startDate,
+                    endDate,
+                    RatePlanStatus.ACTIVE,
+                    excludeRatePlanId);
+
+            if (overlappingPlanCount > 0) {
+                throw new InvalidRatePlanException(
+                        "Overlapping active rate plan exists for same room type, occupancy, meal inclusion, and date range");
+            }
         }
+    }
+
+    private void validateManualPricing(RatePlanRequestDTO requestDTO) {
+        Map<String, Double> manualPricingByOccupancy = requestDTO.getManualPricingByOccupancy();
+        if (manualPricingByOccupancy == null || manualPricingByOccupancy.isEmpty()) {
+            if (requestDTO.getManualAmount() == null || requestDTO.getManualAmount() < 0) {
+                throw new InvalidRatePlanException("Manual amount must be provided and cannot be negative");
+            }
+            return;
+        }
+
+        for (Map.Entry<String, Double> entry : manualPricingByOccupancy.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isBlank()) {
+                throw new InvalidRatePlanException("Occupancy type is required for manual occupancy pricing");
+            }
+            if (entry.getValue() == null || entry.getValue() < 0) {
+                throw new InvalidRatePlanException("Manual amount cannot be negative for occupancy " + entry.getKey());
+            }
+        }
+    }
+
+    private Set<String> extractSupportedOccupancies(RatePlanRequestDTO requestDTO) {
+        Set<String> occupancies = new HashSet<>();
+        if (requestDTO.getOccupancyType() != null && !requestDTO.getOccupancyType().isBlank()) {
+            occupancies.add(normalizeOccupancyType(requestDTO.getOccupancyType()));
+        }
+        if (requestDTO.getManualPricingByOccupancy() != null) {
+            occupancies.addAll(requestDTO.getManualPricingByOccupancy().keySet().stream()
+                    .filter(Objects::nonNull)
+                .map(this::normalizeOccupancyType)
+                    .filter(value -> !value.isBlank())
+                    .collect(Collectors.toSet()));
+        }
+        return occupancies;
+    }
+
+    private Set<String> extractSupportedOccupancies(RatePlan ratePlan) {
+        Set<String> occupancies = new HashSet<>();
+        if (ratePlan.getOccupancyType() != null && !ratePlan.getOccupancyType().isBlank()) {
+            occupancies.add(normalizeOccupancyType(ratePlan.getOccupancyType()));
+        }
+        if (ratePlan.getManualPricingByOccupancy() != null) {
+            occupancies.addAll(ratePlan.getManualPricingByOccupancy().keySet().stream()
+                    .filter(Objects::nonNull)
+                .map(this::normalizeOccupancyType)
+                    .filter(value -> !value.isBlank())
+                    .collect(Collectors.toSet()));
+        }
+        return occupancies;
+    }
+
+    private boolean supportsOccupancy(RatePlan ratePlan, String occupancyType) {
+        if (occupancyType == null || occupancyType.isBlank()) {
+            return false;
+        }
+        return extractSupportedOccupancies(ratePlan).contains(normalizeOccupancyType(occupancyType));
+    }
+
+    private Double resolveManualAmount(RatePlan ratePlan) {
+        if (ratePlan.getManualPricingByOccupancy() != null
+                && ratePlan.getOccupancyType() != null
+                && ratePlan.getManualPricingByOccupancy().containsKey(ratePlan.getOccupancyType())) {
+            Double occupancyManualAmount = ratePlan.getManualPricingByOccupancy().get(ratePlan.getOccupancyType());
+            if (occupancyManualAmount != null) {
+                return occupancyManualAmount;
+            }
+        }
+
+        if (ratePlan.getManualAmount() == null) {
+            throw new InvalidRatePlanException("Manual amount not configured for rate plan");
+        }
+        return ratePlan.getManualAmount();
+    }
+
+    private Map<String, Double> copyManualPricingByOccupancy(Map<String, Double> manualPricingByOccupancy) {
+        if (manualPricingByOccupancy == null || manualPricingByOccupancy.isEmpty()) {
+            return new HashMap<>();
+        }
+        return new HashMap<>(manualPricingByOccupancy);
+    }
+
+    private Map<String, Double> normalizeManualPricingByOccupancy(Map<String, Double> manualPricingByOccupancy) {
+        Map<String, Double> normalized = new HashMap<>();
+        if (manualPricingByOccupancy == null || manualPricingByOccupancy.isEmpty()) {
+            return normalized;
+        }
+
+        for (Map.Entry<String, Double> entry : manualPricingByOccupancy.entrySet()) {
+            normalized.put(normalizeOccupancyType(entry.getKey()), entry.getValue());
+        }
+        return normalized;
+    }
+
+    private String normalizeOccupancyType(String occupancyType) {
+        return OccupancyType.normalizeOrThrow(occupancyType);
     }
 
     private void validateRoomTypeBelongsToProperty(String propertyId, Long roomTypeId) {

@@ -71,7 +71,7 @@ class MasterRoomServiceTest {
         MasterRoomPricing masterPricing = new MasterRoomPricing();
         masterPricing.setId(1000L);
         masterPricing.setMasterRoom(masterRoom);
-        masterPricing.setOccupancyType("2P");
+        masterPricing.setOccupancyType("2 Guest");
         masterPricing.setPrice(2500.0);
 
         MasterRoomPricing inheritedForA = new MasterRoomPricing();
@@ -79,7 +79,7 @@ class MasterRoomServiceTest {
         inheritedForA.setRoomTypeId(roomTypeA);
         inheritedForA.setInherited(true);
         inheritedForA.setParentPricingId(masterPricing.getId());
-        inheritedForA.setOccupancyType("2P");
+        inheritedForA.setOccupancyType("2 Guest");
         inheritedForA.setPrice(1900.0);
 
         MasterRoomRoomTypeMapping mappingA = new MasterRoomRoomTypeMapping();
@@ -91,7 +91,7 @@ class MasterRoomServiceTest {
         when(mappingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(mappingA, mappingB));
         when(masterRoomPricingRepository.findByInheritedTrueAndParentPricingId(masterPricing.getId()))
                 .thenReturn(List.of(inheritedForA));
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeB, "2P"))
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeB, "2 Guest"))
                 .thenReturn(Optional.empty());
 
         masterRoomService.updateInheritedPricingForMasterRoom(masterRoomId);
@@ -109,7 +109,7 @@ class MasterRoomServiceTest {
 
         assertNotNull(created);
         assertEquals(roomTypeB, created.getRoomTypeId());
-        assertEquals("2P", created.getOccupancyType());
+        assertEquals("2 Guest", created.getOccupancyType());
         assertEquals(2500.0, created.getPrice());
         assertEquals(true, created.getInherited());
         assertEquals(masterPricing.getId(), created.getParentPricingId());
@@ -128,7 +128,7 @@ class MasterRoomServiceTest {
                 MasterRoomPricing masterPricing = new MasterRoomPricing();
                 masterPricing.setId(6001L);
                 masterPricing.setMasterRoom(masterRoom);
-                masterPricing.setOccupancyType("2P");
+                masterPricing.setOccupancyType("2 Guest");
                 masterPricing.setPrice(2600.0);
 
                 MasterRoomRoomTypeMapping savedMapping = new MasterRoomRoomTypeMapping();
@@ -144,7 +144,7 @@ class MasterRoomServiceTest {
                 when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(propertyId, roomTypeId)).thenReturn(Optional.empty());
                 when(mappingRepository.save(any(MasterRoomRoomTypeMapping.class))).thenReturn(savedMapping);
                 when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(masterPricing));
-                when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "2P")).thenReturn(Optional.empty());
+                when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "2 Guest")).thenReturn(Optional.empty());
                 when(masterRoomMapper.toMappingResponseDTO(savedMapping)).thenReturn(responseDTO);
 
                 MasterRoomRoomTypeMappingResponseDTO result = masterRoomService.upsertRoomTypeMapping(propertyId, roomTypeId, masterRoomId);
@@ -178,7 +178,7 @@ class MasterRoomServiceTest {
                 MasterRoomPricing newMasterPricing = new MasterRoomPricing();
                 newMasterPricing.setId(8001L);
                 newMasterPricing.setMasterRoom(newMasterRoom);
-                newMasterPricing.setOccupancyType("2P");
+                newMasterPricing.setOccupancyType("2 Guest");
                 newMasterPricing.setPrice(2800.0);
 
                 MasterRoomRoomTypeMappingResponseDTO responseDTO = new MasterRoomRoomTypeMappingResponseDTO();
@@ -189,7 +189,7 @@ class MasterRoomServiceTest {
                 when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(propertyId, roomTypeId)).thenReturn(Optional.of(existingMapping));
                 when(mappingRepository.save(existingMapping)).thenReturn(existingMapping);
                 when(masterRoomPricingRepository.findByMasterRoomId(newMasterRoomId)).thenReturn(List.of(newMasterPricing));
-                when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "2P")).thenReturn(Optional.empty());
+                when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "2 Guest")).thenReturn(Optional.empty());
                 when(masterRoomMapper.toMappingResponseDTO(existingMapping)).thenReturn(responseDTO);
 
                 MasterRoomRoomTypeMappingResponseDTO result = masterRoomService.upsertRoomTypeMapping(propertyId, roomTypeId, newMasterRoomId);
@@ -211,7 +211,7 @@ class MasterRoomServiceTest {
         MasterRoomPricing masterPricing = new MasterRoomPricing();
         masterPricing.setId(3000L);
         masterPricing.setMasterRoom(masterRoom);
-        masterPricing.setOccupancyType("1P");
+        masterPricing.setOccupancyType("1 Guest");
         masterPricing.setPrice(3000.0);
 
         MasterRoomRoomTypeMapping mapping = new MasterRoomRoomTypeMapping();
@@ -220,7 +220,7 @@ class MasterRoomServiceTest {
         MasterRoomPricing manualChildPricing = new MasterRoomPricing();
         manualChildPricing.setId(4000L);
         manualChildPricing.setRoomTypeId(roomTypeId);
-        manualChildPricing.setOccupancyType("1P");
+        manualChildPricing.setOccupancyType("1 Guest");
         manualChildPricing.setPrice(2800.0);
         manualChildPricing.setInherited(false);
 
@@ -228,7 +228,7 @@ class MasterRoomServiceTest {
         when(mappingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(mapping));
         when(masterRoomPricingRepository.findByInheritedTrueAndParentPricingId(masterPricing.getId()))
                 .thenReturn(List.of());
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "1P"))
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "1 Guest"))
                 .thenReturn(Optional.of(manualChildPricing));
 
         masterRoomService.updateInheritedPricingForMasterRoom(masterRoomId);
@@ -252,12 +252,12 @@ class MasterRoomServiceTest {
 
                 MasterRoomPricing inheritedPricing = new MasterRoomPricing();
                 inheritedPricing.setRoomTypeId(501L);
-                inheritedPricing.setOccupancyType("2P");
+                inheritedPricing.setOccupancyType("2 Guest");
                 inheritedPricing.setPrice(2500.0);
 
                 com.frontdesk.pms.rate_management.dto.MasterRoomPricingResponseDTO pricingResponse =
                                 new com.frontdesk.pms.rate_management.dto.MasterRoomPricingResponseDTO();
-                pricingResponse.setOccupancyType("2P");
+                pricingResponse.setOccupancyType("2 Guest");
                 pricingResponse.setPrice(2500.0);
 
                 RoomDTO roomType = new RoomDTO();
@@ -280,7 +280,7 @@ class MasterRoomServiceTest {
                 assertEquals(5L, result.get(0).getMasterRoomId());
                 assertEquals("Standard Master", result.get(0).getMasterRoomName());
                 assertEquals(1, result.get(0).getInheritedRates().size());
-                assertEquals("2P", result.get(0).getInheritedRates().get(0).getOccupancyType());
+                assertEquals("2 Guest", result.get(0).getInheritedRates().get(0).getOccupancyType());
         }
 
         @Test
@@ -323,15 +323,15 @@ class MasterRoomServiceTest {
         MasterRoomPricing existingMasterPricing = new MasterRoomPricing();
         existingMasterPricing.setId(5000L);
         existingMasterPricing.setMasterRoom(masterRoom);
-        existingMasterPricing.setOccupancyType("3P");
+        existingMasterPricing.setOccupancyType("3 Guest");
         existingMasterPricing.setPrice(3200.0);
 
         MasterRoomPricingRequestDTO requestDTO = new MasterRoomPricingRequestDTO();
-        requestDTO.setOccupancyType("3P");
+        requestDTO.setOccupancyType("3 Guest");
         requestDTO.setPrice(3500.0);
 
         when(masterRoomRepository.findById(masterRoomId)).thenReturn(Optional.of(masterRoom));
-        when(masterRoomPricingRepository.findByMasterRoomIdAndOccupancyType(masterRoomId, "3P"))
+        when(masterRoomPricingRepository.findByMasterRoomIdAndOccupancyType(masterRoomId, "3 Guest"))
                 .thenReturn(Optional.of(existingMasterPricing));
         when(masterRoomPricingRepository.save(existingMasterPricing)).thenReturn(existingMasterPricing);
         when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(existingMasterPricing));
@@ -355,7 +355,7 @@ class MasterRoomServiceTest {
                 masterRoom.setPropertyId("22222222-2222-2222-2222-222222222222");
 
                 MasterRoomPricingRequestDTO requestDTO = new MasterRoomPricingRequestDTO();
-                requestDTO.setOccupancyType("2P");
+                requestDTO.setOccupancyType("2 Guest");
                 requestDTO.setPrice(3000.0);
 
                 when(masterRoomRepository.findById(masterRoomId)).thenReturn(Optional.of(masterRoom));
@@ -449,3 +449,4 @@ class MasterRoomServiceTest {
                 verify(masterRoomRepository, never()).save(any(MasterRoom.class));
         }
 }
+

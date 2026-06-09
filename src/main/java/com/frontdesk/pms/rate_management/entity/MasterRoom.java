@@ -1,5 +1,6 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import jakarta.persistence.*;
 import java.util.List;
 
@@ -17,6 +18,13 @@ public class MasterRoom {
 
     @Column(nullable = false)
     private String name; // e.g., Standard, Deluxe, Suite
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "meal_option")
+    private MasterRoomMealOption mealOption;
+
+    @Column(name = "inclusion")
+    private String inclusion;
 
     @OneToMany(mappedBy = "masterRoom", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<MasterRoomPricing> pricingList;
@@ -54,6 +62,22 @@ public class MasterRoom {
 
     public void setPricingList(List<MasterRoomPricing> pricingList) {
         this.pricingList = pricingList;
+    }
+
+    public MasterRoomMealOption getMealOption() {
+        return mealOption;
+    }
+
+    public void setMealOption(MasterRoomMealOption mealOption) {
+        this.mealOption = mealOption;
+    }
+
+    public String getInclusion() {
+        return inclusion;
+    }
+
+    public void setInclusion(String inclusion) {
+        this.inclusion = inclusion;
     }
 
     public List<MasterRoomRoomTypeMapping> getRoomTypeMappings() {
