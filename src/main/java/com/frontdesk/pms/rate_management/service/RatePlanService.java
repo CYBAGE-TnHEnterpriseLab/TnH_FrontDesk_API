@@ -6,7 +6,7 @@ import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
 import com.frontdesk.pms.rate_management.entity.RatePlan;
-import com.frontdesk.pms.rate_management.enums.MealInclusion;
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.OccupancyType;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
@@ -50,7 +50,7 @@ public class RatePlanService {
             propertyId,
             requestDTO.getApplicableRoomTypeIds(),
             extractSupportedOccupancies(requestDTO),
-            requestDTO.getMealInclusion(),
+            requestDTO.getMealOption(),
             requestDTO.getStartDate(),
             requestDTO.getEndDate(),
             null);
@@ -75,7 +75,8 @@ public class RatePlanService {
         existing.setName(requestDTO.getName());
         existing.setCode(requestDTO.getCode());
         existing.setOccupancyType(normalizeOccupancyType(requestDTO.getOccupancyType()));
-        existing.setMealInclusion(requestDTO.getMealInclusion());
+        existing.setMealOption(requestDTO.getMealOption());
+        existing.setInclusion(requestDTO.getInclusion());
         existing.setType(requestDTO.getType());
         existing.setStartDate(requestDTO.getStartDate());
         existing.setEndDate(requestDTO.getEndDate());
@@ -91,7 +92,7 @@ public class RatePlanService {
                     propertyId,
                     existing.getApplicableRoomTypeIds(),
                     extractSupportedOccupancies(existing),
-                    existing.getMealInclusion(),
+                    existing.getMealOption(),
                     existing.getStartDate(),
                     existing.getEndDate(),
                     existing.getId());
@@ -125,7 +126,7 @@ public class RatePlanService {
                     propertyId,
                     ratePlan.getApplicableRoomTypeIds(),
                     extractSupportedOccupancies(ratePlan),
-                    ratePlan.getMealInclusion(),
+                    ratePlan.getMealOption(),
                     ratePlan.getStartDate(),
                     ratePlan.getEndDate(),
                     ratePlan.getId());
@@ -138,7 +139,7 @@ public class RatePlanService {
     public List<RatePlanResponseDTO> getAvailableRatePlans(String propertyId,
                                                             Long roomTypeId,
                                                             String occupancyType,
-                                                            MealInclusion mealInclusion,
+                                                            MasterRoomMealOption mealOption,
                                                             LocalDate stayDate) {
         validateProperty(propertyId);
         validateRoomTypeBelongsToProperty(propertyId, roomTypeId);
@@ -146,7 +147,7 @@ public class RatePlanService {
         return ratePlanRepository.findAvailableByRoomTypeMealAndDate(
                         propertyId,
                         roomTypeId,
-                        mealInclusion,
+                        mealOption,
                         stayDate,
                         RatePlanStatus.ACTIVE)
                 .stream()
@@ -181,8 +182,8 @@ public class RatePlanService {
         if (requestDTO.getType() == null) {
             throw new InvalidRatePlanException("Rate plan type is required");
         }
-        if (requestDTO.getMealInclusion() == null) {
-            throw new InvalidRatePlanException("Meal inclusion is required");
+        if (requestDTO.getMealOption() == null) {
+            throw new InvalidRatePlanException("Meal option is required");
         }
         if (requestDTO.getCalculationMethod() == null) {
             throw new InvalidRatePlanException("Calculation method is required");
@@ -235,7 +236,8 @@ public class RatePlanService {
         entity.setName(dto.getName());
         entity.setCode(dto.getCode());
         entity.setOccupancyType(normalizeOccupancyType(dto.getOccupancyType()));
-        entity.setMealInclusion(dto.getMealInclusion());
+        entity.setMealOption(dto.getMealOption());
+        entity.setInclusion(dto.getInclusion());
         entity.setType(dto.getType());
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
@@ -255,7 +257,8 @@ public class RatePlanService {
         dto.setName(entity.getName());
         dto.setCode(entity.getCode());
         dto.setOccupancyType(entity.getOccupancyType());
-        dto.setMealInclusion(entity.getMealInclusion());
+        dto.setMealOption(entity.getMealOption());
+        dto.setInclusion(entity.getInclusion());
         dto.setType(entity.getType());
         dto.setStatus(entity.getStatus());
         dto.setStartDate(entity.getStartDate());
@@ -360,7 +363,7 @@ public class RatePlanService {
     private void validateNoOverlapForActivePlan(String propertyId,
                                                 java.util.Set<Long> roomTypeIds,
                                                 Set<String> occupancyTypes,
-                                                MealInclusion mealInclusion,
+                                                MasterRoomMealOption mealOption,
                                                 LocalDate startDate,
                                                 LocalDate endDate,
                                                 Long excludeRatePlanId) {
@@ -375,7 +378,7 @@ public class RatePlanService {
                     propertyId,
                     roomTypeIds,
                     occupancyType,
-                    mealInclusion,
+                    mealOption,
                     startDate,
                     endDate,
                     RatePlanStatus.ACTIVE,
@@ -383,7 +386,7 @@ public class RatePlanService {
 
             if (overlappingPlanCount > 0) {
                 throw new InvalidRatePlanException(
-                        "Overlapping active rate plan exists for same room type, occupancy, meal inclusion, and date range");
+                        "Overlapping active rate plan exists for same room type, occupancy, meal option, and date range");
             }
         }
     }

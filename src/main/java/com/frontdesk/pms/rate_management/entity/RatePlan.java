@@ -1,7 +1,7 @@
 package com.frontdesk.pms.rate_management.entity;
 
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
-import com.frontdesk.pms.rate_management.enums.MealInclusion;
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
 import com.frontdesk.pms.rate_management.enums.RatePlanType;
 import jakarta.persistence.*;
@@ -43,8 +43,11 @@ public class RatePlan {
     private String occupancyType;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MealInclusion mealInclusion;
+    @Column
+    private MasterRoomMealOption mealOption;
+
+    @Column
+    private String inclusion;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -1,10 +1,10 @@
 package com.frontdesk.pms.rate_management.controller;
 
-import com.frontdesk.pms.rate_management.dto.RatePlanRequestDTO;
 import com.frontdesk.pms.rate_management.dto.RatePlanPriceResponseDTO;
-import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
-import com.frontdesk.pms.rate_management.enums.MealInclusion;
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
+import com.frontdesk.pms.rate_management.dto.RatePlanRequestDTO;
+import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
 import com.frontdesk.pms.rate_management.service.RatePlanService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -63,9 +63,9 @@ public class RatePlanController {
     // public List<RatePlanResponseDTO> getAvailableRatePlans(@PathVariable String propertyId,
     //                                                         @RequestParam Long roomTypeId,
     //                                                         @RequestParam String occupancyType,
-    //                                                         @RequestParam MealInclusion mealInclusion,
+    //                                                         @RequestParam MasterRoomMealOption mealOption,
     //                                                         @RequestParam LocalDate stayDate) {
-    //     return ratePlanService.getAvailableRatePlans(propertyId, roomTypeId, occupancyType, mealInclusion, stayDate);
+    //     return ratePlanService.getAvailableRatePlans(propertyId, roomTypeId, occupancyType, mealOption, stayDate);
     // }
 
     // // Calculate final price for a rate plan and room type in the given property.

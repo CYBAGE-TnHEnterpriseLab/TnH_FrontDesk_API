@@ -6,7 +6,7 @@ import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.entity.RatePlan;
-import com.frontdesk.pms.rate_management.enums.MealInclusion;
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
 import com.frontdesk.pms.rate_management.enums.RatePlanType;
@@ -81,7 +81,8 @@ class RatePlanServiceTest {
         plan.setName("Corporate 10");
         plan.setCode("CORP10");
         plan.setOccupancyType("2 Guest");
-        plan.setMealInclusion(MealInclusion.BREAKFAST_INCLUDED);
+        plan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        plan.setInclusion("Wifi");
         plan.setType(RatePlanType.REFUNDABLE);
         plan.setStatus(RatePlanStatus.ACTIVE);
         plan.setStartDate(LocalDate.of(2026, 6, 1));
@@ -93,7 +94,7 @@ class RatePlanServiceTest {
         when(ratePlanRepository.findAvailableByRoomTypeMealAndDate(
             PROPERTY_ID,
             101L,
-            MealInclusion.BREAKFAST_INCLUDED,
+            MasterRoomMealOption.BREAKFAST,
             LocalDate.of(2026, 6, 10),
             RatePlanStatus.ACTIVE))
                 .thenReturn(List.of(plan));
@@ -104,7 +105,7 @@ class RatePlanServiceTest {
             PROPERTY_ID,
             101L,
             "2 Guest",
-            MealInclusion.BREAKFAST_INCLUDED,
+            MasterRoomMealOption.BREAKFAST,
             LocalDate.of(2026, 6, 10));
 
         assertEquals(1, result.size());
@@ -172,14 +173,14 @@ class RatePlanServiceTest {
     }
 
     @Test
-    void createRatePlan_shouldFailWhenMealInclusionMissing() {
+    void createRatePlan_shouldFailWhenMealOptionMissing() {
         RatePlanRequestDTO requestDTO = validRequest();
-        requestDTO.setMealInclusion(null);
+        requestDTO.setMealOption(null);
         when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
 
         InvalidRatePlanException exception =
             assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
-        assertTrue(exception.getMessage().contains("Meal inclusion"));
+        assertTrue(exception.getMessage().contains("Meal option"));
     }
 
     @Test
@@ -211,7 +212,8 @@ class RatePlanServiceTest {
         saved.setName(requestDTO.getName());
         saved.setCode(requestDTO.getCode());
         saved.setOccupancyType(requestDTO.getOccupancyType());
-        saved.setMealInclusion(requestDTO.getMealInclusion());
+        saved.setMealOption(requestDTO.getMealOption());
+        saved.setInclusion(requestDTO.getInclusion());
         saved.setType(requestDTO.getType());
         saved.setStatus(RatePlanStatus.ACTIVE);
         saved.setStartDate(requestDTO.getStartDate());
@@ -227,7 +229,7 @@ class RatePlanServiceTest {
                 PROPERTY_ID,
                 requestDTO.getApplicableRoomTypeIds(),
                 "1 Guest",
-                requestDTO.getMealInclusion(),
+                requestDTO.getMealOption(),
                 requestDTO.getStartDate(),
                 requestDTO.getEndDate(),
                 RatePlanStatus.ACTIVE,
@@ -236,7 +238,7 @@ class RatePlanServiceTest {
                 PROPERTY_ID,
                 requestDTO.getApplicableRoomTypeIds(),
                 "2 Guest",
-                requestDTO.getMealInclusion(),
+                requestDTO.getMealOption(),
                 requestDTO.getStartDate(),
                 requestDTO.getEndDate(),
                 RatePlanStatus.ACTIVE,
@@ -259,7 +261,7 @@ class RatePlanServiceTest {
             PROPERTY_ID,
             requestDTO.getApplicableRoomTypeIds(),
             requestDTO.getOccupancyType(),
-            requestDTO.getMealInclusion(),
+            requestDTO.getMealOption(),
             requestDTO.getStartDate(),
             requestDTO.getEndDate(),
             RatePlanStatus.ACTIVE,
@@ -278,7 +280,8 @@ class RatePlanServiceTest {
         existing.setId(22L);
         existing.setStatus(RatePlanStatus.INACTIVE);
         existing.setOccupancyType("2 Guest");
-        existing.setMealInclusion(MealInclusion.BREAKFAST_INCLUDED);
+        existing.setMealOption(MasterRoomMealOption.BREAKFAST);
+        existing.setInclusion("Wifi");
         existing.setApplicableRoomTypeIds(Set.of(101L));
         existing.setStartDate(LocalDate.of(2026, 6, 1));
         existing.setEndDate(LocalDate.of(2026, 6, 30));
@@ -289,7 +292,7 @@ class RatePlanServiceTest {
             PROPERTY_ID,
             existing.getApplicableRoomTypeIds(),
             existing.getOccupancyType(),
-            existing.getMealInclusion(),
+            existing.getMealOption(),
             existing.getStartDate(),
             existing.getEndDate(),
             RatePlanStatus.ACTIVE,
@@ -308,7 +311,8 @@ class RatePlanServiceTest {
         requestDTO.setName("BAR 10 Off");
         requestDTO.setCode("BAR10");
         requestDTO.setOccupancyType("2 Guest");
-        requestDTO.setMealInclusion(MealInclusion.BREAKFAST_INCLUDED);
+        requestDTO.setMealOption(MasterRoomMealOption.BREAKFAST);
+        requestDTO.setInclusion("Wifi, Laundry");
         requestDTO.setType(RatePlanType.REFUNDABLE);
         requestDTO.setStartDate(LocalDate.of(2026, 6, 1));
         requestDTO.setEndDate(LocalDate.of(2026, 6, 30));
