@@ -110,9 +110,17 @@ public class RatePlanService {
 
     public List<RatePlanResponseDTO> getAllRatePlans(String propertyId) {
         validateProperty(propertyId);
-        return ratePlanRepository.findByPropertyId(propertyId).stream()
+        return ratePlanRepository.findByPropertyIdOrderByIdDesc(propertyId).stream()
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteRatePlan(String propertyId, Long ratePlanId) {
+        validateProperty(propertyId);
+        RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(ratePlanId, propertyId)
+                .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
+        ratePlanRepository.delete(ratePlan);
     }
 
     @Transactional

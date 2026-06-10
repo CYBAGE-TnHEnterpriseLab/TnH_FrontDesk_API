@@ -11,6 +11,7 @@ import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
 import com.frontdesk.pms.rate_management.enums.RatePlanType;
 import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
+import com.frontdesk.pms.rate_management.exception.RatePlanNotFoundException;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.RatePlanRepository;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class RatePlanServiceTest {
@@ -72,6 +74,42 @@ class RatePlanServiceTest {
 
         assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
         verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
+    }
+
+    @Test
+    void getAllRatePlans_shouldReturnNewestFirst() {
+        RatePlan newest = new RatePlan();
+        newest.setId(2L);
+        newest.setPropertyId(PROPERTY_ID);
+        newest.setName("New Plan");
+        newest.setCode("NEW");
+        newest.setOccupancyType("2 Guest");
+        newest.setMealOption(MasterRoomMealOption.BREAKFAST);
+        newest.setType(RatePlanType.REFUNDABLE);
+        newest.setStatus(RatePlanStatus.ACTIVE);
+        newest.setStartDate(LocalDate.of(2026, 6, 1));
+        newest.setEndDate(LocalDate.of(2026, 6, 30));
+
+        RatePlan older = new RatePlan();
+        older.setId(1L);
+        older.setPropertyId(PROPERTY_ID);
+        older.setName("Old Plan");
+        older.setCode("OLD");
+        older.setOccupancyType("2 Guest");
+        older.setMealOption(MasterRoomMealOption.BREAKFAST);
+        older.setType(RatePlanType.REFUNDABLE);
+        older.setStatus(RatePlanStatus.ACTIVE);
+        older.setStartDate(LocalDate.of(2026, 6, 1));
+        older.setEndDate(LocalDate.of(2026, 6, 30));
+
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(ratePlanRepository.findByPropertyIdOrderByIdDesc(PROPERTY_ID)).thenReturn(List.of(newest, older));
+
+        List<RatePlanResponseDTO> result = ratePlanService.getAllRatePlans(PROPERTY_ID);
+
+        assertEquals(2, result.size());
+        assertEquals(2L, result.get(0).getId());
+        assertEquals(1L, result.get(1).getId());
     }
 
     @Test
@@ -305,6 +343,28 @@ class RatePlanServiceTest {
         assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
         verify(ratePlanRepository, never()).save(existing);
         }
+
+    @Test
+    void deleteRatePlan_shouldDeleteWhenExists() {
+        RatePlan existing = new RatePlan();
+        existing.setId(57L);
+
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(ratePlanRepository.findByIdAndPropertyId(57L, PROPERTY_ID)).thenReturn(Optional.of(existing));
+
+        ratePlanService.deleteRatePlan(PROPERTY_ID, 57L);
+
+        verify(ratePlanRepository, times(1)).delete(existing);
+    }
+
+    @Test
+    void deleteRatePlan_shouldFailWhenNotFound() {
+        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(ratePlanRepository.findByIdAndPropertyId(58L, PROPERTY_ID)).thenReturn(Optional.empty());
+
+        assertThrows(RatePlanNotFoundException.class, () -> ratePlanService.deleteRatePlan(PROPERTY_ID, 58L));
+        verify(ratePlanRepository, never()).delete(org.mockito.ArgumentMatchers.any(RatePlan.class));
+    }
 
     private RatePlanRequestDTO validRequest() {
         RatePlanRequestDTO requestDTO = new RatePlanRequestDTO();

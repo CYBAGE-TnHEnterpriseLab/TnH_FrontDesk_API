@@ -16,7 +16,9 @@ public interface RatePlanRepository extends JpaRepository<RatePlan, Long> {
 
     java.util.Optional<RatePlan> findByIdAndPropertyId(Long id, String propertyId);
 
-    List<RatePlan> findByPropertyId(String propertyId);
+        List<RatePlan> findByPropertyId(String propertyId);
+
+        List<RatePlan> findByPropertyIdOrderByIdDesc(String propertyId);
 
     @Query("select distinct rp from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
             "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId and rp.mealOption = :mealOption " +
