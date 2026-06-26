@@ -19,6 +19,18 @@ reservation-service:
   connect-timeout-ms: 1000
   read-timeout-ms: 2000
 
+property-wizard-service:
+  enabled: false
+  base-url: http://localhost:${server.port}
+  inventory-validation-path: /internal/mock/property-wizard/inventory/validate
+  inventory-availability-path: /internal/mock/property-wizard/inventory/availability
+  inventory-deduction-path: /internal/mock/property-wizard/inventory/deduct
+  inventory-sync-path: /internal/mock/property-wizard/inventory/sync
+
+rate-management-service:
+  base-url: http://localhost:${server.port}
+  availability-pricing-path: /internal/mock/rate-management/pricing/quotes
+
 arrivals:
   search:
     sync-mode: always

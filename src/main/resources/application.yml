@@ -26,6 +26,18 @@ reservation-service:
   connect-timeout-ms: 3000
   read-timeout-ms: 6000
 
+property-wizard-service:
+  enabled: false
+  base-url: http://localhost:8082
+  inventory-validation-path: /api/v1/property-wizard/inventory/validate
+  inventory-availability-path: /api/v1/property-wizard/inventory/availability
+  inventory-deduction-path: /api/v1/property-wizard/inventory/deduct
+  inventory-sync-path: /api/v1/property-wizard/inventory/sync
+
+rate-management-service:
+  base-url: http://localhost:8087
+  availability-pricing-path: /api/v1/rate-management/pricing/quotes
+
 arrivals:
   search:
     sync-mode: always

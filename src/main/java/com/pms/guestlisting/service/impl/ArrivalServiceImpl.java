@@ -1,0 +1,207 @@
+package com.pms.guestlisting.service.impl;
+
+import com.pms.guestlisting.dto.ArrivalResponseDto;
+import com.pms.guestlisting.dto.ArrivalSearchRequestDto;
+import com.pms.guestlisting.dto.FilterOptionsDto;
+import com.pms.guestlisting.dto.PagedResponse;
+import com.pms.guestlisting.dto.ReservationArrivalDto;
+import com.pms.guestlisting.dto.SyncResultDto;
+import com.pms.guestlisting.entity.ArrivalRecord;
+import com.pms.guestlisting.exception.BadRequestException;
+import com.pms.guestlisting.exception.ExternalServiceException;
+import com.pms.guestlisting.integration.ReservationServiceClient;
+import com.pms.guestlisting.mapper.ArrivalMapper;
+import com.pms.guestlisting.repository.ArrivalRecordRepository;
+import com.pms.guestlisting.service.ArrivalService;
+import com.pms.guestlisting.spec.ArrivalSpecification;
+import java.time.LocalDate;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class ArrivalServiceImpl implements ArrivalService {
+
+    private static final String SYNC_MODE_ALWAYS = "always";
+    private static final String SYNC_MODE_CACHE_MISS = "cache-miss";
+
+    private static final List<String> ALLOWED_SORT_FIELDS = List.of(
+            "checkInDate", "checkOutDate", "firstName", "lastName", "roomNo",
+            "reservationType", "city", "roomStatus", "roomType", "confirmationNumber",
+            "company", "guestName"
+    );
+
+    @Value("${arrivals.search.sync-mode:always}")
+    private String searchSyncMode;
+
+    private final ArrivalRecordRepository arrivalRecordRepository;
+    private final ReservationServiceClient reservationServiceClient;
+    private final ArrivalMapper arrivalMapper;
+
+    @Override
+    @Transactional
+    public SyncResultDto syncArrivals(String propertyId, LocalDate businessDate) {
+        if (!StringUtils.hasText(propertyId)) {
+            throw new BadRequestException("propertyId is required");
+        }
+        if (businessDate == null) {
+            throw new BadRequestException("businessDate is required");
+        }
+
+        log.info("Syncing arrivals for propertyId={} businessDate={}", propertyId, businessDate);
+        List<ReservationArrivalDto> arrivals = reservationServiceClient.fetchArrivals(propertyId, businessDate);
+        int upsertedCount = 0;
+        int skippedCount = 0;
+
+        for (ReservationArrivalDto reservationArrival : arrivals) {
+            if (!isValidForUpsert(reservationArrival)) {
+                skippedCount++;
+                continue;
+            }
+
+            ArrivalRecord existing = arrivalRecordRepository
+                    .findByPropertyIdAndBusinessDateAndConfirmationNumber(
+                            propertyId,
+                            businessDate,
+                            reservationArrival.getConfirmationNumber()
+                    )
+                    .orElse(null);
+
+            if (existing == null) {
+                arrivalRecordRepository.save(arrivalMapper.toEntity(reservationArrival, propertyId, businessDate));
+            } else {
+                arrivalMapper.updateEntity(existing, reservationArrival);
+                arrivalRecordRepository.save(existing);
+            }
+            upsertedCount++;
+        }
+
+        log.info("Arrival sync completed for propertyId={} businessDate={} fetched={} upserted={} skipped={}",
+            propertyId, businessDate, arrivals.size(), upsertedCount, skippedCount);
+
+        return SyncResultDto.builder()
+            .propertyId(propertyId)
+                .businessDate(businessDate)
+                .fetchedCount(arrivals.size())
+                .upsertedCount(upsertedCount)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public PagedResponse<ArrivalResponseDto> searchArrivals(ArrivalSearchRequestDto request) {
+        validateSortBy(request.getSortBy());
+
+        if (shouldSyncBeforeSearch(request.getPropertyId(), request.getBusinessDate())) {
+            try {
+                // Refresh local cache before serving search for the given business date and property.
+                syncArrivals(request.getPropertyId(), request.getBusinessDate());
+            } catch (ExternalServiceException ex) {
+                boolean hasCachedData = arrivalRecordRepository.existsByPropertyIdAndBusinessDate(
+                        request.getPropertyId(),
+                        request.getBusinessDate()
+                );
+                if (!hasCachedData) {
+                    throw ex;
+                }
+                log.warn("Reservation sync failed for propertyId={} businessDate={}, serving cached arrivals", 
+                        request.getPropertyId(), request.getBusinessDate(), ex);
+            }
+        }
+
+        Sort.Direction direction = "desc".equalsIgnoreCase(request.getSortDir())
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+
+        Pageable pageable = PageRequest.of(
+                request.getPage(),
+                request.getSize(),
+            buildSort(request.getSortBy(), direction)
+        );
+
+        Page<ArrivalRecord> page = arrivalRecordRepository.findAll(
+                ArrivalSpecification.byCriteria(request),
+                pageable
+        );
+
+        List<ArrivalResponseDto> content = page.getContent().stream()
+                .map(arrivalMapper::toResponse)
+                .toList();
+
+        return PagedResponse.<ArrivalResponseDto>builder()
+            .propertyId(request.getPropertyId())
+            .businessDate(request.getBusinessDate())
+                .filterOptions(Boolean.TRUE.equals(request.getIncludeOptions())
+                        ? buildFilterOptions(request.getPropertyId(), request.getBusinessDate())
+                        : null)
+                .content(content)
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .first(page.isFirst())
+                .last(page.isLast())
+                .sortBy(request.getSortBy())
+                .sortDir(request.getSortDir())
+                .build();
+    }
+
+    private FilterOptionsDto buildFilterOptions(String propertyId, LocalDate businessDate) {
+        return FilterOptionsDto.builder()
+                .statuses(arrivalRecordRepository.findDistinctStatuses(propertyId, businessDate))
+                .reservationTypes(arrivalRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
+                .cities(arrivalRecordRepository.findDistinctCities(propertyId, businessDate))
+                .roomStatuses(arrivalRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
+                .roomTypes(arrivalRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
+                .floors(arrivalRecordRepository.findDistinctFloors(propertyId, businessDate))
+                .companies(arrivalRecordRepository.findDistinctCompanies(propertyId, businessDate))
+                .loyaltyMembershipStatuses(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
+                .sortFields(List.of("guestName", "roomNo", "checkInDate", "roomType", "company"))
+                .build();
+    }
+
+    private boolean shouldSyncBeforeSearch(String propertyId, LocalDate businessDate) {
+        String configuredMode = StringUtils.hasText(searchSyncMode)
+                ? searchSyncMode.trim().toLowerCase()
+                : SYNC_MODE_ALWAYS;
+
+        if (SYNC_MODE_CACHE_MISS.equals(configuredMode)) {
+            return !arrivalRecordRepository.existsByPropertyIdAndBusinessDate(propertyId, businessDate);
+        }
+        return true;
+    }
+
+    private void validateSortBy(String sortBy) {
+        if (!ALLOWED_SORT_FIELDS.contains(sortBy)) {
+            throw new BadRequestException("Unsupported sortBy field: " + sortBy);
+        }
+    }
+
+    private Sort buildSort(String sortBy, Sort.Direction direction) {
+        if ("guestName".equals(sortBy)) {
+            // Keep guest name sorting stable across duplicate first/last names.
+            return Sort.by(new Sort.Order(direction, "lastName"), new Sort.Order(direction, "firstName"));
+        }
+        return Sort.by(direction, sortBy);
+    }
+
+    private boolean isValidForUpsert(ReservationArrivalDto arrival) {
+        return arrival != null
+                && StringUtils.hasText(arrival.getConfirmationNumber())
+                && StringUtils.hasText(arrival.getFirstName())
+                && StringUtils.hasText(arrival.getLastName())
+                && arrival.getCheckInDate() != null
+                && arrival.getCheckOutDate() != null;
+    }
+}
+
