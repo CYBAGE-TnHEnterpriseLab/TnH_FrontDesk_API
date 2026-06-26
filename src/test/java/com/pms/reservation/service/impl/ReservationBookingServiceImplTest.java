@@ -155,6 +155,19 @@ class ReservationBookingServiceImplTest {
         verify(reservationBookingRepository, never()).save(any());
     }
 
+        @Test
+        void createBookingShouldRejectWhenGuestNamesContainBlankValues() {
+                ReservationBookingRequestDto request = validRequest();
+                request.setNumberOfRooms(2);
+                request.setGuestNames(List.of("Alex Johnson", " "));
+
+                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                                .isInstanceOf(BadRequestException.class)
+                                .hasMessage("guestNames must not contain blank values");
+
+                verify(reservationBookingRepository, never()).save(any());
+        }
+
     @Test
     void createBookingShouldRejectWhenMoreThanNineRoomsSelected() {
         ReservationBookingRequestDto request = validRequest();
@@ -197,6 +210,20 @@ class ReservationBookingServiceImplTest {
 
         verify(reservationBookingRepository, never()).save(any());
     }
+
+        @Test
+        void createBookingShouldRejectWhenRoomTypeUnavailableFromPropertyWizard() {
+                ReservationBookingRequestDto request = validRequest();
+                when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+                when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                                .thenReturn(validationResponse(true, false, 0));
+
+                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                                .isInstanceOf(BadRequestException.class)
+                                .hasMessage("roomType is not available for selected property");
+
+                verify(reservationBookingRepository, never()).save(any());
+        }
 
     @Test
     void createBookingShouldRejectWhenRequestedRoomsExceedAvailability() {

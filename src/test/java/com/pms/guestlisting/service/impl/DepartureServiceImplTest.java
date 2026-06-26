@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -29,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -96,6 +98,31 @@ class DepartureServiceImplTest {
         verify(departureMapper, times(1)).toEntity(validNew, PROPERTY_ID, businessDate);
         verify(departureMapper, times(1)).updateEntity(existingEntity, validExisting);
         verify(departureRecordRepository, times(2)).save(any(DepartureRecord.class));
+    }
+
+    @Test
+    void syncDeparturesShouldSkipRowsMissingMandatoryGuestOrDateFields() {
+        ReservationArrivalDto missingFirstName = validDeparture("CNF2001", null, "Last");
+        ReservationArrivalDto missingLastName = validDeparture("CNF2002", "First", null);
+        ReservationArrivalDto missingCheckIn = validDeparture("CNF2003", "John", "Smith");
+        missingCheckIn.setCheckInDate(null);
+        ReservationArrivalDto missingCheckOut = validDeparture("CNF2004", "John", "Smith");
+        missingCheckOut.setCheckOutDate(null);
+        ReservationArrivalDto valid = validDeparture("CNF2005", "Jane", "Doe");
+
+        DepartureRecord validEntity = DepartureRecord.builder().confirmationNumber("CNF2005").build();
+
+        when(reservationServiceClient.fetchDepartures(PROPERTY_ID, businessDate))
+                .thenReturn(List.of(missingFirstName, missingLastName, missingCheckIn, missingCheckOut, valid));
+        when(departureRecordRepository.findByPropertyIdAndBusinessDateAndConfirmationNumber(PROPERTY_ID, businessDate, "CNF2005"))
+                .thenReturn(Optional.empty());
+        when(departureMapper.toEntity(valid, PROPERTY_ID, businessDate)).thenReturn(validEntity);
+
+        SyncResultDto result = departureService.syncDepartures(PROPERTY_ID, businessDate);
+
+        assertThat(result.getFetchedCount()).isEqualTo(5);
+        assertThat(result.getUpsertedCount()).isEqualTo(1);
+        verify(departureRecordRepository, times(1)).save(any(DepartureRecord.class));
     }
 
     @Test
@@ -188,6 +215,89 @@ class DepartureServiceImplTest {
         departureService.searchDepartures(request);
 
         verify(reservationServiceClient, never()).fetchDepartures(PROPERTY_ID, businessDate);
+    }
+
+    @Test
+    void searchDeparturesShouldSyncWhenCacheMissingInCacheMissMode() {
+        ReflectionTestUtils.setField(departureService, "searchSyncMode", "cache-miss");
+
+        DepartureSearchRequestDto request = new DepartureSearchRequestDto();
+        request.setPropertyId(PROPERTY_ID);
+        request.setBusinessDate(businessDate);
+        request.setSortBy("checkOutDate");
+        request.setSortDir("asc");
+
+        when(departureRecordRepository.existsByPropertyIdAndBusinessDate(PROPERTY_ID, businessDate)).thenReturn(false);
+        when(reservationServiceClient.fetchDepartures(PROPERTY_ID, businessDate)).thenReturn(List.of());
+        when(departureRecordRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<DepartureRecord>>any(),
+                org.mockito.ArgumentMatchers.<Pageable>any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        departureService.searchDepartures(request);
+
+        verify(reservationServiceClient, times(1)).fetchDepartures(PROPERTY_ID, businessDate);
+    }
+
+    @Test
+    void searchDeparturesShouldMapGuestNameAliasSortToLastAndFirstName() {
+        DepartureSearchRequestDto request = new DepartureSearchRequestDto();
+        request.setPropertyId(PROPERTY_ID);
+        request.setBusinessDate(businessDate);
+        request.setSortBy("guestName");
+        request.setSortDir("desc");
+
+        when(reservationServiceClient.fetchDepartures(PROPERTY_ID, businessDate)).thenReturn(List.of());
+        when(departureRecordRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<DepartureRecord>>any(),
+                org.mockito.ArgumentMatchers.<Pageable>any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        departureService.searchDepartures(request);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(departureRecordRepository).findAll(
+                org.mockito.ArgumentMatchers.<Specification<DepartureRecord>>any(),
+                pageableCaptor.capture()
+        );
+
+        Sort sort = pageableCaptor.getValue().getSort();
+        assertThat(sort.getOrderFor("lastName")).isNotNull();
+        assertThat(sort.getOrderFor("firstName")).isNotNull();
+        assertThat(sort.getOrderFor("lastName").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(sort.getOrderFor("firstName").getDirection()).isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void searchDeparturesShouldPopulateFilterOptionsWhenRequested() {
+        DepartureSearchRequestDto request = new DepartureSearchRequestDto();
+        request.setPropertyId(PROPERTY_ID);
+        request.setBusinessDate(businessDate);
+        request.setSortBy("checkOutDate");
+        request.setSortDir("asc");
+        request.setIncludeOptions(true);
+
+        when(reservationServiceClient.fetchDepartures(PROPERTY_ID, businessDate)).thenReturn(List.of());
+        when(departureRecordRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<DepartureRecord>>any(),
+                org.mockito.ArgumentMatchers.<Pageable>any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        when(departureRecordRepository.findDistinctStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("DNM"));
+        when(departureRecordRepository.findDistinctReservationTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Guaranteed"));
+        when(departureRecordRepository.findDistinctCities(PROPERTY_ID, businessDate)).thenReturn(List.of("Mumbai"));
+        when(departureRecordRepository.findDistinctRoomStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Clean"));
+        when(departureRecordRepository.findDistinctRoomTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Deluxe King"));
+        when(departureRecordRepository.findDistinctFloors(PROPERTY_ID, businessDate)).thenReturn(List.of(3, 4));
+        when(departureRecordRepository.findDistinctCompanies(PROPERTY_ID, businessDate)).thenReturn(List.of("ABC Travels"));
+        when(departureRecordRepository.findDistinctLoyaltyMembershipStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Gold Member"));
+
+        var result = departureService.searchDepartures(request);
+
+        assertThat(result.getFilterOptions()).isNotNull();
+        assertThat(result.getFilterOptions().getStatuses()).containsExactly("DNM");
+        assertThat(result.getFilterOptions().getRoomTypes()).containsExactly("Deluxe King");
+        assertThat(result.getFilterOptions().getFloors()).containsExactly(3, 4);
+        assertThat(result.getFilterOptions().getSortFields()).containsExactly("guestName", "roomNo", "checkOutDate", "roomType", "company");
     }
 
     private ReservationArrivalDto validDeparture(String confirmationNumber, String firstName, String lastName) {

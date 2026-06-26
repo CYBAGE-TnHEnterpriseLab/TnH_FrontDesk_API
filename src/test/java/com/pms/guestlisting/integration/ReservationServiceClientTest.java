@@ -142,5 +142,19 @@ class ReservationServiceClientTest {
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("Failed to fetch departures from Reservation Service");
         }
+
+    @Test
+    void fetchDeparturesShouldReturnEmptyListWhenBodyIsNull() {
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.GET),
+                eq(null),
+                any(ParameterizedTypeReference.class)
+        )).thenReturn(ResponseEntity.ok(null));
+
+        List<ReservationArrivalDto> result = client.fetchDepartures("PROP001", LocalDate.of(2026, 6, 3));
+
+        assertThat(result).isEmpty();
+    }
 }
 

@@ -92,6 +92,24 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.errors.guestNames").value("guestNames is required"));
     }
 
+            @Test
+            void createBookingShouldReturnBadRequestWhenNumberOfRoomsExceedsNine() throws Exception {
+            ReservationBookingRequestDto request = validRequest();
+            request.setNumberOfRooms(10);
+            request.setGuestNames(List.of(
+                "Guest 1", "Guest 2", "Guest 3", "Guest 4", "Guest 5",
+                "Guest 6", "Guest 7", "Guest 8", "Guest 9", "Guest 10"
+            ));
+
+            mockMvc.perform(post("/api/v1/reservations/bookings")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.numberOfRooms").value("numberOfRooms must be <= 9"));
+            }
+
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
         request.setPropertyId("PROP001");
