@@ -30,8 +30,8 @@ public class DraftFacade {
         return draftService.getDraft(draftId);
     }
 
-    public List<DraftResponse> list(List<DraftStatus> statuses) {
-        return draftService.getDraftsByStatus(statuses);
+    public List<DraftResponse> list(List<DraftStatus> statuses, String actor) {
+        return draftService.getDraftsByStatus(statuses, actor);
     }
 
     public List<WizardPropertyOptionResponse> listMyWizardProperties(String actor) {

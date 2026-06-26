@@ -78,10 +78,10 @@ class DraftServiceTest {
         draft.setCreatedAt(Instant.now());
         draft.setUpdatedAt(Instant.now());
 
-        when(repository.findByStatusInOrderByUpdatedAtDesc(any()))
+        when(repository.findByCreatedByAndStatusInOrderByUpdatedAtDesc(any(), any()))
             .thenReturn(List.of(draft));
 
-        assertEquals(1, draftService.getDraftsByStatus(List.of(DraftStatus.DRAFT)).size());
+        assertEquals(1, draftService.getDraftsByStatus(List.of(DraftStatus.DRAFT), "admin").size());
     }
 
     @Test

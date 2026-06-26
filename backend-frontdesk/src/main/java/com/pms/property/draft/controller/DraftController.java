@@ -62,6 +62,7 @@ public class DraftController {
     public ResponseEntity<ApiResponse<List<DraftResponse>>> list(
         @RequestParam(name = "status", required = false) List<String> statusFilters
     ) {
+        String actor = currentUserProvider.getCurrentUsername();
         List<DraftStatus> statuses = new ArrayList<>();
         if (statusFilters != null) {
             for (String rawStatus : statusFilters) {
@@ -74,7 +75,7 @@ public class DraftController {
                 }
             }
         }
-        return ResponseEntity.ok(ApiResponse.ok(draftFacade.list(statuses), "Drafts fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(draftFacade.list(statuses, actor), "Drafts fetched"));
     }
 
     @GetMapping("/{draftId}")

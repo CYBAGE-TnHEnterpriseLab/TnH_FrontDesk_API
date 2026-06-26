@@ -21,9 +21,8 @@ public class PublishValidator {
         JsonNode roomsAndOutlets = firstObjectNode(root, "roomsAndOutlets", "roomAndOutlets", "roomsOutlets");
         validatePropertyDetails(propertyDetails);
         AllocationLimits allocationLimits = validateRoomsAndOutlets(
-            roomsAndOutlets,
-            firstInt(propertyDetails, "totalNoOfRooms", "totalRooms")
-        );
+                roomsAndOutlets,
+                firstInt(propertyDetails, "totalNoOfRooms", "totalRooms"));
         JsonNode floorConfiguration = firstObjectNode(root, "floorConfiguration", "roomConfiguration");
         validateRoomConfiguration(floorConfiguration, allocationLimits);
         validateFinance(root.path("finance"));
@@ -139,7 +138,8 @@ public class PublishValidator {
             throw new BadRequestException("At least one floor configuration is required");
         }
 
-        // roomConfiguration.roomTypes is optional; authoritative configured room types come from roomsAndOutlets.roomTypes.
+        // roomConfiguration.roomTypes is optional; authoritative configured room types
+        // come from roomsAndOutlets.roomTypes.
         Set<String> roomTypeNames = new HashSet<>(limits.roomTypeLimits().keySet());
 
         Set<String> roomNumbers = new HashSet<>();
@@ -155,61 +155,58 @@ public class PublishValidator {
                 for (JsonNode floorRoomType : nestedRoomTypes) {
                     String pathPrefix = "roomConfiguration.floors[" + floorIndex + "].roomTypes[" + roomTypeIndex + "]";
                     validateFloorRoomTypeAssignment(
-                        floorRoomType,
-                        pathPrefix,
-                        roomTypeNames,
-                        roomNumbers,
-                        assignedPerRoomType,
-                        limits.roomTypeLimits()
-                    );
+                            floorRoomType,
+                            pathPrefix,
+                            roomTypeNames,
+                            roomNumbers,
+                            assignedPerRoomType,
+                            limits.roomTypeLimits());
                     roomTypeIndex++;
                 }
-            } else {
-                validateFloorRoomTypeAssignment(
-                    floor,
-                    "roomConfiguration.floors[" + floorIndex + "]",
-                    roomTypeNames,
-                    roomNumbers,
-                    assignedPerRoomType,
-                    limits.roomTypeLimits()
-                );
             }
+            // else {
+            // validateFloorRoomTypeAssignment(
+            // floor,
+            // "roomConfiguration.floors[" + floorIndex + "]",
+            // roomTypeNames,
+            // roomNumbers,
+            // assignedPerRoomType,
+            // limits.roomTypeLimits()
+            // );
+            // }
 
             JsonNode propertyAreas = floor.path("propertyAreas");
             if (propertyAreas.isArray()) {
                 int propertyAreaIndex = 0;
                 for (JsonNode floorPropertyArea : propertyAreas) {
                     String propertyAreaName = resolvePropertyAreaKey(
-                        floorPropertyArea,
-                        "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]"
-                    );
+                            floorPropertyArea,
+                            "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]");
                     if (!limits.propertyAreaLimits().containsKey(propertyAreaName)) {
                         throw validationError(
-                            "UNKNOWN_PROPERTY_AREA",
-                            "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]",
-                            "Floor mapped to unknown property area: " + propertyAreaName
-                        );
+                                "UNKNOWN_PROPERTY_AREA",
+                                "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]",
+                                "Floor mapped to unknown property area: " + propertyAreaName);
                     }
 
                     int assignedAreaCount = firstInt(floorPropertyArea, "quantity", "qty", "count");
                     if (assignedAreaCount <= 0) {
                         throw validationError(
-                            "MISSING_PROPERTY_AREA_ASSIGNMENT",
-                            "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]",
-                            "Each property area assignment must include positive quantity"
-                        );
+                                "MISSING_PROPERTY_AREA_ASSIGNMENT",
+                                "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]",
+                                "Each property area assignment must include positive quantity");
                     }
 
-                    int totalAreaAssigned = assignedPerPropertyArea.getOrDefault(propertyAreaName, 0) + assignedAreaCount;
+                    int totalAreaAssigned = assignedPerPropertyArea.getOrDefault(propertyAreaName, 0)
+                            + assignedAreaCount;
                     assignedPerPropertyArea.put(propertyAreaName, totalAreaAssigned);
 
                     int configuredAreaLimit = limits.propertyAreaLimits().get(propertyAreaName);
                     if (totalAreaAssigned > configuredAreaLimit) {
                         throw validationError(
-                            "PROPERTY_AREA_QUANTITY_EXCEEDED",
-                            "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]",
-                            "Assigned property areas exceed configured quantity for area: " + propertyAreaName
-                        );
+                                "PROPERTY_AREA_QUANTITY_EXCEEDED",
+                                "roomConfiguration.floors[" + floorIndex + "].propertyAreas[" + propertyAreaIndex + "]",
+                                "Assigned property areas exceed configured quantity for area: " + propertyAreaName);
                     }
                     propertyAreaIndex++;
                 }
@@ -221,10 +218,9 @@ public class PublishValidator {
         for (String configuredRoomType : roomTypeNames) {
             if (assignedPerRoomType.getOrDefault(configuredRoomType, 0) <= 0) {
                 throw validationError(
-                    "ROOM_TYPE_UNASSIGNED",
-                    "roomConfiguration.roomTypes",
-                    "At least one room must be assigned for room type: " + configuredRoomType
-                );
+                        "ROOM_TYPE_UNASSIGNED",
+                        "roomConfiguration.roomTypes",
+                        "At least one room must be assigned for room type: " + configuredRoomType);
             }
         }
     }
@@ -234,20 +230,18 @@ public class PublishValidator {
     }
 
     private void validateFloorRoomTypeAssignment(
-        JsonNode floorRoomType,
-        String fieldPath,
-        Set<String> roomTypeNames,
-        Set<String> roomNumbers,
-        Map<String, Integer> assignedPerRoomType,
-        Map<String, Integer> roomTypeLimits
-    ) {
+            JsonNode floorRoomType,
+            String fieldPath,
+            Set<String> roomTypeNames,
+            Set<String> roomNumbers,
+            Map<String, Integer> assignedPerRoomType,
+            Map<String, Integer> roomTypeLimits) {
         String roomTypeName = resolveRoomTypeKey(floorRoomType, fieldPath);
         if (!roomTypeNames.contains(roomTypeName)) {
             throw validationError(
-                "UNKNOWN_ROOM_TYPE",
-                fieldPath,
-                "Floor mapped to unknown room type: " + roomTypeName
-            );
+                    "UNKNOWN_ROOM_TYPE",
+                    fieldPath,
+                    "Floor mapped to unknown room type: " + roomTypeName);
         }
 
         int assignedCount = resolveAssignedRoomCount(floorRoomType, fieldPath, roomNumbers);
@@ -257,10 +251,9 @@ public class PublishValidator {
         Integer configuredLimit = roomTypeLimits.get(roomTypeName);
         if (configuredLimit != null && totalAssigned > configuredLimit) {
             throw validationError(
-                "ROOM_TYPE_QUANTITY_EXCEEDED",
-                fieldPath,
-                "Assigned rooms exceed configured quantity for room type: " + roomTypeName
-            );
+                    "ROOM_TYPE_QUANTITY_EXCEEDED",
+                    fieldPath,
+                    "Assigned rooms exceed configured quantity for room type: " + roomTypeName);
         }
     }
 
@@ -272,10 +265,9 @@ public class PublishValidator {
                 String roomNumber = roomNumberNode.asText().trim();
                 if (roomNumber.isBlank() || !roomNumbers.add(roomNumber)) {
                     throw validationError(
-                        "DUPLICATE_OR_BLANK_ROOM_NUMBER",
-                        fieldPath + ".roomNumbers",
-                        "Duplicate or blank room number found"
-                    );
+                            "DUPLICATE_OR_BLANK_ROOM_NUMBER",
+                            fieldPath + ".roomNumbers",
+                            "Duplicate or blank room number found");
                 }
                 assignedCount++;
             }
@@ -285,10 +277,9 @@ public class PublishValidator {
         int assignedCount = firstInt(floorRoomType, "roomCount", "quantity", "qty", "count");
         if (assignedCount <= 0) {
             throw validationError(
-                "MISSING_ROOM_ASSIGNMENT",
-                fieldPath,
-                "Each floor allocation must include roomNumbers or positive roomCount"
-            );
+                    "MISSING_ROOM_ASSIGNMENT",
+                    fieldPath,
+                    "Each floor allocation must include roomNumbers or positive roomCount");
         }
         return assignedCount;
     }
@@ -355,7 +346,8 @@ public class PublishValidator {
             }
 
             String mapGlAccount = mapping.path("mapGlAccount").asText().trim();
-            if (!mapGlAccount.isBlank() && !"UNASSIGNED".equalsIgnoreCase(mapGlAccount) && !accountCodes.contains(mapGlAccount)) {
+            if (!mapGlAccount.isBlank() && !"UNASSIGNED".equalsIgnoreCase(mapGlAccount)
+                    && !accountCodes.contains(mapGlAccount)) {
                 throw new BadRequestException("Revenue mapping refers to unknown accountCode: " + mapGlAccount);
             }
 
