@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.pms.property.domain.room.dto.InventoryRoomResponse;
+import com.pms.property.domain.room.dto.RoomOutletTypeResponse;
 import com.pms.property.domain.room.dto.RoomSummaryResponse;
 import com.pms.property.domain.room.service.RoomService;
 import java.util.List;
@@ -33,6 +34,19 @@ class RoomControllerTest {
         var response = controller.listInventoryRooms("P-1").getBody();
 
         assertEquals(1, response.data().size());
+    }
+
+    @Test
+    void shouldReturnRoomOutletTypesPayload() {
+        RoomService service = mock(RoomService.class);
+        RoomController controller = new RoomController(service);
+        when(service.listRoomOutletTypesByPropertyId("P-1"))
+            .thenReturn(List.of(new RoomOutletTypeResponse(1L, "P-1", "Deluxe", 2, true, 2, "Desc", "A1,A2", "I1,I2")));
+
+        var response = controller.listRoomOutletTypes("P-1").getBody();
+
+        assertEquals(1, response.data().size());
+        assertEquals("Deluxe", response.data().get(0).roomName());
     }
 }
 

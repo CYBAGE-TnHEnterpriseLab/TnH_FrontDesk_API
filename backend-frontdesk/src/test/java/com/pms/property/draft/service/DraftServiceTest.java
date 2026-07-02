@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.draft.dto.CreateDraftRequest;
+import com.pms.property.draft.dto.SaveDraftRequest;
 import com.pms.property.draft.entity.DraftLifecycleState;
 import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.entity.PropertyDraftEntity;
@@ -120,6 +121,39 @@ class DraftServiceTest {
         when(repository.findById(11L)).thenReturn(Optional.of(draft));
 
         assertThrows(BadRequestException.class, () -> draftService.deleteDraft(11L, "admin"));
+    }
+
+    @Test
+    void shouldAllowSaveForPublishedDraft() throws Exception {
+        PropertyDraftRepository repository = Mockito.mock(PropertyDraftRepository.class);
+        PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
+        LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+
+        PropertyDraftEntity draft = new PropertyDraftEntity();
+        draft.setId(12L);
+        draft.setStatus(DraftStatus.PUBLISHED);
+        draft.setLifecycleState(DraftLifecycleState.ACTIVE);
+        draft.setVersion(5L);
+        draft.setCurrentStep("PROPERTY_DETAILS");
+        draft.setCompletedSteps("PROPERTY_DETAILS");
+        draft.setSchemaVersion(1);
+        draft.setWizardData("{}");
+        draft.setCreatedAt(Instant.now());
+        draft.setUpdatedAt(Instant.now());
+
+        JsonNode updatedWizard = objectMapper.readTree("{\"propertyDetails\":{\"propertyName\":\"Updated\"}}");
+        SaveDraftRequest request = new SaveDraftRequest(2, updatedWizard, 5L, "CONTENT", List.of("PROPERTY_DETAILS", "CONTENT"));
+
+        when(repository.findById(12L)).thenReturn(Optional.of(draft));
+        when(repository.save(any(PropertyDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = draftService.saveDraft(12L, request, "admin");
+
+        assertEquals(DraftStatus.PUBLISHED.name(), response.status());
+        assertEquals(2, response.schemaVersion());
+        verify(repository).save(draft);
     }
 }
 

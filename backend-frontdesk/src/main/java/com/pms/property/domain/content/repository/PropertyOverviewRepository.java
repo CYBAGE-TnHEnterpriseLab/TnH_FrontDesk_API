@@ -12,6 +12,8 @@ public interface PropertyOverviewRepository extends JpaRepository<PropertyOvervi
 	Optional<PropertyOverviewEntity> findByPropertyId(String propertyId);
 
 	Optional<PropertyOverviewEntity> findByPropertyIdAndId(String propertyId, Long id);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

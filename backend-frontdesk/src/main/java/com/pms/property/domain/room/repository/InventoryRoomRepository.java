@@ -12,6 +12,8 @@ public interface InventoryRoomRepository extends JpaRepository<InventoryRoomEnti
 	Optional<InventoryRoomEntity> findByPropertyIdAndId(String propertyId, Long id);
 
 	long countByPropertyId(String propertyId);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

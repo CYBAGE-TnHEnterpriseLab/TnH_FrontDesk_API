@@ -12,6 +12,8 @@ public interface PaymentMethodRepository extends JpaRepository<PaymentMethodEnti
 	Optional<PaymentMethodEntity> findByPropertyIdAndId(String propertyId, Long id);
 
 	long countByPropertyId(String propertyId);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

@@ -70,9 +70,6 @@ public class DraftService {
     @Transactional
     public DraftResponse saveDraft(Long draftId, SaveDraftRequest request, String actor) {
         PropertyDraftEntity entity = getById(draftId);
-        if (entity.getStatus() == DraftStatus.PUBLISHED) {
-            throw new BadRequestException("Published draft cannot be edited");
-        }
         if (request.expectedVersion() != null && !request.expectedVersion().equals(entity.getVersion())) {
             throw new BadRequestException("Draft version mismatch");
         }

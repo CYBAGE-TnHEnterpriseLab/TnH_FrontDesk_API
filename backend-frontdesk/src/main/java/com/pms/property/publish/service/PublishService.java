@@ -1,6 +1,7 @@
 package com.pms.property.publish.service;
 
 import com.pms.property.common.exception.BadRequestException;
+import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.content.entity.GuestServiceAmenityEntity;
 import com.pms.property.domain.content.entity.NearbyLocationAccessibilityEntity;
 import com.pms.property.domain.content.entity.PropertyOverviewEntity;
@@ -96,20 +97,49 @@ public class PublishService {
     @Transactional
     public PublishResponse publish(Long draftId, String actor) {
         PropertyDraftEntity draft = draftService.getById(draftId);
-        if (draft.getStatus() == DraftStatus.PUBLISHED) {
-            if (draft.getPublishedPropertyId() == null) {
-                throw new BadRequestException("Draft already published, but property id missing");
-            }
-            return new PublishResponse(draftId, draft.getPublishedPropertyId(), DraftStatus.PUBLISHED.name());
-        }
-
         PublishMapper.NormalizedPublishData normalized = publishMapper.toNormalized(draft.getWizardData());
         publishValidator.validate(normalized.root());
 
+        String propertyId;
+        if (draft.getStatus() == DraftStatus.PUBLISHED) {
+            propertyId = republishExistingProperty(normalized, draft);
+        } else {
+            propertyId = publishNewProperty(normalized, actor);
+        }
+
+        draftService.markPublished(draft, propertyId, actor);
+        return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());
+    }
+
+    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, String actor) {
         normalized.property().setCreatedBy(actor);
         PropertyEntity property = propertyRepository.save(normalized.property());
         String propertyId = property.getId();
+        saveNormalizedData(normalized, propertyId);
+        return propertyId;
+    }
 
+    private String republishExistingProperty(PublishMapper.NormalizedPublishData normalized, PropertyDraftEntity draft) {
+        String propertyId = draft.getPublishedPropertyId();
+        if (propertyId == null || propertyId.isBlank()) {
+            throw new BadRequestException("Draft already published, but property id missing");
+        }
+
+        PropertyEntity existing = propertyRepository.findById(propertyId)
+            .orElseThrow(() -> new NotFoundException("Property not found: " + propertyId));
+
+        PropertyEntity updated = normalized.property();
+        updated.setId(existing.getId());
+        updated.setCreatedAt(existing.getCreatedAt());
+        updated.setCreatedBy(existing.getCreatedBy());
+        propertyRepository.save(updated);
+
+        clearNormalizedData(propertyId);
+        saveNormalizedData(normalized, propertyId);
+        return propertyId;
+    }
+
+    private void saveNormalizedData(PublishMapper.NormalizedPublishData normalized, String propertyId) {
         savePropertyOverview(normalized.propertyOverview(), propertyId);
         saveGuestServiceAmenities(normalized.guestServiceAmenities(), propertyId);
         saveNearbyLocationAccessibility(normalized.nearbyLocationAccessibility(), propertyId);
@@ -121,11 +151,36 @@ public class PublishService {
         saveChartOfAccounts(normalized.chartOfAccounts(), propertyId);
         saveRevenueMappings(normalized.revenueMappings(), propertyId);
         savePaymentMethods(normalized.paymentMethods(), propertyId);
-
         saveTaxRules(normalized.taxRules(), propertyId);
+    }
 
-        draftService.markPublished(draft, propertyId, actor);
-        return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());
+    private void clearNormalizedData(String propertyId) {
+        taxRuleRepository.deleteByPropertyId(propertyId);
+        paymentMethodRepository.deleteByPropertyId(propertyId);
+        revenueMappingRepository.deleteByPropertyId(propertyId);
+        chartOfAccountRepository.deleteByPropertyId(propertyId);
+        inventoryRoomRepository.deleteByPropertyId(propertyId);
+        floorPropertyAreaRepository.deleteByPropertyId(propertyId);
+        floorConfigurationRepository.deleteByPropertyId(propertyId);
+        roomOutletTypeRepository.deleteByPropertyId(propertyId);
+        propertyAreaRepository.deleteByPropertyId(propertyId);
+        nearbyLocationAccessibilityRepository.deleteByPropertyId(propertyId);
+        guestServiceAmenityRepository.deleteByPropertyId(propertyId);
+        propertyOverviewRepository.deleteByPropertyId(propertyId);
+
+        // Flush deletes before re-inserts to avoid FK/unique timing issues.
+        taxRuleRepository.flush();
+        paymentMethodRepository.flush();
+        revenueMappingRepository.flush();
+        chartOfAccountRepository.flush();
+        inventoryRoomRepository.flush();
+        floorPropertyAreaRepository.flush();
+        floorConfigurationRepository.flush();
+        roomOutletTypeRepository.flush();
+        propertyAreaRepository.flush();
+        nearbyLocationAccessibilityRepository.flush();
+        guestServiceAmenityRepository.flush();
+        propertyOverviewRepository.flush();
     }
 
 

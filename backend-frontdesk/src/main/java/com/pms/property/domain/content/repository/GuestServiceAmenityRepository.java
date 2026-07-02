@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface GuestServiceAmenityRepository extends JpaRepository<GuestServiceAmenityEntity, Long> {
 
 	long countByPropertyId(String propertyId);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

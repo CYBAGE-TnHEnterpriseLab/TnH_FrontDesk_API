@@ -12,6 +12,8 @@ public interface ChartOfAccountRepository extends JpaRepository<ChartOfAccountEn
 	Optional<ChartOfAccountEntity> findByPropertyIdAndId(String propertyId, Long id);
 
 	long countByPropertyId(String propertyId);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

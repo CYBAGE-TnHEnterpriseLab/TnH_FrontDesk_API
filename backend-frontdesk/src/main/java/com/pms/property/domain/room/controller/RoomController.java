@@ -3,6 +3,7 @@ package com.pms.property.domain.room.controller;
 import com.pms.property.common.response.ApiResponse;
 import com.pms.property.domain.room.dto.InventoryRoomRequest;
 import com.pms.property.domain.room.dto.InventoryRoomResponse;
+import com.pms.property.domain.room.dto.RoomOutletTypeResponse;
 import com.pms.property.domain.room.dto.RoomSummaryResponse;
 import com.pms.property.domain.room.service.RoomService;
 import java.util.List;
@@ -34,6 +35,11 @@ public class RoomController {
     @GetMapping("/properties/{propertyId}/inventory-rooms")
     public ResponseEntity<ApiResponse<List<InventoryRoomResponse>>> listInventoryRooms(@PathVariable String propertyId) {
         return ResponseEntity.ok(ApiResponse.ok(roomService.listInventoryRoomsByPropertyId(propertyId), "Inventory rooms fetched"));
+    }
+
+    @GetMapping("/properties/{propertyId}/room-outlet-types")
+    public ResponseEntity<ApiResponse<List<RoomOutletTypeResponse>>> listRoomOutletTypes(@PathVariable String propertyId) {
+        return ResponseEntity.ok(ApiResponse.ok(roomService.listRoomOutletTypesByPropertyId(propertyId), "Room outlet types fetched"));
     }
 
     @GetMapping("/properties/{propertyId}/inventory-rooms/{roomId}")

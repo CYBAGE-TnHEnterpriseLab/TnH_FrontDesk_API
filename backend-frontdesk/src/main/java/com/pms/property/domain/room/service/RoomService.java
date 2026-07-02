@@ -3,10 +3,12 @@ package com.pms.property.domain.room.service;
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.room.dto.InventoryRoomRequest;
 import com.pms.property.domain.room.dto.InventoryRoomResponse;
+import com.pms.property.domain.room.dto.RoomOutletTypeResponse;
 import com.pms.property.domain.room.dto.RoomSummaryResponse;
 import com.pms.property.domain.room.repository.FloorConfigurationRepository;
 import com.pms.property.domain.room.repository.FloorPropertyAreaRepository;
 import com.pms.property.domain.room.entity.InventoryRoomEntity;
+import com.pms.property.domain.room.entity.RoomOutletTypeEntity;
 import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
@@ -59,6 +61,14 @@ public class RoomService {
     }
 
     @Transactional(readOnly = true)
+    public List<RoomOutletTypeResponse> listRoomOutletTypesByPropertyId(String propertyId) {
+        return roomOutletTypeRepository.findAllByPropertyId(propertyId)
+            .stream()
+            .map(this::toResponse)
+            .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public InventoryRoomResponse getInventoryRoomById(String propertyId, Long roomId) {
         return inventoryRoomRepository.findByPropertyIdAndId(propertyId, roomId)
             .map(this::toResponse)
@@ -99,6 +109,20 @@ public class RoomService {
             entity.getFloorName(),
             entity.getRoomTypeName(),
             entity.getRoomNumber()
+        );
+    }
+
+    private RoomOutletTypeResponse toResponse(RoomOutletTypeEntity entity) {
+        return new RoomOutletTypeResponse(
+            entity.getId(),
+            entity.getPropertyId(),
+            entity.getRoomName(),
+            entity.getQuantity(),
+            entity.getAvailableForSell(),
+            entity.getMaximumGuestOccupancy(),
+            entity.getDescription(),
+            entity.getAmenitiesCsv(),
+            entity.getImagesCsv()
         );
     }
 }

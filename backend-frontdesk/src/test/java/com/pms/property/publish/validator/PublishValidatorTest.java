@@ -99,7 +99,12 @@ class PublishValidatorTest {
                   {"name": "Standard Deluxe", "occupancy": 2}
                 ],
                 "floors": [
-                  {"floorName": "2", "roomTypeName": "Standard Deluxe", "roomNumbers": ["201", "202"]}
+                  {
+                    "floorName": "2",
+                    "roomTypes": [
+                      {"roomTypeName": "Standard Deluxe", "roomNumbers": ["201", "202"]}
+                    ]
+                  }
                 ]
               },
               "finance": {

@@ -14,6 +14,7 @@ com\pms\property\domain\property\mapper\PropertyMapper.class
 com\pms\property\publish\config\CorsConfig.class
 com\pms\property\domain\tax\entity\TaxRuleEntity.class
 com\pms\property\domain\finance\entity\ChartOfAccountEntity.class
+com\pms\property\domain\room\dto\RoomOutletTypeResponse.class
 com\pms\property\domain\room\dto\RoomSummaryResponse.class
 com\pms\property\domain\property\controller\PropertyController.class
 com\pms\property\domain\room\service\RoomService.class

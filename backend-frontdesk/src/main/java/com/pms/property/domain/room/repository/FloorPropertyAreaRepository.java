@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface FloorPropertyAreaRepository extends JpaRepository<FloorPropertyAreaEntity, Long> {
 
 	long countByPropertyId(String propertyId);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NearbyLocationAccessibilityRepository extends JpaRepository<NearbyLocationAccessibilityEntity, Long> {
 
 	long countByPropertyId(String propertyId);
+
+	long deleteByPropertyId(String propertyId);
 }
 
 

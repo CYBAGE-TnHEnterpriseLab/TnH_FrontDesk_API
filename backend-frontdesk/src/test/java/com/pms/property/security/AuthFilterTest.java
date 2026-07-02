@@ -49,7 +49,7 @@ class AuthFilterTest {
 	}
 
 	@Test
-	void shouldRejectNonAdminTokenWithForbidden() throws ServletException, IOException {
+	void shouldAllowNonAdminTokenAndDeferRoleChecksToSecurityConfig() throws ServletException, IOException {
 		when(jwtAccessTokenValidator.validateAccessToken("valid-token"))
 			.thenReturn(java.util.Optional.of(new AccessTokenVerifier.VerifiedAccessToken("operator", Set.of("USER"))));
 
@@ -57,12 +57,13 @@ class AuthFilterTest {
 		request.setRequestURI("/api/property/drafts");
 		request.addHeader("Authorization", "Bearer valid-token");
 		MockHttpServletResponse response = new MockHttpServletResponse();
+		AtomicReference<String> seenUsername = new AtomicReference<>();
 
-		authFilter.doFilter(request, response, (req, res) -> {
-			throw new AssertionError("Filter chain should not run for non-admin");
-		});
+		authFilter.doFilter(request, response, (req, res) -> seenUsername.set(RequestUserContext.getUsername()));
 
-		assertEquals(403, response.getStatus());
+		assertEquals(200, response.getStatus());
+		assertEquals("operator", seenUsername.get());
+		assertNull(RequestUserContext.getUsername());
 	}
 
 	@Test
