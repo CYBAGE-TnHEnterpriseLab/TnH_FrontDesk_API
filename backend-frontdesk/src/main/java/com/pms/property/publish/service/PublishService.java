@@ -34,6 +34,7 @@ import com.pms.property.draft.service.DraftService;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.mapper.PublishMapper;
 import com.pms.property.publish.validator.PublishValidator;
+import com.pms.property.upload.service.LocalImageStorageService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +58,7 @@ public class PublishService {
     private final TaxRuleRepository taxRuleRepository;
     private final PublishMapper publishMapper;
     private final PublishValidator publishValidator;
+    private final LocalImageStorageService localImageStorageService;
 
     public PublishService(
         DraftService draftService,
@@ -74,7 +76,8 @@ public class PublishService {
         PaymentMethodRepository paymentMethodRepository,
         TaxRuleRepository taxRuleRepository,
         PublishMapper publishMapper,
-        PublishValidator publishValidator
+        PublishValidator publishValidator,
+        LocalImageStorageService localImageStorageService
     ) {
         this.draftService = draftService;
         this.propertyRepository = propertyRepository;
@@ -92,6 +95,7 @@ public class PublishService {
         this.taxRuleRepository = taxRuleRepository;
         this.publishMapper = publishMapper;
         this.publishValidator = publishValidator;
+        this.localImageStorageService = localImageStorageService;
     }
 
     @Transactional
@@ -134,6 +138,7 @@ public class PublishService {
         updated.setCreatedBy(existing.getCreatedBy());
         propertyRepository.save(updated);
 
+        cleanupExistingPropertyImages(propertyId);
         clearNormalizedData(propertyId);
         saveNormalizedData(normalized, propertyId);
         return propertyId;
@@ -181,6 +186,44 @@ public class PublishService {
         nearbyLocationAccessibilityRepository.flush();
         guestServiceAmenityRepository.flush();
         propertyOverviewRepository.flush();
+    }
+
+    private void cleanupExistingPropertyImages(String propertyId) {
+        propertyOverviewRepository.findByPropertyId(propertyId)
+            .ifPresent(overview -> deleteImageIfUploadUrl(overview.getPropertyHeroImage()));
+
+        List<PropertyAreaEntity> propertyAreas = propertyAreaRepository.findAllByPropertyId(propertyId);
+        if (propertyAreas != null) {
+            for (PropertyAreaEntity propertyArea : propertyAreas) {
+                deleteImagesFromCsv(propertyArea.getImagesCsv());
+            }
+        }
+
+        List<RoomOutletTypeEntity> roomOutletTypes = roomOutletTypeRepository.findAllByPropertyId(propertyId);
+        if (roomOutletTypes != null) {
+            for (RoomOutletTypeEntity roomOutletType : roomOutletTypes) {
+                deleteImagesFromCsv(roomOutletType.getImagesCsv());
+            }
+        }
+    }
+
+    private void deleteImagesFromCsv(String csvValues) {
+        if (csvValues == null || csvValues.isBlank()) {
+            return;
+        }
+        for (String raw : csvValues.split(",")) {
+            deleteImageIfUploadUrl(raw);
+        }
+    }
+
+    private void deleteImageIfUploadUrl(String rawValue) {
+        if (rawValue == null) {
+            return;
+        }
+        String value = rawValue.trim();
+        if (value.startsWith("/uploads/")) {
+            localImageStorageService.deleteByPublicUrl(value);
+        }
     }
 
 

@@ -30,6 +30,7 @@ import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.service.DraftService;
 import com.pms.property.publish.mapper.PublishMapper;
 import com.pms.property.publish.validator.PublishValidator;
+import com.pms.property.upload.service.LocalImageStorageService;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,7 @@ class PublishServiceTest {
         TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
         PublishMapper publishMapper = mock(PublishMapper.class);
         PublishValidator publishValidator = mock(PublishValidator.class);
+        LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
 
         PublishService service = new PublishService(
             draftService,
@@ -72,7 +74,8 @@ class PublishServiceTest {
             paymentMethodRepository,
             taxRuleRepository,
             publishMapper,
-            publishValidator
+            publishValidator,
+            localImageStorageService
         );
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
@@ -92,6 +95,9 @@ class PublishServiceTest {
 
         PropertyOverviewEntity overview = new PropertyOverviewEntity();
         overview.setPropertyDescription("updated overview");
+
+        PropertyOverviewEntity existingOverview = new PropertyOverviewEntity();
+        existingOverview.setPropertyHeroImage("/uploads/old-hero.png");
 
         PropertyAreaEntity area = new PropertyAreaEntity();
         area.setAreaName("Lobby");
@@ -120,6 +126,15 @@ class PublishServiceTest {
         when(publishMapper.toNormalized("{}")).thenReturn(normalized);
         when(propertyRepository.findById("P-100")).thenReturn(java.util.Optional.of(existingProperty));
         when(propertyRepository.save(any(PropertyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(propertyOverviewRepository.findByPropertyId("P-100")).thenReturn(java.util.Optional.of(existingOverview));
+
+        PropertyAreaEntity existingArea = new PropertyAreaEntity();
+        existingArea.setImagesCsv("/uploads/old-area.png");
+        when(propertyAreaRepository.findAllByPropertyId("P-100")).thenReturn(List.of(existingArea));
+
+        com.pms.property.domain.room.entity.RoomOutletTypeEntity existingRoomType = new com.pms.property.domain.room.entity.RoomOutletTypeEntity();
+        existingRoomType.setImagesCsv("/uploads/old-room.png");
+        when(roomOutletTypeRepository.findAllByPropertyId("P-100")).thenReturn(List.of(existingRoomType));
 
         var response = service.publish(41L, "owner");
 
@@ -135,6 +150,9 @@ class PublishServiceTest {
 
         verify(propertyAreaRepository).deleteByPropertyId("P-100");
         verify(propertyOverviewRepository).deleteByPropertyId("P-100");
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/old-hero.png");
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/old-area.png");
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/old-room.png");
         verify(propertyOverviewRepository).flush();
         verify(draftService).markPublished(eq(draft), eq("P-100"), eq("owner"));
     }

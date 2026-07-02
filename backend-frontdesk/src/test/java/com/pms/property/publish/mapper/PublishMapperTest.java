@@ -220,6 +220,7 @@ class PublishMapperTest {
                 "roomTypes": [
                   {
                     "roomName": "Deluxe Twin",
+                    "roomCode": "DTW",
                     "quantity": 10,
                     "availableForSell": true,
                     "maximumGuestOccupancy": 2,
@@ -253,6 +254,7 @@ class PublishMapperTest {
         assertEquals("Lounge Area", data.propertyAreas().get(0).getAreaName());
         assertEquals(1, data.roomOutletTypes().size());
         assertEquals("Deluxe Twin", data.roomOutletTypes().get(0).getRoomName());
+        assertEquals("DTW", data.roomOutletTypes().get(0).getRoomCode());
     }
 
     @Test

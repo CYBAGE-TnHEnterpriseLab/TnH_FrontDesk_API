@@ -4,6 +4,7 @@ public record RoomOutletTypeResponse(
     Long id,
     String propertyId,
     String roomName,
+    String roomCode,
     Integer quantity,
     Boolean availableForSell,
     Integer maximumGuestOccupancy,

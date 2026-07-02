@@ -50,6 +50,30 @@ class PublishValidatorTest {
     }
 
     @Test
+    void shouldRejectInvalidRoomCodePattern() {
+        String payload = validPayload().replace("\"roomCode\": \"STANDARD_DELUXE\"", "\"roomCode\": \"sd-1\"");
+        assertThrows(BadRequestException.class, () -> validator.validate(objectMapper.readTree(payload)));
+    }
+
+    @Test
+    void shouldRejectDuplicateRoomCode() {
+        String payload = validPayload().replace(
+            """
+                \"roomTypes\": [
+                  {\"roomName\": \"Standard Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 2, \"maximumGuestOccupancy\": 2}
+                ]
+            """,
+            """
+                \"roomTypes\": [
+                  {\"roomName\": \"Standard Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 1, \"maximumGuestOccupancy\": 2},
+                  {\"roomName\": \"Executive Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 1, \"maximumGuestOccupancy\": 2}
+                ]
+            """
+        );
+        assertThrows(BadRequestException.class, () -> validator.validate(objectMapper.readTree(payload)));
+    }
+
+    @Test
     void shouldAcceptWithoutRoomConfigurationRoomTypes() throws Exception {
         String payload = validPayload().replace(
             """
@@ -91,7 +115,7 @@ class PublishValidatorTest {
               },
               "roomsAndOutlets": {
                 "roomTypes": [
-                  {"roomName": "Standard Deluxe", "quantity": 2, "maximumGuestOccupancy": 2}
+                  {"roomName": "Standard Deluxe", "roomCode": "STANDARD_DELUXE", "quantity": 2, "maximumGuestOccupancy": 2}
                 ]
               },
               "roomConfiguration": {

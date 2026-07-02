@@ -117,6 +117,7 @@ public class RoomService {
             entity.getId(),
             entity.getPropertyId(),
             entity.getRoomName(),
+            entity.getRoomCode(),
             entity.getQuantity(),
             entity.getAvailableForSell(),
             entity.getMaximumGuestOccupancy(),

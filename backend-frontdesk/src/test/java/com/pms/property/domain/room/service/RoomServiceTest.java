@@ -83,6 +83,7 @@ class RoomServiceTest {
         entity.setId(8L);
         entity.setPropertyId("P-1");
         entity.setRoomName("Deluxe");
+        entity.setRoomCode("DLX");
         entity.setQuantity(2);
         entity.setAvailableForSell(true);
         entity.setMaximumGuestOccupancy(2);
@@ -96,6 +97,7 @@ class RoomServiceTest {
 
         assertEquals(1, response.size());
         assertEquals("Deluxe", response.get(0).roomName());
+        assertEquals("DLX", response.get(0).roomCode());
         assertEquals("P-1", response.get(0).propertyId());
     }
 }

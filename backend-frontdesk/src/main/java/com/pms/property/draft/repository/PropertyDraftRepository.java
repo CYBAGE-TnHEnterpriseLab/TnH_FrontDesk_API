@@ -18,6 +18,8 @@ public interface PropertyDraftRepository extends JpaRepository<PropertyDraftEnti
 
 			List<PropertyDraftEntity> findByPublishedPropertyIdInAndStatus(Collection<String> publishedPropertyIds, DraftStatus status);
 
+	List<PropertyDraftEntity> findByPublishedPropertyId(String publishedPropertyId);
+
 	long deleteByPublishedPropertyId(String publishedPropertyId);
 }
 

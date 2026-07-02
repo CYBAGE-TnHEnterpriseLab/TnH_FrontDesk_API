@@ -74,13 +74,17 @@ public class DraftService {
             throw new BadRequestException("Draft version mismatch");
         }
 
+        String existingWizardData = entity.getWizardData();
+        String updatedWizardData = writeJson(request.wizardData());
+        deleteRemovedDraftImages(existingWizardData, updatedWizardData);
+
         entity.setSchemaVersion(request.schemaVersion());
         entity.setCurrentStep(defaultStep(request.currentStep()));
         entity.setCompletedSteps(joinSteps(request.completedSteps()));
         if (entity.getLifecycleState() == DraftLifecycleState.DRAFT) {
             entity.setLifecycleState(DraftLifecycleState.CONFIGURED);
         }
-        entity.setWizardData(writeJson(request.wizardData()));
+        entity.setWizardData(updatedWizardData);
         entity.setUpdatedBy(actor);
         entity.setUpdatedAt(Instant.now());
         return DraftMapper.toResponse(draftRepository.save(entity), objectMapper);
@@ -178,6 +182,10 @@ public class DraftService {
         draftRepository.delete(draft);
     }
 
+    public void deleteImagesFromWizardData(String wizardDataJson) {
+        deleteDraftImages(wizardDataJson);
+    }
+
     @Transactional
     public void markPublished(PropertyDraftEntity draft, String propertyId, String actor) {
         draft.setStatus(DraftStatus.PUBLISHED);
@@ -227,33 +235,54 @@ public class DraftService {
     }
 
     private void deleteDraftImages(String wizardDataJson) {
-        try {
-            JsonNode root = objectMapper.readTree(wizardDataJson);
-            deleteImagesRecursively(root);
-        } catch (JsonProcessingException ignored) {
-            // Legacy malformed data should still be deletable.
+        for (String imageUrl : extractDraftImageUrls(wizardDataJson)) {
+            localImageStorageService.deleteByPublicUrl(imageUrl);
         }
     }
 
-    private void deleteImagesRecursively(JsonNode node) {
+    private void deleteRemovedDraftImages(String existingWizardData, String updatedWizardData) {
+        Set<String> existingImages = extractDraftImageUrls(existingWizardData);
+        Set<String> updatedImages = extractDraftImageUrls(updatedWizardData);
+        for (String existingImage : existingImages) {
+            if (!updatedImages.contains(existingImage)) {
+                localImageStorageService.deleteByPublicUrl(existingImage);
+            }
+        }
+    }
+
+    private Set<String> extractDraftImageUrls(String wizardDataJson) {
+        Set<String> imageUrls = new HashSet<>();
+        if (wizardDataJson == null || wizardDataJson.isBlank()) {
+            return imageUrls;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(wizardDataJson);
+            collectImagesRecursively(root, imageUrls);
+        } catch (JsonProcessingException ignored) {
+            // Legacy malformed data should still be deletable.
+        }
+        return imageUrls;
+    }
+
+    private void collectImagesRecursively(JsonNode node, Set<String> imageUrls) {
         if (node == null || node.isNull()) {
             return;
         }
         if (node.isTextual()) {
             String value = node.asText().trim();
             if (value.startsWith("/uploads/")) {
-                localImageStorageService.deleteByPublicUrl(value);
+                imageUrls.add(value);
             }
             return;
         }
         if (node.isArray()) {
             for (JsonNode child : node) {
-                deleteImagesRecursively(child);
+                collectImagesRecursively(child, imageUrls);
             }
             return;
         }
         if (node.isObject()) {
-            node.fields().forEachRemaining(entry -> deleteImagesRecursively(entry.getValue()));
+            node.fields().forEachRemaining(entry -> collectImagesRecursively(entry.getValue(), imageUrls));
         }
     }
 }

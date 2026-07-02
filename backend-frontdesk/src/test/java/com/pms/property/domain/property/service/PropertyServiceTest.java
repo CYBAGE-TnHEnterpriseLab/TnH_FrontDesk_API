@@ -13,6 +13,8 @@ import com.pms.property.domain.content.repository.PropertyOverviewRepository;
 import com.pms.property.domain.finance.repository.ChartOfAccountRepository;
 import com.pms.property.domain.finance.repository.RevenueMappingRepository;
 import com.pms.property.domain.payment.repository.PaymentMethodRepository;
+import com.pms.property.domain.room.entity.PropertyAreaEntity;
+import com.pms.property.domain.room.entity.RoomOutletTypeEntity;
 import com.pms.property.domain.property.entity.PropertyEntity;
 import com.pms.property.domain.property.repository.PropertyRepository;
 import com.pms.property.domain.room.repository.FloorConfigurationRepository;
@@ -21,7 +23,11 @@ import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
 import com.pms.property.domain.tax.repository.TaxRuleRepository;
+import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.repository.PropertyDraftRepository;
+import com.pms.property.draft.service.DraftService;
+import com.pms.property.upload.service.LocalImageStorageService;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +49,8 @@ class PropertyServiceTest {
         PaymentMethodRepository paymentMethodRepository = mock(PaymentMethodRepository.class);
         TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
         PropertyDraftRepository propertyDraftRepository = mock(PropertyDraftRepository.class);
+        LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
+        DraftService draftService = mock(DraftService.class);
 
         PropertyService service = new PropertyService(
             propertyRepository,
@@ -58,13 +66,27 @@ class PropertyServiceTest {
             revenueMappingRepository,
             paymentMethodRepository,
             taxRuleRepository,
-            propertyDraftRepository
+            propertyDraftRepository,
+            localImageStorageService,
+            draftService
         );
 
         PropertyEntity property = new PropertyEntity();
         property.setId("P-200");
         property.setCreatedBy("owner");
         when(propertyRepository.findById("P-200")).thenReturn(Optional.of(property));
+        PropertyDraftEntity linkedDraft = new PropertyDraftEntity();
+        linkedDraft.setWizardData("{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/draft-hero.png\"}}}");
+        when(propertyDraftRepository.findByPublishedPropertyId("P-200")).thenReturn(List.of(linkedDraft));
+        var overview = new com.pms.property.domain.content.entity.PropertyOverviewEntity();
+        overview.setPropertyHeroImage("/uploads/published-hero.png");
+        when(propertyOverviewRepository.findByPropertyId("P-200")).thenReturn(Optional.of(overview));
+        PropertyAreaEntity areaEntity = new PropertyAreaEntity();
+        areaEntity.setImagesCsv("/uploads/area-1.png,/uploads/area-2.png");
+        when(propertyAreaRepository.findAllByPropertyId("P-200")).thenReturn(List.of(areaEntity));
+        RoomOutletTypeEntity roomOutletTypeEntity = new RoomOutletTypeEntity();
+        roomOutletTypeEntity.setImagesCsv("/uploads/room-1.png");
+        when(roomOutletTypeRepository.findAllByPropertyId("P-200")).thenReturn(List.of(roomOutletTypeEntity));
 
         service.deleteOwnedProperty("P-200", "owner");
 
@@ -80,6 +102,11 @@ class PropertyServiceTest {
         verify(nearbyLocationAccessibilityRepository).deleteByPropertyId("P-200");
         verify(guestServiceAmenityRepository).deleteByPropertyId("P-200");
         verify(propertyOverviewRepository).deleteByPropertyId("P-200");
+        verify(draftService).deleteImagesFromWizardData(linkedDraft.getWizardData());
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/published-hero.png");
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/area-1.png");
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/area-2.png");
+        verify(localImageStorageService).deleteByPublicUrl("/uploads/room-1.png");
         verify(propertyDraftRepository).deleteByPublishedPropertyId("P-200");
         verify(propertyRepository).delete(property);
     }
@@ -100,6 +127,8 @@ class PropertyServiceTest {
         PaymentMethodRepository paymentMethodRepository = mock(PaymentMethodRepository.class);
         TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
         PropertyDraftRepository propertyDraftRepository = mock(PropertyDraftRepository.class);
+        LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
+        DraftService draftService = mock(DraftService.class);
 
         PropertyService service = new PropertyService(
             propertyRepository,
@@ -115,7 +144,9 @@ class PropertyServiceTest {
             revenueMappingRepository,
             paymentMethodRepository,
             taxRuleRepository,
-            propertyDraftRepository
+            propertyDraftRepository,
+            localImageStorageService,
+            draftService
         );
 
         PropertyEntity property = new PropertyEntity();

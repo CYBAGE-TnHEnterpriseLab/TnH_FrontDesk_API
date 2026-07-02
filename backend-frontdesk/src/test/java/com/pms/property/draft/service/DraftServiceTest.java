@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -154,6 +155,40 @@ class DraftServiceTest {
         assertEquals(DraftStatus.PUBLISHED.name(), response.status());
         assertEquals(2, response.schemaVersion());
         verify(repository).save(draft);
+    }
+
+    @Test
+    void shouldDeleteRemovedImagesOnDraftSave() throws Exception {
+        PropertyDraftRepository repository = Mockito.mock(PropertyDraftRepository.class);
+        PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
+        LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+
+        PropertyDraftEntity draft = new PropertyDraftEntity();
+        draft.setId(13L);
+        draft.setStatus(DraftStatus.DRAFT);
+        draft.setLifecycleState(DraftLifecycleState.CONFIGURED);
+        draft.setVersion(2L);
+        draft.setCurrentStep("CONTENT");
+        draft.setCompletedSteps("PROPERTY_DETAILS,CONTENT");
+        draft.setSchemaVersion(1);
+        draft.setWizardData("{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/old-hero.png\"},\"gallery\":[\"/uploads/keep.png\",\"/uploads/remove.png\"]}}");
+        draft.setCreatedAt(Instant.now());
+        draft.setUpdatedAt(Instant.now());
+
+        JsonNode updatedWizard = objectMapper.readTree("{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/new-hero.png\"},\"gallery\":[\"/uploads/keep.png\"]}}");
+        SaveDraftRequest request = new SaveDraftRequest(1, updatedWizard, 2L, "CONTENT", List.of("PROPERTY_DETAILS", "CONTENT"));
+
+        when(repository.findById(13L)).thenReturn(Optional.of(draft));
+        when(repository.save(any(PropertyDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        draftService.saveDraft(13L, request, "admin");
+
+        verify(imageStorageService).deleteByPublicUrl("/uploads/old-hero.png");
+        verify(imageStorageService).deleteByPublicUrl("/uploads/remove.png");
+        verify(imageStorageService, never()).deleteByPublicUrl("/uploads/keep.png");
+        verify(imageStorageService, never()).deleteByPublicUrl("/uploads/new-hero.png");
     }
 }
 

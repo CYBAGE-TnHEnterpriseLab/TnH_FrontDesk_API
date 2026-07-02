@@ -414,6 +414,7 @@ public class PublishMapper {
 
             RoomOutletTypeEntity entity = new RoomOutletTypeEntity();
             entity.setRoomName(roomName);
+            entity.setRoomCode(firstText(roomNode, "roomCode", "roomTypeCode", "code"));
             entity.setQuantity(firstInt(roomNode, "quantity", "qty", "count"));
             entity.setAvailableForSell(roomNode.path("availableForSell").asBoolean(true));
             entity.setMaximumGuestOccupancy(firstInt(roomNode, "maximumGuestOccupancy", "maxOccupancy", "occupancy"));

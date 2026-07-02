@@ -11,10 +11,13 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 @Component
 public class PublishValidator {
+
+    private static final Pattern ROOM_CODE_PATTERN = Pattern.compile("^[A-Z_]{2,20}$");
 
     public void validate(JsonNode root) {
         JsonNode propertyDetails = root.path("propertyDetails");
@@ -58,8 +61,21 @@ public class PublishValidator {
         JsonNode roomTypes = roomsAndOutlets.path("roomTypes");
         if (roomTypes.isArray()) {
             int totalRoomTypeQuantity = 0;
+            Set<String> roomTypeCodes = new HashSet<>();
             for (JsonNode roomType : roomTypes) {
                 requireAny(roomType, "roomTypeCode", "code", "roomName", "name");
+
+                String roomCode = firstText(roomType, "roomCode", "roomTypeCode", "code");
+                if (roomCode.isBlank()) {
+                    throw new BadRequestException("roomCode is required in roomsAndOutlets.roomTypes");
+                }
+                if (!ROOM_CODE_PATTERN.matcher(roomCode).matches()) {
+                    throw new BadRequestException("roomCode must match ^[A-Z_]{2,20}$");
+                }
+                if (!roomTypeCodes.add(roomCode)) {
+                    throw new BadRequestException("roomCode must be unique in roomsAndOutlets.roomTypes");
+                }
+
                 int quantity = firstInt(roomType, "quantity", "qty", "count");
                 if (quantity <= 0) {
                     throw new BadRequestException("Room type quantity must be greater than zero");

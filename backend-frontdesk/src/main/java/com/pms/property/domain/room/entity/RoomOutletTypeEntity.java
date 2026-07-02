@@ -25,6 +25,9 @@ public class RoomOutletTypeEntity {
     @Column(name = "room_name", nullable = false)
     private String roomName;
 
+    @Column(name = "room_code", length = 80)
+    private String roomCode;
+
     @Column(nullable = false)
     private Integer quantity;
 
