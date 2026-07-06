@@ -1,12 +1,10 @@
-package com.frontdesk.pms.rate_management.controller;
+package com.frontdesk.pms.rate_management.exception;
 
-import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
-import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
-import com.frontdesk.pms.rate_management.exception.RatePlanNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
@@ -31,5 +29,11 @@ public class RatePlanExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException ex) {
+        String message = ex.getReason() == null ? "Request failed" : ex.getReason();
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("error", message));
     }
 }

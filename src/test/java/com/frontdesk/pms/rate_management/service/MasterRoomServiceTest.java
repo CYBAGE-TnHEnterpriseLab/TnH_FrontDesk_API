@@ -51,10 +51,7 @@ class MasterRoomServiceTest {
     private MasterRoomMapper masterRoomMapper;
 
         @Mock
-        private PropertyServiceClient propertyServiceClient;
-
-        @Mock
-        private RoomServiceClient roomServiceClient;
+        private PropertyWizardClient propertyWizardClient;
 
     @InjectMocks
     private MasterRoomService masterRoomService;
@@ -265,7 +262,7 @@ class MasterRoomServiceTest {
                 roomType.setName("Standard King");
                 roomType.setActive(true);
 
-                when(roomServiceClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{roomType});
+                when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{roomType});
                 when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(mapping));
                 when(masterRoomPricingRepository.findByRoomTypeId(501L)).thenReturn(List.of(inheritedPricing));
                 when(masterRoomMapper.toPricingResponseDTO(inheritedPricing)).thenReturn(pricingResponse);
@@ -297,7 +294,7 @@ class MasterRoomServiceTest {
                 mapping.setMasterRoom(masterRoom);
                 mapping.setRoomTypeId(701L);
 
-                when(roomServiceClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{});
+                when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{});
                 when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(mapping));
                 when(masterRoomPricingRepository.findByRoomTypeId(701L)).thenReturn(List.of());
 
@@ -370,7 +367,7 @@ class MasterRoomServiceTest {
                 MasterRoomRequestDTO requestDTO = new MasterRoomRequestDTO();
                 requestDTO.setName("Deluxe");
 
-                when(propertyServiceClient.propertyExists("99999999-9999-9999-9999-999999999999")).thenReturn(false);
+                when(propertyWizardClient.propertyExists("99999999-9999-9999-9999-999999999999")).thenReturn(false);
 
                 assertThrows(PropertyNotFoundException.class, () -> masterRoomService.createMasterRoom("99999999-9999-9999-9999-999999999999", requestDTO));
                 verify(masterRoomRepository, never()).save(any(MasterRoom.class));
@@ -395,7 +392,7 @@ class MasterRoomServiceTest {
                 responseDTO.setPropertyId("11111111-1111-1111-1111-111111111111");
                 responseDTO.setName("Standard");
 
-                when(propertyServiceClient.propertyExists("11111111-1111-1111-1111-111111111111")).thenReturn(true);
+                when(propertyWizardClient.propertyExists("11111111-1111-1111-1111-111111111111")).thenReturn(true);
                 when(masterRoomMapper.toEntity(requestDTO)).thenReturn(entity);
                 when(masterRoomRepository.save(entity)).thenReturn(saved);
                 when(masterRoomMapper.toResponseDTO(saved)).thenReturn(responseDTO);
@@ -430,7 +427,7 @@ class MasterRoomServiceTest {
 
                 assertEquals("Executive Deluxe", result.getName());
                 assertEquals("11111111-1111-1111-1111-111111111111", result.getPropertyId());
-                verify(propertyServiceClient, never()).propertyExists(any(String.class));
+                verify(propertyWizardClient, never()).propertyExists(any(String.class));
         }
 
         @Test

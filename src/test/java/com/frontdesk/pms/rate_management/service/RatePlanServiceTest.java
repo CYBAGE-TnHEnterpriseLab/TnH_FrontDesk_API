@@ -46,10 +46,7 @@ class RatePlanServiceTest {
     private MasterRoomPricingRepository masterRoomPricingRepository;
 
     @Mock
-    private PropertyServiceClient propertyServiceClient;
-
-    @Mock
-    private RoomServiceClient roomServiceClient;
+    private PropertyWizardClient propertyWizardClient;
 
     @InjectMocks
     private RatePlanService ratePlanService;
@@ -57,8 +54,8 @@ class RatePlanServiceTest {
     @Test
     void createRatePlan_shouldFailWhenCodeAlreadyExists() {
         RatePlanRequestDTO requestDTO = validRequest();
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, "BAR10")).thenReturn(true);
 
         assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
@@ -70,7 +67,7 @@ class RatePlanServiceTest {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setStartDate(LocalDate.of(2026, 6, 10));
         requestDTO.setEndDate(LocalDate.of(2026, 6, 1));
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
 
         assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
         verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
@@ -102,7 +99,7 @@ class RatePlanServiceTest {
         older.setStartDate(LocalDate.of(2026, 6, 1));
         older.setEndDate(LocalDate.of(2026, 6, 30));
 
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByPropertyIdOrderByIdDesc(PROPERTY_ID)).thenReturn(List.of(newest, older));
 
         List<RatePlanResponseDTO> result = ratePlanService.getAllRatePlans(PROPERTY_ID);
@@ -136,8 +133,8 @@ class RatePlanServiceTest {
             LocalDate.of(2026, 6, 10),
             RatePlanStatus.ACTIVE))
                 .thenReturn(List.of(plan));
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
 
         List<RatePlanResponseDTO> result = ratePlanService.getAvailableRatePlans(
             PROPERTY_ID,
@@ -166,8 +163,8 @@ class RatePlanServiceTest {
 
         when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
                 .thenReturn(Optional.of(pricing));
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(plan));
 
         RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 10L, 101L);
@@ -201,8 +198,8 @@ class RatePlanServiceTest {
         when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(barPlan));
         when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
                 .thenReturn(Optional.of(pricing));
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
 
         RatePlanPriceResponseDTO priceResponseDTO = ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 11L, 101L);
 
@@ -214,7 +211,7 @@ class RatePlanServiceTest {
     void createRatePlan_shouldFailWhenMealOptionMissing() {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setMealOption(null);
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
 
         InvalidRatePlanException exception =
             assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
@@ -226,8 +223,8 @@ class RatePlanServiceTest {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setApplicableRoomTypeIds(Set.of(999L));
 
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
 
         InvalidRatePlanException exception = assertThrows(
                 InvalidRatePlanException.class,
@@ -260,8 +257,8 @@ class RatePlanServiceTest {
         saved.setManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy());
         saved.setApplicableRoomTypeIds(requestDTO.getApplicableRoomTypeIds());
 
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, requestDTO.getCode())).thenReturn(false);
         when(ratePlanRepository.countOverlappingActivePlans(
                 PROPERTY_ID,
@@ -292,8 +289,8 @@ class RatePlanServiceTest {
         @Test
         void createRatePlan_shouldFailWhenOverlappingActivePlanExists() {
         RatePlanRequestDTO requestDTO = validRequest();
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
-        when(roomServiceClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, "BAR10")).thenReturn(false);
         when(ratePlanRepository.countOverlappingActivePlans(
             PROPERTY_ID,
@@ -324,7 +321,7 @@ class RatePlanServiceTest {
         existing.setStartDate(LocalDate.of(2026, 6, 1));
         existing.setEndDate(LocalDate.of(2026, 6, 30));
 
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByIdAndPropertyId(22L, PROPERTY_ID)).thenReturn(Optional.of(existing));
         when(ratePlanRepository.countOverlappingActivePlans(
             PROPERTY_ID,
@@ -349,7 +346,7 @@ class RatePlanServiceTest {
         RatePlan existing = new RatePlan();
         existing.setId(57L);
 
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByIdAndPropertyId(57L, PROPERTY_ID)).thenReturn(Optional.of(existing));
 
         ratePlanService.deleteRatePlan(PROPERTY_ID, 57L);
@@ -359,7 +356,7 @@ class RatePlanServiceTest {
 
     @Test
     void deleteRatePlan_shouldFailWhenNotFound() {
-        when(propertyServiceClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByIdAndPropertyId(58L, PROPERTY_ID)).thenReturn(Optional.empty());
 
         assertThrows(RatePlanNotFoundException.class, () -> ratePlanService.deleteRatePlan(PROPERTY_ID, 58L));

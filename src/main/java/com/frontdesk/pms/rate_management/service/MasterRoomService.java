@@ -44,18 +44,14 @@ public class MasterRoomService {
     @Autowired
     private MasterRoomMapper masterRoomMapper;
     @Autowired
-    private PropertyServiceClient propertyServiceClient;
-    @Autowired
-    private RoomServiceClient roomServiceClient;
+    private PropertyWizardClient propertyWizardClient;
 
     @Transactional
-
-
     public MasterRoomResponseDTO createMasterRoom(String propertyId, MasterRoomRequestDTO masterRoomRequestDTO) {
         if (propertyId == null) {
             throw new IllegalArgumentException("propertyId is required in path");
         }
-        if (!propertyServiceClient.propertyExists(propertyId)) {
+        if (!propertyWizardClient.propertyExists(propertyId)) {
             throw new PropertyNotFoundException(propertyId);
         }
 
@@ -245,7 +241,7 @@ public class MasterRoomService {
         Map<Long, MasterRoomRoomTypeMapping> mappingByRoomTypeId = mappings.stream()
                 .collect(Collectors.toMap(MasterRoomRoomTypeMapping::getRoomTypeId, Function.identity(), (first, second) -> first));
 
-        RoomDTO[] roomTypes = roomServiceClient.getRoomTypesByProperty(propertyId);
+        RoomDTO[] roomTypes = propertyWizardClient.getRoomTypesByProperty(propertyId);
         if (roomTypes == null || roomTypes.length == 0) {
             // Fallback: if room-service returns no data, still return persisted mappings.
             return mappings.stream()

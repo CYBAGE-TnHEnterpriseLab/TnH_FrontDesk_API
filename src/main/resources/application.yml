@@ -21,7 +21,16 @@ spring:
         hbm2ddl.create_namespaces: true
 
 services:
-  room-service:
+  property-wizard:
+    base-url: ${property.wizard.base-url}
+    endpoints:
+      property-by-id: /api/properties/{propertyId}
+      room-types-by-property: /api/rooms/properties/{propertyId}/room-outlet-types
+
+property:
+  wizard:
     base-url: http://localhost:8082
-  property-service:
-    base-url: http://localhost:8081
+
+security:
+  jwt:
+    secret: ${PMS_FRONTDESK_JWT_SECRET:${SECURITY_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}}

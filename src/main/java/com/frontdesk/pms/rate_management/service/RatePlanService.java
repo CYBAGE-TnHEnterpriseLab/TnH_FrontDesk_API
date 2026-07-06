@@ -35,8 +35,7 @@ public class RatePlanService {
 
     private final RatePlanRepository ratePlanRepository;
     private final MasterRoomPricingRepository masterRoomPricingRepository;
-    private final PropertyServiceClient propertyServiceClient;
-    private final RoomServiceClient roomServiceClient;
+    private final PropertyWizardClient propertyWizardClient;
 
     @Transactional
     public RatePlanResponseDTO createRatePlan(String propertyId, RatePlanRequestDTO requestDTO) {
@@ -363,7 +362,7 @@ public class RatePlanService {
         if (propertyId == null || propertyId.isBlank()) {
             throw new IllegalArgumentException("propertyId is required in path");
         }
-        if (!propertyServiceClient.propertyExists(propertyId)) {
+        if (!propertyWizardClient.propertyExists(propertyId)) {
             throw new PropertyNotFoundException(propertyId);
         }
     }
@@ -514,7 +513,7 @@ public class RatePlanService {
     }
 
     private Set<Long> fetchRoomTypeIdsByProperty(String propertyId) {
-        RoomDTO[] roomTypes = roomServiceClient.getRoomTypesByProperty(propertyId);
+        RoomDTO[] roomTypes = propertyWizardClient.getRoomTypesByProperty(propertyId);
         if (roomTypes == null || roomTypes.length == 0) {
             return Set.of();
         }
