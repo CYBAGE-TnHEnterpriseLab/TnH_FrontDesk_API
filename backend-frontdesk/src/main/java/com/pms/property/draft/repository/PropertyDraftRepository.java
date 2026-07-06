@@ -11,6 +11,8 @@ public interface PropertyDraftRepository extends JpaRepository<PropertyDraftEnti
 
 	List<PropertyDraftEntity> findByStatusInOrderByUpdatedAtDesc(Collection<DraftStatus> statuses);
 
+	List<PropertyDraftEntity> findByCreatedByAndStatusInOrderByUpdatedAtDesc(String createdBy, Collection<DraftStatus> statuses);
+
 			Optional<PropertyDraftEntity> findFirstByPublishedPropertyIdAndStatusOrderByUpdatedAtDesc(
 				String publishedPropertyId,
 				DraftStatus status

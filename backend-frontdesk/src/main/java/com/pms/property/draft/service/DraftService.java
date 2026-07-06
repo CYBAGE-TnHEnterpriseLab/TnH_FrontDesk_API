@@ -149,13 +149,13 @@ public class DraftService {
     }
 
     @Transactional(readOnly = true)
-    public List<DraftResponse> getDraftsByStatus(Collection<DraftStatus> requestedStatuses) {
+    public List<DraftResponse> getDraftsByStatus(Collection<DraftStatus> requestedStatuses, String actor) {
         EnumSet<DraftStatus> statuses = EnumSet.of(DraftStatus.DRAFT, DraftStatus.PUBLISHED);
         if (requestedStatuses != null && !requestedStatuses.isEmpty()) {
             statuses = EnumSet.copyOf(requestedStatuses);
         }
 
-        List<PropertyDraftEntity> drafts = draftRepository.findByStatusInOrderByUpdatedAtDesc(statuses);
+        List<PropertyDraftEntity> drafts = draftRepository.findByCreatedByAndStatusInOrderByUpdatedAtDesc(actor, statuses);
         List<DraftResponse> responses = new ArrayList<>();
         for (PropertyDraftEntity draft : drafts) {
             responses.add(DraftMapper.toResponse(draft, objectMapper));
