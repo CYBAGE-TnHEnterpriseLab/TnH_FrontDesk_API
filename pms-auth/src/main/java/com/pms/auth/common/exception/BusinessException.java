@@ -1,4 +1,4 @@
-package com.pms.common.exception;
+package com.pms.auth.common.exception;
 
 public class BusinessException extends RuntimeException {
 

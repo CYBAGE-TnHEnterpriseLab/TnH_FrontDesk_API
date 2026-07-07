@@ -1,6 +1,6 @@
 package com.pms.auth.exception;
 
-import com.pms.common.response.ApiResponse;
+import com.pms.auth.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -1,4 +1,4 @@
-package com.pms.common.response;
+package com.pms.auth.common.response;
 
 public record ApiResponse<T>(boolean success, String message, T data) {
 

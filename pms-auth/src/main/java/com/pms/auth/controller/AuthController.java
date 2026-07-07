@@ -6,7 +6,7 @@ import com.pms.auth.dto.LogoutRequest;
 import com.pms.auth.dto.RefreshTokenRequest;
 import com.pms.auth.dto.RegisterRequest;
 import com.pms.auth.service.AuthService;
-import com.pms.common.response.ApiResponse;
+import com.pms.auth.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

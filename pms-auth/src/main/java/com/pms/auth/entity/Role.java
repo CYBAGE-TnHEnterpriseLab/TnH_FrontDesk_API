@@ -1,6 +1,6 @@
 package com.pms.auth.entity;
 
-import com.pms.common.entity.BaseEntity;
+import com.pms.auth.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.PrePersist;

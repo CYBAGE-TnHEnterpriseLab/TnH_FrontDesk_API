@@ -1,4 +1,4 @@
-package com.pms.common.entity;
+package com.pms.auth.common.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;

@@ -1,6 +1,6 @@
 package com.pms.auth.exception;
 
-import com.pms.common.exception.BusinessException;
+import com.pms.auth.common.exception.BusinessException;
 
 public class AuthException extends BusinessException {
 

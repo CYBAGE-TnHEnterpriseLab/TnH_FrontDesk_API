@@ -1,6 +1,7 @@
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\common\entity\BaseEntity.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\common\exception\BusinessException.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\common\response\ApiResponse.java
+E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\config\CorsConfig.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\config\OpenApiConfig.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\controller\AuthController.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\src\main\java\com\pms\auth\dto\AuthResponse.java
