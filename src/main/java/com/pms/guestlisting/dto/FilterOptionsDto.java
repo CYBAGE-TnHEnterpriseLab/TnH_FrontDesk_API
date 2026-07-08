@@ -7,14 +7,12 @@ import lombok.Value;
 @Value
 @Builder
 public class FilterOptionsDto {
-    List<String> statuses;
-    List<String> reservationTypes;
-    List<String> cities;
+    List<String> reservationStatuses;
     List<String> roomStatuses;
+    List<String> stayTypes;
     List<String> roomTypes;
     List<Integer> floors;
-    List<String> companies;
-    List<String> loyaltyMembershipStatuses;
-    List<String> sortFields;
+    List<String> loyalties;
+    List<String> vips;
 }
 

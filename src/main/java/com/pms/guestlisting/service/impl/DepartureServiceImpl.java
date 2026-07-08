@@ -157,15 +157,13 @@ public class DepartureServiceImpl implements DepartureService {
 
     private FilterOptionsDto buildFilterOptions(String propertyId, LocalDate businessDate) {
         return FilterOptionsDto.builder()
-                .statuses(departureRecordRepository.findDistinctStatuses(propertyId, businessDate))
-                .reservationTypes(departureRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
-                .cities(departureRecordRepository.findDistinctCities(propertyId, businessDate))
+                .reservationStatuses(departureRecordRepository.findDistinctStatuses(propertyId, businessDate))
                 .roomStatuses(departureRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
+                .stayTypes(departureRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
                 .roomTypes(departureRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
                 .floors(departureRecordRepository.findDistinctFloors(propertyId, businessDate))
-                .companies(departureRecordRepository.findDistinctCompanies(propertyId, businessDate))
-                .loyaltyMembershipStatuses(departureRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
-                .sortFields(List.of("guestName", "roomNo", "checkOutDate", "roomType", "company"))
+                .loyalties(departureRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
+                .vips(List.of("Y", "N"))
                 .build();
     }
 

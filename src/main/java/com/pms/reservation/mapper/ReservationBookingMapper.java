@@ -3,7 +3,9 @@ package com.pms.reservation.mapper;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -44,7 +46,12 @@ public class ReservationBookingMapper {
                 .rateCode(request.getRateCode())
                 .numberOfRooms(request.getNumberOfRooms())
                 .rate(request.getRate())
-                .totalRate(calculateTotalRate(request.getRate(), request.getNumberOfRooms()))
+                .totalRate(calculateTotalRate(
+                    request.getRate(),
+                    request.getNumberOfRooms(),
+                    request.getArrivalDate(),
+                    request.getDepartureDate()
+                ))
                 .payment(request.getPayment())
                 .eta(request.getEta())
                 .checkOutTime(request.getCheckOutTime())
@@ -146,10 +153,23 @@ public class ReservationBookingMapper {
         return guestNames;
     }
 
-    private java.math.BigDecimal calculateTotalRate(java.math.BigDecimal rate, Integer numberOfRooms) {
-        if (rate == null || numberOfRooms == null) {
+    private java.math.BigDecimal calculateTotalRate(
+            java.math.BigDecimal rate,
+            Integer numberOfRooms,
+            LocalDate arrivalDate,
+            LocalDate departureDate
+    ) {
+        if (rate == null || numberOfRooms == null || arrivalDate == null || departureDate == null) {
             return java.math.BigDecimal.ZERO;
         }
-        return rate.multiply(java.math.BigDecimal.valueOf(numberOfRooms.longValue()));
+
+        long nights = ChronoUnit.DAYS.between(arrivalDate, departureDate);
+        if (nights <= 0) {
+            return java.math.BigDecimal.ZERO;
+        }
+
+        return rate
+                .multiply(java.math.BigDecimal.valueOf(numberOfRooms.longValue()))
+                .multiply(java.math.BigDecimal.valueOf(nights));
     }
 }

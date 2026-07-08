@@ -8,8 +8,8 @@ import java.time.LocalDate;
 
 public interface ArrivalService {
 
-    SyncResultDto syncArrivals(String propertyId, LocalDate businessDate);
+    public SyncResultDto syncArrivals(String propertyId, LocalDate businessDate);
 
-    PagedResponse<ArrivalResponseDto> searchArrivals(ArrivalSearchRequestDto request);
+    public PagedResponse<ArrivalResponseDto> searchArrivals(ArrivalSearchRequestDto request);
 }
 

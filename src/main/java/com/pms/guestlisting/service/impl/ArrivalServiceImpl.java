@@ -158,15 +158,13 @@ public class ArrivalServiceImpl implements ArrivalService {
 
     private FilterOptionsDto buildFilterOptions(String propertyId, LocalDate businessDate) {
         return FilterOptionsDto.builder()
-                .statuses(arrivalRecordRepository.findDistinctStatuses(propertyId, businessDate))
-                .reservationTypes(arrivalRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
-                .cities(arrivalRecordRepository.findDistinctCities(propertyId, businessDate))
+                .reservationStatuses(arrivalRecordRepository.findDistinctStatuses(propertyId, businessDate))
                 .roomStatuses(arrivalRecordRepository.findDistinctRoomStatuses(propertyId, businessDate))
+                .stayTypes(arrivalRecordRepository.findDistinctReservationTypes(propertyId, businessDate))
                 .roomTypes(arrivalRecordRepository.findDistinctRoomTypes(propertyId, businessDate))
                 .floors(arrivalRecordRepository.findDistinctFloors(propertyId, businessDate))
-                .companies(arrivalRecordRepository.findDistinctCompanies(propertyId, businessDate))
-                .loyaltyMembershipStatuses(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
-                .sortFields(List.of("guestName", "roomNo", "checkInDate", "roomType", "company"))
+                .loyalties(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(propertyId, businessDate))
+                .vips(List.of("Y", "N"))
                 .build();
     }
 

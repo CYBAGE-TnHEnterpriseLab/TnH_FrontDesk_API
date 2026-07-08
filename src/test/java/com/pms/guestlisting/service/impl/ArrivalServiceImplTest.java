@@ -307,20 +307,21 @@ class ArrivalServiceImplTest {
                                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
                 when(arrivalRecordRepository.findDistinctStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("DNM"));
                 when(arrivalRecordRepository.findDistinctReservationTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Guaranteed"));
-                when(arrivalRecordRepository.findDistinctCities(PROPERTY_ID, businessDate)).thenReturn(List.of("Mumbai"));
                 when(arrivalRecordRepository.findDistinctRoomStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Clean"));
                 when(arrivalRecordRepository.findDistinctRoomTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Deluxe King"));
                 when(arrivalRecordRepository.findDistinctFloors(PROPERTY_ID, businessDate)).thenReturn(List.of(3, 4));
-                when(arrivalRecordRepository.findDistinctCompanies(PROPERTY_ID, businessDate)).thenReturn(List.of("ABC Travels"));
                 when(arrivalRecordRepository.findDistinctLoyaltyMembershipStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Gold Member"));
 
                 var result = arrivalService.searchArrivals(request);
 
                 assertThat(result.getFilterOptions()).isNotNull();
-                assertThat(result.getFilterOptions().getStatuses()).containsExactly("DNM");
+                assertThat(result.getFilterOptions().getReservationStatuses()).containsExactly("DNM");
+                assertThat(result.getFilterOptions().getRoomStatuses()).containsExactly("Clean");
+                assertThat(result.getFilterOptions().getStayTypes()).containsExactly("Guaranteed");
                 assertThat(result.getFilterOptions().getRoomTypes()).containsExactly("Deluxe King");
                 assertThat(result.getFilterOptions().getFloors()).containsExactly(3, 4);
-                assertThat(result.getFilterOptions().getSortFields()).containsExactly("guestName", "roomNo", "checkInDate", "roomType", "company");
+                assertThat(result.getFilterOptions().getLoyalties()).containsExactly("Gold Member");
+                assertThat(result.getFilterOptions().getVips()).containsExactly("Y", "N");
         }
 
         @Test

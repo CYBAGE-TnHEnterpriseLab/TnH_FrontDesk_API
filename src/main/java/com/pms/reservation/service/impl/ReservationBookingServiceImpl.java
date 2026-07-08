@@ -2,6 +2,7 @@ package com.pms.reservation.service.impl;
 
 import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
+import com.pms.reservation.constant.PaymentModes;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
@@ -40,6 +41,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     public ReservationBookingResponseDto createBooking(ReservationBookingRequestDto request) {
         validateDates(request.getArrivalDate(), request.getDepartureDate());
         validateRoomSelectionAndGuestNames(request);
+        validateAndNormalizePaymentMode(request);
         String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
         LocalDateTime inventoryDeductedAt = null;
@@ -152,5 +154,19 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         if (hasBlankGuestName) {
             throw new BadRequestException("guestNames must not contain blank values");
         }
+    }
+
+    private void validateAndNormalizePaymentMode(ReservationBookingRequestDto request) {
+        if (!StringUtils.hasText(request.getPayment())) {
+            throw new BadRequestException("payment is required");
+        }
+
+        String normalizedPaymentMode = PaymentModes.normalize(request.getPayment());
+
+        if (!PaymentModes.isSupported(normalizedPaymentMode)) {
+            throw new BadRequestException("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET");
+        }
+
+        request.setPayment(normalizedPaymentMode);
     }
 }

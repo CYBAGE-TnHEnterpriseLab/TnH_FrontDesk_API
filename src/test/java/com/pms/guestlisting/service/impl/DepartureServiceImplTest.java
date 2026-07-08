@@ -284,20 +284,21 @@ class DepartureServiceImplTest {
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
         when(departureRecordRepository.findDistinctStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("DNM"));
         when(departureRecordRepository.findDistinctReservationTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Guaranteed"));
-        when(departureRecordRepository.findDistinctCities(PROPERTY_ID, businessDate)).thenReturn(List.of("Mumbai"));
         when(departureRecordRepository.findDistinctRoomStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Clean"));
         when(departureRecordRepository.findDistinctRoomTypes(PROPERTY_ID, businessDate)).thenReturn(List.of("Deluxe King"));
         when(departureRecordRepository.findDistinctFloors(PROPERTY_ID, businessDate)).thenReturn(List.of(3, 4));
-        when(departureRecordRepository.findDistinctCompanies(PROPERTY_ID, businessDate)).thenReturn(List.of("ABC Travels"));
         when(departureRecordRepository.findDistinctLoyaltyMembershipStatuses(PROPERTY_ID, businessDate)).thenReturn(List.of("Gold Member"));
 
         var result = departureService.searchDepartures(request);
 
         assertThat(result.getFilterOptions()).isNotNull();
-        assertThat(result.getFilterOptions().getStatuses()).containsExactly("DNM");
+        assertThat(result.getFilterOptions().getReservationStatuses()).containsExactly("DNM");
+        assertThat(result.getFilterOptions().getRoomStatuses()).containsExactly("Clean");
+        assertThat(result.getFilterOptions().getStayTypes()).containsExactly("Guaranteed");
         assertThat(result.getFilterOptions().getRoomTypes()).containsExactly("Deluxe King");
         assertThat(result.getFilterOptions().getFloors()).containsExactly(3, 4);
-        assertThat(result.getFilterOptions().getSortFields()).containsExactly("guestName", "roomNo", "checkOutDate", "roomType", "company");
+        assertThat(result.getFilterOptions().getLoyalties()).containsExactly("Gold Member");
+        assertThat(result.getFilterOptions().getVips()).containsExactly("Y", "N");
     }
 
     private ReservationArrivalDto validDeparture(String confirmationNumber, String firstName, String lastName) {

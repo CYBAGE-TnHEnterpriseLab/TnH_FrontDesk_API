@@ -3,6 +3,7 @@ package com.pms.reservation.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,6 +38,19 @@ class ReservationControllerTest {
 
     @MockBean
     private ReservationBookingService reservationBookingService;
+
+    @Test
+    void getPaymentModesShouldReturnSupportedModes() throws Exception {
+        mockMvc.perform(get("/api/v1/reservations/payment-modes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Payment modes fetched successfully"))
+                .andExpect(jsonPath("$.data[0]").value("CARD"))
+                .andExpect(jsonPath("$.data[1]").value("CASH"))
+                .andExpect(jsonPath("$.data[2]").value("UPI"))
+                .andExpect(jsonPath("$.data[3]").value("NET_BANKING"))
+                .andExpect(jsonPath("$.data[4]").value("WALLET"));
+    }
 
     @Test
     void createBookingShouldReturnCreatedResponse() throws Exception {
@@ -109,6 +123,20 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.message").value("Validation failed"))
                 .andExpect(jsonPath("$.errors.numberOfRooms").value("numberOfRooms must be <= 9"));
             }
+
+    @Test
+    void createBookingShouldReturnBadRequestWhenPaymentModeIsInvalid() throws Exception {
+        ReservationBookingRequestDto request = validRequest();
+        request.setPayment("CHEQUE");
+
+        mockMvc.perform(post("/api/v1/reservations/bookings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.payment").value("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET"));
+    }
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();

@@ -28,7 +28,7 @@ class ReservationBookingMapperTest {
 
         assertThat(entity.getGuestName()).isEqualTo("Alex Johnson");
         assertThat(entity.getGuestNamesEncoded()).isNotBlank();
-        assertThat(entity.getTotalRate()).isEqualByComparingTo("5000.00");
+        assertThat(entity.getTotalRate()).isEqualByComparingTo("10000.00");
         assertThat(entity.getCreatedAt()).isNotNull();
     }
 
@@ -36,6 +36,19 @@ class ReservationBookingMapperTest {
     void toEntityShouldSetTotalRateToZeroWhenRateOrRoomCountMissing() {
         ReservationBookingRequestDto request = validRequest();
         request.setRate(null);
+
+        ReservationBookingRecord entity = mapper.toEntity(request);
+
+        assertThat(entity.getTotalRate()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void toEntityShouldSetTotalRateToZeroWhenStayNightsAreZero() {
+        ReservationBookingRequestDto request = validRequest();
+        request.setArrivalDate(LocalDate.of(2026, 6, 20));
+        request.setDepartureDate(LocalDate.of(2026, 6, 20));
+        request.setRate(new BigDecimal("2500.00"));
+        request.setNumberOfRooms(2);
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
@@ -62,7 +75,7 @@ class ReservationBookingMapperTest {
                 .rateCode("BAR")
                 .numberOfRooms(2)
                 .rate(new BigDecimal("2500.00"))
-                .totalRate(new BigDecimal("5000.00"))
+                .totalRate(new BigDecimal("10000.00"))
                 .payment("Card")
                 .eta(LocalTime.of(15, 0))
                 .checkOutTime(LocalTime.of(11, 0))
@@ -77,7 +90,7 @@ class ReservationBookingMapperTest {
 
         assertThat(response.getBookingId()).isEqualTo(42L);
         assertThat(response.getGuestNames()).containsExactly("Alex Johnson", "Priya Rao");
-        assertThat(response.getTotalRate()).isEqualByComparingTo("5000.00");
+        assertThat(response.getTotalRate()).isEqualByComparingTo("10000.00");
     }
 
     private ReservationBookingRequestDto validRequest() {

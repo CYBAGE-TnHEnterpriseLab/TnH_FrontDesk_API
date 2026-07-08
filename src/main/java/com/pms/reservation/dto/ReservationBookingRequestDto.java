@@ -1,5 +1,7 @@
 package com.pms.reservation.dto;
 
+import com.pms.reservation.constant.PaymentModes;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -98,7 +100,18 @@ public class ReservationBookingRequestDto {
     @DecimalMin(value = "0.0", inclusive = false, message = "rate must be > 0")
     private BigDecimal rate;
 
+    @Schema(description = "Reservation payment mode", allowableValues = {
+            PaymentModes.CARD,
+            PaymentModes.CASH,
+            PaymentModes.UPI,
+            PaymentModes.NET_BANKING,
+            PaymentModes.WALLET
+    })
     @NotBlank(message = "payment is required")
+    @Pattern(
+            regexp = PaymentModes.VALIDATION_PATTERN,
+            message = "payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET"
+    )
     private String payment;
 
     @NotNull(message = "eta is required")

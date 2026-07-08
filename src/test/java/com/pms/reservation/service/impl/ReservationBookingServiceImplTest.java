@@ -184,6 +184,18 @@ class ReservationBookingServiceImplTest {
         verify(reservationBookingRepository, never()).save(any());
     }
 
+        @Test
+        void createBookingShouldRejectWhenPaymentModeIsUnsupported() {
+                ReservationBookingRequestDto request = validRequest();
+                request.setPayment("CHEQUE");
+
+                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                                .isInstanceOf(BadRequestException.class)
+                                .hasMessage("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET");
+
+                verify(reservationBookingRepository, never()).save(any());
+        }
+
     @Test
     void createBookingShouldRejectWhenDepartureIsBeforeArrival() {
         ReservationBookingRequestDto request = validRequest();
