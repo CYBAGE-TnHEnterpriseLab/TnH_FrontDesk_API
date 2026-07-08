@@ -3,18 +3,24 @@ package com.pms.reservation.service.impl;
 import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.constant.PaymentModes;
+import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
+import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
+import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
+import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -29,12 +35,15 @@ import org.springframework.util.StringUtils;
 public class ReservationBookingServiceImpl implements ReservationBookingService {
 
     private static final String RESERVATION_STATUS_CONFIRMED = "CONFIRMED";
+    private static final String PAYMENT_STATUS_SUCCESS = "SUCCESS";
     private static final DateTimeFormatter CONFIRMATION_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ReservationBookingRepository reservationBookingRepository;
+    private final ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
     private final PropertyInventoryPort propertyInventoryPort;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
+    private final PaymentProcessingService paymentProcessingService;
 
     @Override
     @Transactional
@@ -49,6 +58,18 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
         if (propertyWizardServiceProperties.isEnabled()) {
             validatePropertyAndInventory(request);
+        }
+
+        BigDecimal payableAmount = calculatePayableAmount(request);
+        PaymentProcessingResult paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
+        if (!PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(paymentResult.getStatus())) {
+            String failureReason = paymentResult.getFailureReason() == null
+                    ? "payment processing failed"
+                    : paymentResult.getFailureReason();
+            throw new BadRequestException("payment processing failed: " + failureReason);
+        }
+
+        if (propertyWizardServiceProperties.isEnabled()) {
             propertyInventoryPort.deductInventory(buildInventoryDeductionRequest(request, confirmationNumber));
             inventoryDeductedAt = LocalDateTime.now();
 
@@ -63,7 +84,45 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         entity.setInventorySyncedAt(inventorySyncedAt);
 
         ReservationBookingRecord saved = reservationBookingRepository.save(entity);
-        return reservationBookingMapper.toResponse(saved);
+        ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
+            .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
+        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction);
+    }
+
+    private ReservationPaymentTransactionRecord buildPaymentTransaction(
+            ReservationBookingRecord saved,
+            ReservationBookingRequestDto request,
+            BigDecimal amount,
+            PaymentProcessingResult paymentResult
+    ) {
+        return ReservationPaymentTransactionRecord.builder()
+                .bookingId(saved.getId())
+                .confirmationNumber(saved.getConfirmationNumber())
+                .propertyId(saved.getPropertyId())
+                .paymentMode(request.getPayment())
+                .amount(amount)
+                .transactionStatus(paymentResult.getStatus())
+                .transactionReference(paymentResult.getTransactionReference())
+                .processorName(paymentResult.getProcessorName())
+                .failureReason(paymentResult.getFailureReason())
+                .processedAt(paymentResult.getProcessedAt() == null ? LocalDateTime.now() : paymentResult.getProcessedAt())
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    private BigDecimal calculatePayableAmount(ReservationBookingRequestDto request) {
+        if (request.getRate() == null || request.getNumberOfRooms() == null || request.getArrivalDate() == null || request.getDepartureDate() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        long nights = ChronoUnit.DAYS.between(request.getArrivalDate(), request.getDepartureDate());
+        if (nights <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        return request.getRate()
+                .multiply(BigDecimal.valueOf(request.getNumberOfRooms().longValue()))
+                .multiply(BigDecimal.valueOf(nights));
     }
 
     private InventoryDeductionRequest buildInventoryDeductionRequest(

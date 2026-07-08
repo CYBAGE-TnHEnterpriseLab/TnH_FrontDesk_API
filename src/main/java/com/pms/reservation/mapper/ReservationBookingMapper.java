@@ -3,6 +3,7 @@ package com.pms.reservation.mapper;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
+import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -66,6 +67,13 @@ public class ReservationBookingMapper {
     }
 
     public ReservationBookingResponseDto toResponse(ReservationBookingRecord saved) {
+        return toResponse(saved, null);
+        }
+
+        public ReservationBookingResponseDto toResponse(
+            ReservationBookingRecord saved,
+            ReservationPaymentTransactionRecord transaction
+        ) {
         return ReservationBookingResponseDto.builder()
                 .bookingId(saved.getId())
                 .confirmationNumber(saved.getConfirmationNumber())
@@ -108,6 +116,10 @@ public class ReservationBookingMapper {
                 .alertsMessages(saved.getAlertsMessages())
                 .inventoryDeductedAt(saved.getInventoryDeductedAt())
                 .inventorySyncedAt(saved.getInventorySyncedAt())
+                .paymentTransactionStatus(transaction == null ? null : transaction.getTransactionStatus())
+                .paymentTransactionReference(transaction == null ? null : transaction.getTransactionReference())
+                .paymentProcessorName(transaction == null ? null : transaction.getProcessorName())
+                .paymentProcessedAt(transaction == null ? null : transaction.getProcessedAt())
                 .createdAt(saved.getCreatedAt())
                 .build();
     }

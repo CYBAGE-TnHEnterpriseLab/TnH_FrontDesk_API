@@ -52,5 +52,9 @@ public class ReservationBookingResponseDto {
     String alertsMessages;
     LocalDateTime inventoryDeductedAt;
     LocalDateTime inventorySyncedAt;
+    String paymentTransactionStatus;
+    String paymentTransactionReference;
+    String paymentProcessorName;
+    LocalDateTime paymentProcessedAt;
     LocalDateTime createdAt;
 }

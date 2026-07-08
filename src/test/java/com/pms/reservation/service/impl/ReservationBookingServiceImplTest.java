@@ -10,13 +10,17 @@ import static org.mockito.Mockito.when;
 
 import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
+import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
+import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
+import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
+import com.pms.reservation.service.PaymentProcessingService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -34,6 +38,9 @@ class ReservationBookingServiceImplTest {
     @Mock
     private ReservationBookingRepository reservationBookingRepository;
 
+        @Mock
+        private ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
+
     @Mock
         private PropertyInventoryPort propertyInventoryPort;
 
@@ -43,6 +50,9 @@ class ReservationBookingServiceImplTest {
     @Mock
     private ReservationBookingMapper reservationBookingMapper;
 
+        @Mock
+        private PaymentProcessingService paymentProcessingService;
+
     @InjectMocks
     private ReservationBookingServiceImpl reservationBookingService;
 
@@ -50,6 +60,13 @@ class ReservationBookingServiceImplTest {
     void createBookingShouldPersistAndReturnResponseWithGeneratedConfirmation() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+        when(paymentProcessingService.processPayment(any(), any(), any()))
+                .thenReturn(PaymentProcessingResult.builder()
+                        .status("SUCCESS")
+                        .transactionReference("PAY-20260708120000000-123")
+                        .processorName("SIMULATED_GATEWAY")
+                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 0))
+                        .build());
 
         ReservationBookingRecord toSave = ReservationBookingRecord.builder()
                 .propertyId(request.getPropertyId())
@@ -79,7 +96,22 @@ class ReservationBookingServiceImplTest {
 
         when(reservationBookingMapper.toEntity(request)).thenReturn(toSave);
         when(reservationBookingRepository.save(any(ReservationBookingRecord.class))).thenReturn(savedRecord);
-        when(reservationBookingMapper.toResponse(savedRecord)).thenReturn(responseDto);
+        when(reservationPaymentTransactionRepository.save(any(ReservationPaymentTransactionRecord.class)))
+                .thenReturn(ReservationPaymentTransactionRecord.builder()
+                        .id(501L)
+                        .bookingId(99L)
+                        .confirmationNumber("PROP001-20260101123000000-123")
+                        .propertyId("PROP001")
+                        .paymentMode("CARD")
+                        .amount(new BigDecimal("17000.00"))
+                        .transactionStatus("SUCCESS")
+                        .transactionReference("PAY-20260708120000000-123")
+                        .processorName("SIMULATED_GATEWAY")
+                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 0))
+                        .createdAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 0))
+                        .build());
+        when(reservationBookingMapper.toResponse(any(ReservationBookingRecord.class), any(ReservationPaymentTransactionRecord.class)))
+                .thenReturn(responseDto);
 
         ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
 
@@ -107,6 +139,13 @@ class ReservationBookingServiceImplTest {
         void createBookingShouldDeductAndSyncInventoryWhenPropertyWizardEnabled() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+        when(paymentProcessingService.processPayment(any(), any(), any()))
+                .thenReturn(PaymentProcessingResult.builder()
+                        .status("SUCCESS")
+                        .transactionReference("PAY-20260708120000000-456")
+                        .processorName("SIMULATED_GATEWAY")
+                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 5))
+                        .build());
         when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(true, true, 5));
 
@@ -126,7 +165,22 @@ class ReservationBookingServiceImplTest {
 
         when(reservationBookingMapper.toEntity(request)).thenReturn(toSave);
         when(reservationBookingRepository.save(any(ReservationBookingRecord.class))).thenReturn(toSave);
-        when(reservationBookingMapper.toResponse(any(ReservationBookingRecord.class))).thenReturn(responseDto);
+        when(reservationPaymentTransactionRepository.save(any(ReservationPaymentTransactionRecord.class)))
+                .thenReturn(ReservationPaymentTransactionRecord.builder()
+                        .id(601L)
+                        .bookingId(100L)
+                        .confirmationNumber("PROP001-20260101123000000-456")
+                        .propertyId("PROP001")
+                        .paymentMode("CARD")
+                        .amount(new BigDecimal("17000.00"))
+                        .transactionStatus("SUCCESS")
+                        .transactionReference("PAY-20260708120500000-456")
+                        .processorName("SIMULATED_GATEWAY")
+                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 5))
+                        .createdAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 5))
+                        .build());
+        when(reservationBookingMapper.toResponse(any(ReservationBookingRecord.class), any(ReservationPaymentTransactionRecord.class)))
+                .thenReturn(responseDto);
 
         reservationBookingService.createBooking(request);
 
@@ -194,6 +248,7 @@ class ReservationBookingServiceImplTest {
                                 .hasMessage("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET");
 
                 verify(reservationBookingRepository, never()).save(any());
+                verify(paymentProcessingService, never()).processPayment(any(), any(), any());
         }
 
     @Test
