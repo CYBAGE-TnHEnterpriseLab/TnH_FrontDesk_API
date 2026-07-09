@@ -33,6 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.anyList;
 
 @ExtendWith(MockitoExtension.class)
 class RatePlanServiceTest {
@@ -361,6 +362,61 @@ class RatePlanServiceTest {
 
         assertThrows(RatePlanNotFoundException.class, () -> ratePlanService.deleteRatePlan(PROPERTY_ID, 58L));
         verify(ratePlanRepository, never()).delete(org.mockito.ArgumentMatchers.any(RatePlan.class));
+    }
+
+    @Test
+    void getAllRatePlans_shouldReconcileStaleRoomTypesFromPropertyWizard() {
+        RatePlan stalePlan = new RatePlan();
+        stalePlan.setId(77L);
+        stalePlan.setPropertyId(PROPERTY_ID);
+        stalePlan.setName("Stale Plan");
+        stalePlan.setCode("STL77");
+        stalePlan.setOccupancyType("2 Guest");
+        stalePlan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        stalePlan.setType(RatePlanType.REFUNDABLE);
+        stalePlan.setStatus(RatePlanStatus.ACTIVE);
+        stalePlan.setStartDate(LocalDate.of(2026, 6, 1));
+        stalePlan.setEndDate(LocalDate.of(2026, 6, 30));
+        stalePlan.setApplicableRoomTypeIds(Set.of(101L, 999L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByPropertyId(PROPERTY_ID)).thenReturn(List.of(stalePlan));
+        when(ratePlanRepository.findByPropertyIdOrderByIdDesc(PROPERTY_ID)).thenReturn(List.of(stalePlan));
+
+        List<RatePlanResponseDTO> result = ratePlanService.getAllRatePlans(PROPERTY_ID);
+
+        assertEquals(1, result.size());
+        verify(ratePlanRepository, times(1)).saveAll(anyList());
+        assertEquals(Set.of(101L), stalePlan.getApplicableRoomTypeIds());
+    }
+
+    @Test
+    void getAllRatePlans_shouldClearAndDeactivateWhenPropertyWizardReturnsNoRoomTypes() {
+        RatePlan stalePlan = new RatePlan();
+        stalePlan.setId(88L);
+        stalePlan.setPropertyId(PROPERTY_ID);
+        stalePlan.setName("Detached Plan");
+        stalePlan.setCode("DET88");
+        stalePlan.setOccupancyType("2 Guest");
+        stalePlan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        stalePlan.setType(RatePlanType.REFUNDABLE);
+        stalePlan.setStatus(RatePlanStatus.ACTIVE);
+        stalePlan.setStartDate(LocalDate.of(2026, 6, 1));
+        stalePlan.setEndDate(LocalDate.of(2026, 6, 30));
+        stalePlan.setApplicableRoomTypeIds(Set.of(101L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(new RoomDTO[0]);
+        when(ratePlanRepository.findByPropertyId(PROPERTY_ID)).thenReturn(List.of(stalePlan));
+        when(ratePlanRepository.findByPropertyIdOrderByIdDesc(PROPERTY_ID)).thenReturn(List.of(stalePlan));
+
+        List<RatePlanResponseDTO> result = ratePlanService.getAllRatePlans(PROPERTY_ID);
+
+        assertEquals(1, result.size());
+        verify(ratePlanRepository, times(1)).saveAll(anyList());
+        assertTrue(stalePlan.getApplicableRoomTypeIds().isEmpty());
+        assertEquals(RatePlanStatus.INACTIVE, stalePlan.getStatus());
     }
 
     private RatePlanRequestDTO validRequest() {

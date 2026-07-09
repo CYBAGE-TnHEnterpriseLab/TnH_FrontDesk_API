@@ -23,6 +23,8 @@ import java.util.List;
 @Component
 public class AuthFilter extends OncePerRequestFilter {
 
+    private static final String INVALID_ACCESS_TOKEN_MESSAGE = "Invalid or expired access token";
+
     private static final List<String> PUBLIC_ENDPOINTS = List.of(
             "/actuator/health",
             "/v3/api-docs/**",
@@ -78,7 +80,7 @@ public class AuthFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } catch (JwtException ex) {
             SecurityContextHolder.clearContext();
-            sendUnauthorized(response, "Invalid access token");
+            sendUnauthorized(response, INVALID_ACCESS_TOKEN_MESSAGE);
         }
     }
 
@@ -95,6 +97,6 @@ public class AuthFilter extends OncePerRequestFilter {
     private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"error\":\"" + message + "\"}");
+        response.getWriter().write("{\"success\":false,\"data\":null,\"message\":\"" + message + "\"}");
     }
 }

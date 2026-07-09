@@ -11,29 +11,41 @@ import java.util.Map;
 @RestControllerAdvice
 public class RatePlanExceptionHandler {
 
+    private static final String SUCCESS = "success";
+    private static final String DATA = "data";
+    private static final String MESSAGE = "message";
+
+    private Map<String, Object> errorBody(String message) {
+        return Map.of(
+                SUCCESS, false,
+                DATA, null,
+                MESSAGE, message
+        );
+    }
+
     @ExceptionHandler(InvalidRatePlanException.class)
-    public ResponseEntity<Map<String, String>> handleInvalidRatePlan(InvalidRatePlanException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<Map<String, Object>> handleInvalidRatePlan(InvalidRatePlanException ex) {
+        return ResponseEntity.badRequest().body(errorBody(ex.getMessage()));
     }
 
     @ExceptionHandler(RatePlanNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleRatePlanNotFound(RatePlanNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<Map<String, Object>> handleRatePlanNotFound(RatePlanNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody(ex.getMessage()));
     }
 
     @ExceptionHandler(PropertyNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handlePropertyNotFound(PropertyNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<Map<String, Object>> handlePropertyNotFound(PropertyNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorBody(ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(errorBody(ex.getMessage()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException ex) {
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex) {
         String message = ex.getReason() == null ? "Request failed" : ex.getReason();
-        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("error", message));
+        return ResponseEntity.status(ex.getStatusCode()).body(errorBody(message));
     }
 }

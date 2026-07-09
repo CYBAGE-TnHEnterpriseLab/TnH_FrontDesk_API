@@ -65,7 +65,7 @@ class AuthFilterTest {
         authFilter.doFilter(request, response, chain);
 
         assertEquals(401, response.getStatus());
-        assertEquals("{\"error\":\"Missing or invalid Authorization header\"}", response.getContentAsString());
+        assertEquals("{\"success\":false,\"data\":null,\"message\":\"Missing or invalid Authorization header\"}", response.getContentAsString());
         assertTrue(!chainInvoked.get());
     }
 
@@ -86,7 +86,7 @@ class AuthFilterTest {
         authFilter.doFilter(request, response, chain);
 
         assertEquals(401, response.getStatus());
-        assertEquals("{\"error\":\"Invalid access token\"}", response.getContentAsString());
+        assertEquals("{\"success\":false,\"data\":null,\"message\":\"Invalid or expired access token\"}", response.getContentAsString());
         assertTrue(!chainInvoked.get());
     }
 

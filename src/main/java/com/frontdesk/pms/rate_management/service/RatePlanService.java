@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -364,6 +365,44 @@ public class RatePlanService {
         }
         if (!propertyWizardClient.propertyExists(propertyId)) {
             throw new PropertyNotFoundException(propertyId);
+        }
+
+        reconcileExistingRatePlansWithPropertyWizard(propertyId);
+    }
+
+    private void reconcileExistingRatePlansWithPropertyWizard(String propertyId) {
+        Set<Long> availableRoomTypeIds = fetchRoomTypeIdsByProperty(propertyId);
+        List<RatePlan> existingRatePlans = ratePlanRepository.findByPropertyId(propertyId);
+        if (existingRatePlans == null || existingRatePlans.isEmpty()) {
+            return;
+        }
+
+        List<RatePlan> ratePlansToUpdate = new ArrayList<>();
+        for (RatePlan ratePlan : existingRatePlans) {
+            Set<Long> applicableRoomTypeIds = ratePlan.getApplicableRoomTypeIds();
+            if (applicableRoomTypeIds == null) {
+                applicableRoomTypeIds = Set.of();
+            }
+
+            Set<Long> sanitizedRoomTypeIds = applicableRoomTypeIds.stream()
+                    .filter(Objects::nonNull)
+                    .filter(availableRoomTypeIds::contains)
+                    .collect(Collectors.toCollection(HashSet::new));
+
+            boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
+            boolean shouldDeactivate = sanitizedRoomTypeIds.isEmpty() && ratePlan.getStatus() == RatePlanStatus.ACTIVE;
+
+            if (roomTypesChanged || shouldDeactivate) {
+                ratePlan.setApplicableRoomTypeIds(sanitizedRoomTypeIds);
+                if (shouldDeactivate) {
+                    ratePlan.setStatus(RatePlanStatus.INACTIVE);
+                }
+                ratePlansToUpdate.add(ratePlan);
+            }
+        }
+
+        if (!ratePlansToUpdate.isEmpty()) {
+            ratePlanRepository.saveAll(ratePlansToUpdate);
         }
     }
 
