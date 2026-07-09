@@ -3,6 +3,7 @@ package com.frontdesk.pms.rate_management.service;
 import com.frontdesk.pms.rate_management.dto.MasterRoomPricingRequestDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRequestDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomResponseDTO;
+import com.frontdesk.pms.rate_management.dto.MasterRoomPricingResponseDTO;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingResponseDTO;
 import com.frontdesk.pms.rate_management.dto.PropertyRoomTypeMappingResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RoomDTO;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 
 @ExtendWith(MockitoExtension.class)
 class MasterRoomServiceTest {
@@ -85,7 +87,7 @@ class MasterRoomServiceTest {
         MasterRoomRoomTypeMapping mappingB = new MasterRoomRoomTypeMapping();
         mappingB.setRoomTypeId(roomTypeB);
 
-        when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(masterPricing));
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId)).thenReturn(List.of(masterPricing));
         when(mappingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(mappingA, mappingB));
         when(masterRoomPricingRepository.findByInheritedTrueAndParentPricingId(masterPricing.getId()))
                 .thenReturn(List.of(inheritedForA));
@@ -222,7 +224,7 @@ class MasterRoomServiceTest {
         manualChildPricing.setPrice(2800.0);
         manualChildPricing.setInherited(false);
 
-        when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(masterPricing));
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId)).thenReturn(List.of(masterPricing));
         when(mappingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(mapping));
         when(masterRoomPricingRepository.findByInheritedTrueAndParentPricingId(masterPricing.getId()))
                 .thenReturn(List.of());
@@ -356,10 +358,10 @@ class MasterRoomServiceTest {
         requestDTO.setPrice(3500.0);
 
         when(masterRoomRepository.findById(masterRoomId)).thenReturn(Optional.of(masterRoom));
-        when(masterRoomPricingRepository.findByMasterRoomIdAndOccupancyType(masterRoomId, "3 Guest"))
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNullAndOccupancyType(masterRoomId, "3 Guest"))
                 .thenReturn(Optional.of(existingMasterPricing));
         when(masterRoomPricingRepository.save(existingMasterPricing)).thenReturn(existingMasterPricing);
-        when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(existingMasterPricing));
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId)).thenReturn(List.of(existingMasterPricing));
         when(mappingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of());
         when(masterRoomPricingRepository.findByInheritedTrueAndParentPricingId(existingMasterPricing.getId()))
                 .thenReturn(List.of());
@@ -368,6 +370,62 @@ class MasterRoomServiceTest {
 
         assertEquals(3500.0, existingMasterPricing.getPrice());
         verify(masterRoomPricingRepository, times(1)).save(existingMasterPricing);
+    }
+
+    @Test
+    void updateMasterRoom_shouldUpdatePricingListAndRefreshReturnedPricing() {
+            String propertyId = "11111111-1111-1111-1111-111111111111";
+            Long masterRoomId = 14L;
+
+            MasterRoomRequestDTO requestDTO = new MasterRoomRequestDTO();
+            requestDTO.setName("Deluxe Updated");
+            MasterRoomPricingRequestDTO pricingRequestDTO = new MasterRoomPricingRequestDTO();
+            pricingRequestDTO.setOccupancyType("2 Guest");
+            pricingRequestDTO.setPrice(4200.0);
+            requestDTO.setPricingList(List.of(pricingRequestDTO));
+
+            MasterRoom existing = new MasterRoom();
+            existing.setId(masterRoomId);
+            existing.setPropertyId(propertyId);
+            existing.setName("Deluxe");
+
+            MasterRoomPricing existingMasterPricing = new MasterRoomPricing();
+            existingMasterPricing.setId(1400L);
+            existingMasterPricing.setMasterRoom(existing);
+            existingMasterPricing.setRoomTypeId(null);
+            existingMasterPricing.setOccupancyType("2 Guest");
+            existingMasterPricing.setPrice(3500.0);
+
+            MasterRoomPricingResponseDTO pricingResponseDTO = new MasterRoomPricingResponseDTO();
+            pricingResponseDTO.setOccupancyType("2 Guest");
+            pricingResponseDTO.setPrice(4200.0);
+
+            MasterRoomResponseDTO responseDTO = new MasterRoomResponseDTO();
+            responseDTO.setId(masterRoomId);
+            responseDTO.setPropertyId(propertyId);
+            responseDTO.setName("Deluxe Updated");
+            responseDTO.setPricingList(List.of(pricingResponseDTO));
+
+            when(masterRoomRepository.findById(masterRoomId)).thenReturn(Optional.of(existing));
+            when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId))
+                    .thenReturn(List.of(existingMasterPricing));
+            when(masterRoomRepository.save(existing)).thenReturn(existing);
+            when(masterRoomMapper.toResponseDTO(existing)).thenReturn(responseDTO);
+            when(mappingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of());
+            when(masterRoomPricingRepository.findByInheritedTrueAndParentPricingId(1400L)).thenReturn(List.of());
+
+            MasterRoomResponseDTO result = masterRoomService.updateMasterRoom(propertyId, masterRoomId, requestDTO);
+
+            assertEquals("Deluxe Updated", result.getName());
+            assertNotNull(result.getPricingList());
+            assertEquals(1, result.getPricingList().size());
+            assertEquals(4200.0, result.getPricingList().get(0).getPrice());
+
+            verify(masterRoomPricingRepository, times(1)).save(argThat(pricing ->
+                    pricing.getRoomTypeId() == null
+                            && "2 Guest".equals(pricing.getOccupancyType())
+                            && Double.valueOf(4200.0).equals(pricing.getPrice())
+            ));
     }
 
         @Test

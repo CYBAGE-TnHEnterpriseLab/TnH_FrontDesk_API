@@ -27,18 +27,43 @@ public enum OccupancyType {
     private static final Map<String, String> ALIASES = new HashMap<>();
 
     static {
-        register(ONE_PERSON, "1 guest", "1g", "one guest");
-        register(TWO_PERSON, "2 guest", "2g", "two guest");
-        register(THREE_PERSON, "3 guest", "3g", "three guest");
-        register(FOUR_PERSON, "4 guest", "4g", "four guest");
+        register(ONE_PERSON,
+            "1 guest",
+            "1g",
+            "one guest",
+            "one_guest",
+            "oneguest");
+        register(TWO_PERSON,
+            "2 guest",
+            "2g",
+            "two guest",
+            "two_guest",
+            "two_guests",
+            "twoguests");
+        register(THREE_PERSON,
+            "3 guest",
+            "3g",
+            "three guest",
+            "three_guest",
+            "three_guests",
+            "threeguests");
+        register(FOUR_PERSON,
+            "4 guest",
+            "4g",
+            "four guest",
+            "four_guest",
+            "four_guests",
+            "fourguests");
         register(EXTRA_TWO_PERSON,
                 "extra guest charges(2p)",
                 "extra guest charges (2p)",
                 "extra guest charges",
                 "extra 2p",
                 "2 extra p",
-                "extra two person");
-        register(EXTRA_ONE_PERSON, "extra 1p", "1 extra p", "extra one person");
+            "extra two person",
+            "extra_guest",
+            "extra guest");
+        register(EXTRA_ONE_PERSON, "extra 1p", "1 extra p", "extra one person", "extra_guest_1p");
     }
 
     public static String normalizeOrThrow(String rawOccupancyType) {

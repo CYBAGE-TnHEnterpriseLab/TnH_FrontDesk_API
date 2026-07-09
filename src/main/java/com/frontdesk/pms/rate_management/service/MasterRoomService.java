@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -77,6 +78,10 @@ public class MasterRoomService {
             existing.setInclusion(masterRoomRequestDTO.getInclusion());
         }
 
+        if (masterRoomRequestDTO.getPricingList() != null) {
+            syncMasterPricingList(existing, masterRoomRequestDTO.getPricingList());
+        }
+
         MasterRoom saved = masterRoomRepository.save(existing);
         return masterRoomMapper.toResponseDTO(saved);
     }
@@ -114,7 +119,7 @@ public class MasterRoomService {
         String normalizedOccupancyType = OccupancyType.normalizeOrThrow(pricingRequestDTO.getOccupancyType());
 
         MasterRoomPricing pricing = masterRoomPricingRepository
-            .findByMasterRoomIdAndOccupancyType(masterRoomId, normalizedOccupancyType)
+            .findByMasterRoomIdAndRoomTypeIdIsNullAndOccupancyType(masterRoomId, normalizedOccupancyType)
             .orElseGet(MasterRoomPricing::new);
 
         pricing.setMasterRoom(masterRoom);
@@ -133,7 +138,7 @@ public class MasterRoomService {
 
 
     public List<MasterRoomPricingResponseDTO> getPricingByMasterRoom(Long masterRoomId) {
-        return masterRoomPricingRepository.findByMasterRoomId(masterRoomId).stream()
+        return masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId).stream()
                 .map(masterRoomMapper::toPricingResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -199,7 +204,7 @@ public class MasterRoomService {
         @Transactional
         public void updateInheritedPricingForMasterRoom(Long masterRoomId) {
             // Get all master pricing for this master room
-            List<MasterRoomPricing> masterPricings = masterRoomPricingRepository.findByMasterRoomId(masterRoomId);
+            List<MasterRoomPricing> masterPricings = masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId);
             List<Long> mappedRoomTypeIds = mappingRepository.findByMasterRoomId(masterRoomId)
                     .stream()
                     .map(MasterRoomRoomTypeMapping::getRoomTypeId)
@@ -345,6 +350,47 @@ public class MasterRoomService {
         inheritedPricing.setPrice(masterPricing.getPrice());
         // masterRoom is null for child pricing
         masterRoomPricingRepository.save(inheritedPricing);
+    }
+
+    private void syncMasterPricingList(MasterRoom masterRoom, List<MasterRoomPricingRequestDTO> pricingList) {
+        Long masterRoomId = masterRoom.getId();
+        List<MasterRoomPricing> existingMasterPricing = masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdIsNull(masterRoomId);
+        Map<String, MasterRoomPricing> existingByOccupancy = existingMasterPricing.stream()
+                .collect(Collectors.toMap(
+                        pricing -> OccupancyType.normalizeOrThrow(pricing.getOccupancyType()),
+                        Function.identity(),
+                        (first, second) -> first
+                ));
+
+        Set<String> requestedOccupancies = new LinkedHashSet<>();
+
+        for (MasterRoomPricingRequestDTO pricingRequestDTO : pricingList) {
+            String normalizedOccupancy = OccupancyType.normalizeOrThrow(pricingRequestDTO.getOccupancyType());
+            requestedOccupancies.add(normalizedOccupancy);
+
+            MasterRoomPricing pricing = existingByOccupancy.get(normalizedOccupancy);
+            if (pricing == null) {
+                pricing = new MasterRoomPricing();
+            }
+
+            pricing.setMasterRoom(masterRoom);
+            pricing.setRoomTypeId(null);
+            pricing.setInherited(false);
+            pricing.setParentPricingId(null);
+            pricing.setOccupancyType(normalizedOccupancy);
+            pricing.setPrice(pricingRequestDTO.getPrice());
+            masterRoomPricingRepository.save(pricing);
+        }
+
+        List<MasterRoomPricing> staleMasterPricing = existingMasterPricing.stream()
+                .filter(pricing -> !requestedOccupancies.contains(OccupancyType.normalizeOrThrow(pricing.getOccupancyType())))
+                .collect(Collectors.toList());
+
+        if (!staleMasterPricing.isEmpty()) {
+            masterRoomPricingRepository.deleteAll(staleMasterPricing);
+        }
+
+        updateInheritedPricingForMasterRoom(masterRoomId);
     }
 
     private MasterRoom getMasterRoomInProperty(String propertyId, Long masterRoomId) {
