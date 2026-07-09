@@ -56,7 +56,7 @@ public class AuthFilter extends OncePerRequestFilter {
 
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
-            sendUnauthorized(response, "Missing or invalid Authorization header");
+            sendUnauthorized(response, INVALID_ACCESS_TOKEN_MESSAGE);
             return;
         }
 
@@ -97,6 +97,8 @@ public class AuthFilter extends OncePerRequestFilter {
     private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
         response.getWriter().write("{\"success\":false,\"data\":null,\"message\":\"" + message + "\"}");
+        response.getWriter().flush();
     }
 }
