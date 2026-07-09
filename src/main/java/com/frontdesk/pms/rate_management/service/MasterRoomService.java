@@ -26,10 +26,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -242,22 +244,18 @@ public class MasterRoomService {
                 .collect(Collectors.toMap(MasterRoomRoomTypeMapping::getRoomTypeId, Function.identity(), (first, second) -> first));
 
         RoomDTO[] roomTypes = propertyWizardClient.getRoomTypesByProperty(propertyId);
+
+        Set<Long> currentRoomTypeIds = roomTypes == null
+            ? Set.of()
+            : java.util.Arrays.stream(roomTypes)
+            .map(RoomDTO::getId)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toCollection(HashSet::new));
+
+        reconcileMappingsWithPropertyWizard(mappings, currentRoomTypeIds);
+
         if (roomTypes == null || roomTypes.length == 0) {
-            // Fallback: if room-service returns no data, still return persisted mappings.
-            return mappings.stream()
-                    .map(mapping -> {
-                        PropertyRoomTypeMappingResponseDTO dto = new PropertyRoomTypeMappingResponseDTO();
-                        dto.setMappingId(mapping.getId());
-                        dto.setRoomTypeId(mapping.getRoomTypeId());
-                        dto.setMapped(true);
-                        dto.setMasterRoomId(mapping.getMasterRoom().getId());
-                        dto.setMasterRoomName(mapping.getMasterRoom().getName());
-                        dto.setInheritedRates(masterRoomPricingRepository.findByRoomTypeId(mapping.getRoomTypeId()).stream()
-                                .map(masterRoomMapper::toPricingResponseDTO)
-                                .collect(Collectors.toList()));
-                        return dto;
-                    })
-                    .collect(Collectors.toList());
+            return List.of();
         }
 
         List<PropertyRoomTypeMappingResponseDTO> response = java.util.Arrays.stream(roomTypes)
@@ -281,31 +279,30 @@ public class MasterRoomService {
                     return dto;
                 })
                 .collect(Collectors.toList());
+        return response;
+    }
 
-                // Include mapped room types that room-service did not return, so UI does not show an empty table.
-                java.util.Set<Long> roomTypeIdsFromRoomService = response.stream()
-                    .map(PropertyRoomTypeMappingResponseDTO::getRoomTypeId)
-                    .filter(java.util.Objects::nonNull)
-                    .collect(Collectors.toSet());
+    private void reconcileMappingsWithPropertyWizard(List<MasterRoomRoomTypeMapping> mappings, Set<Long> currentRoomTypeIds) {
+        if (mappings == null || mappings.isEmpty()) {
+            return;
+        }
 
-                List<PropertyRoomTypeMappingResponseDTO> missingMappedRows = mappings.stream()
-                    .filter(mapping -> !roomTypeIdsFromRoomService.contains(mapping.getRoomTypeId()))
-                    .map(mapping -> {
-                        PropertyRoomTypeMappingResponseDTO dto = new PropertyRoomTypeMappingResponseDTO();
-                        dto.setMappingId(mapping.getId());
-                        dto.setRoomTypeId(mapping.getRoomTypeId());
-                        dto.setMapped(true);
-                        dto.setMasterRoomId(mapping.getMasterRoom().getId());
-                        dto.setMasterRoomName(mapping.getMasterRoom().getName());
-                        dto.setInheritedRates(masterRoomPricingRepository.findByRoomTypeId(mapping.getRoomTypeId()).stream()
-                            .map(masterRoomMapper::toPricingResponseDTO)
-                            .collect(Collectors.toList()));
-                        return dto;
-                    })
-                    .collect(Collectors.toList());
+        List<MasterRoomRoomTypeMapping> staleMappings = mappings.stream()
+                .filter(mapping -> mapping.getRoomTypeId() == null || !currentRoomTypeIds.contains(mapping.getRoomTypeId()))
+                .collect(Collectors.toList());
 
-                response.addAll(missingMappedRows);
-                return response;
+        for (MasterRoomRoomTypeMapping staleMapping : staleMappings) {
+            if (staleMapping.getRoomTypeId() != null) {
+                List<MasterRoomPricing> staleRoomTypePricing = masterRoomPricingRepository.findByRoomTypeId(staleMapping.getRoomTypeId());
+                if (!staleRoomTypePricing.isEmpty()) {
+                    masterRoomPricingRepository.deleteAll(staleRoomTypePricing);
+                }
+            }
+        }
+
+        if (!staleMappings.isEmpty()) {
+            mappingRepository.deleteAll(staleMappings);
+        }
     }
 
     public boolean isAllRoomTypesMapped(List<Long> activeRoomTypeIds) {

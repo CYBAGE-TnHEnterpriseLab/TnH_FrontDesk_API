@@ -34,6 +34,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.anyList;
 
 @ExtendWith(MockitoExtension.class)
 class MasterRoomServiceTest {
@@ -300,12 +301,39 @@ class MasterRoomServiceTest {
 
                 List<PropertyRoomTypeMappingResponseDTO> result = masterRoomService.getMappingsByPropertyId(propertyId);
 
+                assertEquals(0, result.size());
+                verify(mappingRepository, times(1)).deleteAll(anyList());
+        }
+
+        @Test
+        void getMappingsByPropertyId_shouldDeleteStaleMappingsWhenRoomTypeMissingInPropertyWizard() {
+                String propertyId = "11111111-1111-1111-1111-111111111111";
+
+                MasterRoom masterRoom = new MasterRoom();
+                masterRoom.setId(9L);
+                masterRoom.setName("Strict Sync Master");
+                masterRoom.setPropertyId(propertyId);
+
+                MasterRoomRoomTypeMapping staleMapping = new MasterRoomRoomTypeMapping();
+                staleMapping.setId(90L);
+                staleMapping.setMasterRoom(masterRoom);
+                staleMapping.setRoomTypeId(901L);
+
+                RoomDTO currentRoomType = new RoomDTO();
+                currentRoomType.setId(902L);
+                currentRoomType.setName("Current Room Type");
+
+                when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{currentRoomType});
+                when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(staleMapping));
+                when(masterRoomPricingRepository.findByRoomTypeId(901L)).thenReturn(List.of());
+                when(masterRoomPricingRepository.findByRoomTypeId(902L)).thenReturn(List.of());
+
+                List<PropertyRoomTypeMappingResponseDTO> result = masterRoomService.getMappingsByPropertyId(propertyId);
+
                 assertEquals(1, result.size());
-                assertEquals(70L, result.get(0).getMappingId());
-                assertEquals(701L, result.get(0).getRoomTypeId());
-                assertEquals(true, result.get(0).isMapped());
-                assertEquals(7L, result.get(0).getMasterRoomId());
-                assertEquals("Fallback Master", result.get(0).getMasterRoomName());
+                assertEquals(902L, result.get(0).getRoomTypeId());
+                assertEquals(false, result.get(0).isMapped());
+                verify(mappingRepository, times(1)).deleteAll(anyList());
         }
 
     @Test
