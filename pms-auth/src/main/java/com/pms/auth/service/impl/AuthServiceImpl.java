@@ -65,7 +65,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+//    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         UserAccount account = userAccountRepository.findByUsername(request.getUsername().trim())
                 .orElseThrow(() -> new AuthException("Invalid credentials"));

@@ -43,8 +43,8 @@ public class DraftController {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<DraftResponse>> create(@Valid @RequestBody CreateDraftRequest request) {
+    @PostMapping("/addDraft")
+    public ResponseEntity<ApiResponse<DraftResponse>> createPropertyDraft(@Valid @RequestBody CreateDraftRequest request) {
         String actor = currentUserProvider.getCurrentUsername();
         return ResponseEntity.ok(ApiResponse.ok(draftFacade.create(request, actor), "Draft created"));
     }
@@ -58,7 +58,7 @@ public class DraftController {
         return ResponseEntity.ok(ApiResponse.ok(draftFacade.update(draftId, request, actor), "Draft saved"));
     }
 
-    @GetMapping
+    @GetMapping("/draftList")
     public ResponseEntity<ApiResponse<List<DraftResponse>>> list(
         @RequestParam(name = "status", required = false) List<String> statusFilters
     ) {
