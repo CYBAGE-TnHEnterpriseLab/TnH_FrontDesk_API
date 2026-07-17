@@ -22,9 +22,9 @@ public class GuestListingResponseDto {
     String city;
     String rateCode;
     String ratePlan;
+    Integer guests;
     LocalDate checkInDate;
     LocalDate checkOutDate;
-    Integer roomNights;
     Integer nights;
     String roomStatus;
     String corporateCode;

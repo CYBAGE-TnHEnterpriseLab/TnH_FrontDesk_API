@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: frontdesk-arrival
+    name: frontdesk-dashboard
   datasource:
     url: jdbc:postgresql://localhost:5432/frontdeskdb
     username: postgres
@@ -20,23 +20,25 @@ spring:
     time-zone: UTC
 
 reservation-service:
-  base-url: http://localhost:8081
+  base-url: http://localhost:${server.port}
   arrivals-path: /api/v1/reservations/arrivals
   departures-path: /api/v1/reservations/departures
   connect-timeout-ms: 3000
   read-timeout-ms: 6000
 
 property-wizard-service:
-  enabled: false
+  enabled: true
   base-url: http://localhost:8082
   inventory-validation-path: /api/v1/property-wizard/inventory/validate
-  inventory-availability-path: /api/v1/property-wizard/inventory/availability
+  inventory-availability-path: /api/rooms/properties/{propertyId}/inventory-rooms
+  room-outlet-types-path: /api/rooms/properties/{propertyId}/room-outlet-types
+  tax-rules-path: /api/taxes/properties/{propertyId}/rules
   inventory-deduction-path: /api/v1/property-wizard/inventory/deduct
   inventory-sync-path: /api/v1/property-wizard/inventory/sync
 
 rate-management-service:
   base-url: http://localhost:8087
-  availability-pricing-path: /api/v1/rate-management/pricing/quotes
+  availability-pricing-path: /api/master-rooms/property/{propertyId}
 
 arrivals:
   search:
@@ -54,4 +56,8 @@ springdoc:
 
 app:
   cors:
-    allowed-origins: http://localhost:3000,http://localhost:5173
+    allowed-origins: http://172.27.57.211:4200,http://172.27.57.175:4200,http://172.27.57.97:4200,http://localhost:4200
+security:
+  jwt:
+    enabled: true
+    secret: ${PMS_FRONTDESK_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}

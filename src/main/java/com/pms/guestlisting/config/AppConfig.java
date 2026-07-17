@@ -2,6 +2,7 @@ package com.pms.guestlisting.config;
 
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.config.RateManagementServiceProperties;
+import com.pms.security.config.JwtSecurityProperties;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
@@ -20,7 +21,8 @@ import org.springframework.web.client.RestTemplate;
 @EnableConfigurationProperties({
     ReservationServiceProperties.class,
     PropertyWizardServiceProperties.class,
-    RateManagementServiceProperties.class
+    RateManagementServiceProperties.class,
+    JwtSecurityProperties.class
 })
 public class AppConfig {
 
