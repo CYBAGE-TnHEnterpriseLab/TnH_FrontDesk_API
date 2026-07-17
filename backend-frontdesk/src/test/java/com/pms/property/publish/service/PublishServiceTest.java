@@ -58,7 +58,7 @@ class PublishServiceTest {
         PublishValidator publishValidator = mock(PublishValidator.class);
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
 
-        PublishService service = new PublishService(
+        PublishService service = new PublishServiceImpl(
             draftService,
             propertyRepository,
             propertyOverviewRepository,

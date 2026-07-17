@@ -26,48 +26,54 @@ public class PaymentController {
 		this.paymentService = paymentService;
 	}
 
+	/** Fetches the payment setup summary for a published property. */
 	@GetMapping("/properties/{propertyId}/summary")
 	public ResponseEntity<ApiResponse<PaymentSummaryResponse>> getSummary(@PathVariable String propertyId) {
-		return ResponseEntity.ok(ApiResponse.ok(paymentService.getSummaryByPropertyId(propertyId), "Payment summary fetched"));
+		return ResponseEntity.ok(ApiResponse.ok(paymentService.getSummaryByPropertyId(propertyId), "Published property payment summary fetched"));
 	}
 
+	/** Fetches payment methods configured for a published property. */
 	@GetMapping("/properties/{propertyId}/methods")
 	public ResponseEntity<ApiResponse<List<PaymentMethodResponse>>> listMethods(@PathVariable String propertyId) {
-		return ResponseEntity.ok(ApiResponse.ok(paymentService.listMethodsByPropertyId(propertyId), "Payment methods fetched"));
+		return ResponseEntity.ok(ApiResponse.ok(paymentService.listMethodsByPropertyId(propertyId), "Published property payment methods fetched"));
 	}
 
+	/** Fetches a payment method by id for a published property. */
 	@GetMapping("/properties/{propertyId}/methods/{methodId}")
 	public ResponseEntity<ApiResponse<PaymentMethodResponse>> getMethodById(
 		@PathVariable String propertyId,
 		@PathVariable Long methodId
 	) {
-		return ResponseEntity.ok(ApiResponse.ok(paymentService.getMethodById(propertyId, methodId), "Payment method fetched"));
+		return ResponseEntity.ok(ApiResponse.ok(paymentService.getMethodById(propertyId, methodId), "Published property payment method fetched"));
 	}
 
+	/** Creates a payment method for a published property. */
 	@PostMapping("/properties/{propertyId}/methods")
 	public ResponseEntity<ApiResponse<PaymentMethodResponse>> createMethod(
 		@PathVariable String propertyId,
 		@RequestBody PaymentMethodRequest request
 	) {
-		return ResponseEntity.ok(ApiResponse.ok(paymentService.createMethod(propertyId, request), "Payment method created"));
+		return ResponseEntity.ok(ApiResponse.ok(paymentService.createMethod(propertyId, request), "Published property payment method created"));
 	}
 
+	/** Updates a payment method for a published property. */
 	@PutMapping("/properties/{propertyId}/methods/{methodId}")
 	public ResponseEntity<ApiResponse<PaymentMethodResponse>> updateMethod(
 		@PathVariable String propertyId,
 		@PathVariable Long methodId,
 		@RequestBody PaymentMethodRequest request
 	) {
-		return ResponseEntity.ok(ApiResponse.ok(paymentService.updateMethod(propertyId, methodId, request), "Payment method updated"));
+		return ResponseEntity.ok(ApiResponse.ok(paymentService.updateMethod(propertyId, methodId, request), "Published property payment method updated"));
 	}
 
+	/** Deletes a payment method from a published property. */
 	@DeleteMapping("/properties/{propertyId}/methods/{methodId}")
 	public ResponseEntity<ApiResponse<Void>> deleteMethod(
 		@PathVariable String propertyId,
 		@PathVariable Long methodId
 	) {
 		paymentService.deleteMethod(propertyId, methodId);
-		return ResponseEntity.ok(ApiResponse.ok(null, "Payment method deleted"));
+		return ResponseEntity.ok(ApiResponse.ok(null, "Published property payment method deleted"));
 	}
 }
 

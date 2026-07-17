@@ -6,10 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.pms.property.common.exception.BadRequestException;
-import com.pms.property.domain.tax.dto.TaxRequest;
-import com.pms.property.domain.tax.entity.TaxEntity;
-import com.pms.property.domain.tax.repository.TaxRepository;
+import com.pms.property.common.exception.NotFoundException;
+import com.pms.property.domain.tax.dto.TaxRuleRequest;
+import com.pms.property.domain.tax.entity.TaxRuleEntity;
 import com.pms.property.domain.tax.repository.TaxRuleRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -17,29 +16,36 @@ import org.junit.jupiter.api.Test;
 class TaxServiceTest {
 
     @Test
-    void shouldCreateTaxConfiguration() {
-        TaxRepository taxRepository = mock(TaxRepository.class);
+    void shouldCreateTaxRule() {
         TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
-        TaxService service = new TaxService(taxRepository, taxRuleRepository);
+        TaxService service = new TaxServiceImpl(taxRuleRepository);
 
-        when(taxRepository.findByPropertyId("P-1")).thenReturn(Optional.empty());
-        when(taxRepository.save(any(TaxEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(taxRuleRepository.save(any(TaxRuleEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = service.createTax("P-1", new TaxRequest("GST123", 18.0));
+        var response = service.createTaxRule(
+            "P-1",
+            new TaxRuleRequest("Service Tax", "Percentage", 6.0, "Add On", "Exclusive", "2026-05-12", true, "ACTIVE", 1)
+        );
 
         assertEquals("P-1", response.propertyId());
-        assertEquals("GST123", response.gstNumber());
+        assertEquals("Service Tax", response.taxName());
     }
 
     @Test
-    void shouldRejectDuplicateTaxConfiguration() {
-        TaxRepository taxRepository = mock(TaxRepository.class);
+    void shouldFailWhenUpdatingMissingTaxRule() {
         TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
-        TaxService service = new TaxService(taxRepository, taxRuleRepository);
+        TaxService service = new TaxServiceImpl(taxRuleRepository);
 
-        when(taxRepository.findByPropertyId("P-1")).thenReturn(Optional.of(new TaxEntity()));
+        when(taxRuleRepository.findByPropertyIdAndId("P-1", 10L)).thenReturn(Optional.empty());
 
-        assertThrows(BadRequestException.class, () -> service.createTax("P-1", new TaxRequest("GST123", 18.0)));
+        assertThrows(
+            NotFoundException.class,
+            () -> service.updateTaxRule(
+                "P-1",
+                10L,
+                new TaxRuleRequest("Luxury Tax", "Percentage", 10.0, "Add On", "Inclusive", "2026-06-16", true, "ACTIVE", 2)
+            )
+        );
     }
 }
 

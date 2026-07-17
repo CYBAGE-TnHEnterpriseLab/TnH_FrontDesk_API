@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.pms.property.domain.property.controller.PropertyControllerTest
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.18 s -- in com.pms.property.domain.property.controller.PropertyControllerTest
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.169 s -- in com.pms.property.domain.property.controller.PropertyControllerTest

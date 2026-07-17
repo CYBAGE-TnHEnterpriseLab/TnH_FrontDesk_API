@@ -4,9 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.pms.property.domain.tax.dto.TaxResponse;
+import com.pms.property.domain.tax.dto.TaxRuleResponse;
 import com.pms.property.domain.tax.dto.TaxSummaryResponse;
 import com.pms.property.domain.tax.service.TaxService;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TaxControllerTest {
@@ -23,14 +24,16 @@ class TaxControllerTest {
     }
 
     @Test
-    void shouldReturnTaxConfigPayload() {
+    void shouldReturnRulesPayload() {
         TaxService service = mock(TaxService.class);
         TaxController controller = new TaxController(service);
-        when(service.getTaxByPropertyId("P-1")).thenReturn(new TaxResponse(1L, "P-1", "GST123", 18.0));
+        when(service.getTaxRulesByPropertyId("P-1")).thenReturn(
+            List.of(new TaxRuleResponse(1L, "P-1", "Service Tax", "Percentage", 6.0, "Add On", "Exclusive", "2026-05-12", true, "ACTIVE", 1))
+        );
 
-        var response = controller.getCurrentByProperty("P-1").getBody();
+        var response = controller.getRules("P-1").getBody();
 
-        assertEquals("GST123", response.data().gstNumber());
+        assertEquals(1, response.data().size());
+        assertEquals("Service Tax", response.data().get(0).taxName());
     }
 }
-

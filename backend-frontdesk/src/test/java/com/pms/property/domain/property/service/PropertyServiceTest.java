@@ -52,7 +52,7 @@ class PropertyServiceTest {
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
         DraftService draftService = mock(DraftService.class);
 
-        PropertyService service = new PropertyService(
+        PropertyService service = new PropertyServiceImpl(
             propertyRepository,
             propertyOverviewRepository,
             guestServiceAmenityRepository,
@@ -130,7 +130,7 @@ class PropertyServiceTest {
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
         DraftService draftService = mock(DraftService.class);
 
-        PropertyService service = new PropertyService(
+        PropertyService service = new PropertyServiceImpl(
             propertyRepository,
             propertyOverviewRepository,
             guestServiceAmenityRepository,

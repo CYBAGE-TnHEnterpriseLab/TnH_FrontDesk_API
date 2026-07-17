@@ -20,7 +20,7 @@ class FinanceServiceTest {
     void shouldCreateAccount() {
         ChartOfAccountRepository accountRepository = mock(ChartOfAccountRepository.class);
         RevenueMappingRepository revenueRepository = mock(RevenueMappingRepository.class);
-        FinanceService service = new FinanceService(accountRepository, revenueRepository);
+        FinanceService service = new FinanceServiceImpl(accountRepository, revenueRepository);
 
         when(accountRepository.save(any(ChartOfAccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -34,7 +34,7 @@ class FinanceServiceTest {
     void shouldThrowWhenAccountNotFound() {
         ChartOfAccountRepository accountRepository = mock(ChartOfAccountRepository.class);
         RevenueMappingRepository revenueRepository = mock(RevenueMappingRepository.class);
-        FinanceService service = new FinanceService(accountRepository, revenueRepository);
+        FinanceService service = new FinanceServiceImpl(accountRepository, revenueRepository);
 
         when(accountRepository.findByPropertyIdAndId("P-1", 11L)).thenReturn(Optional.empty());
 

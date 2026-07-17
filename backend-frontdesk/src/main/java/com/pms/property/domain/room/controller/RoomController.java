@@ -27,53 +27,60 @@ public class RoomController {
         this.roomService = roomService;
     }
 
+    /** Fetches the room setup summary for a published property. */
     @GetMapping("/properties/{propertyId}/summary")
     public ResponseEntity<ApiResponse<RoomSummaryResponse>> getSummary(@PathVariable String propertyId) {
-        return ResponseEntity.ok(ApiResponse.ok(roomService.getSummaryByPropertyId(propertyId), "Room summary fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.getSummaryByPropertyId(propertyId), "Published property room summary fetched"));
     }
 
+    /** Fetches inventory rooms configured for a published property. */
     @GetMapping("/properties/{propertyId}/inventory-rooms")
     public ResponseEntity<ApiResponse<List<InventoryRoomResponse>>> listInventoryRooms(@PathVariable String propertyId) {
-        return ResponseEntity.ok(ApiResponse.ok(roomService.listInventoryRoomsByPropertyId(propertyId), "Inventory rooms fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.listInventoryRoomsByPropertyId(propertyId), "Published property inventory rooms fetched"));
     }
 
+    /** Fetches supported room outlet types for a published property. */
     @GetMapping("/properties/{propertyId}/room-outlet-types")
     public ResponseEntity<ApiResponse<List<RoomOutletTypeResponse>>> listRoomOutletTypes(@PathVariable String propertyId) {
-        return ResponseEntity.ok(ApiResponse.ok(roomService.listRoomOutletTypesByPropertyId(propertyId), "Room outlet types fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.listRoomOutletTypesByPropertyId(propertyId), "Published property room outlet types fetched"));
     }
 
+    /** Fetches an inventory room by id for a published property. */
     @GetMapping("/properties/{propertyId}/inventory-rooms/{roomId}")
     public ResponseEntity<ApiResponse<InventoryRoomResponse>> getInventoryRoomById(
         @PathVariable String propertyId,
         @PathVariable Long roomId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(roomService.getInventoryRoomById(propertyId, roomId), "Inventory room fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.getInventoryRoomById(propertyId, roomId), "Published property inventory room fetched"));
     }
 
+    /** Creates an inventory room for a published property. */
     @PostMapping("/properties/{propertyId}/inventory-rooms")
     public ResponseEntity<ApiResponse<InventoryRoomResponse>> createInventoryRoom(
         @PathVariable String propertyId,
         @RequestBody InventoryRoomRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(roomService.createInventoryRoom(propertyId, request), "Inventory room created"));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.createInventoryRoom(propertyId, request), "Published property inventory room created"));
     }
 
+    /** Updates an inventory room for a published property. */
     @PutMapping("/properties/{propertyId}/inventory-rooms/{roomId}")
     public ResponseEntity<ApiResponse<InventoryRoomResponse>> updateInventoryRoom(
         @PathVariable String propertyId,
         @PathVariable Long roomId,
         @RequestBody InventoryRoomRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(roomService.updateInventoryRoom(propertyId, roomId, request), "Inventory room updated"));
+        return ResponseEntity.ok(ApiResponse.ok(roomService.updateInventoryRoom(propertyId, roomId, request), "Published property inventory room updated"));
     }
 
+    /** Deletes an inventory room from a published property. */
     @DeleteMapping("/properties/{propertyId}/inventory-rooms/{roomId}")
     public ResponseEntity<ApiResponse<Void>> deleteInventoryRoom(
         @PathVariable String propertyId,
         @PathVariable Long roomId
     ) {
         roomService.deleteInventoryRoom(propertyId, roomId);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Inventory room deleted"));
+        return ResponseEntity.ok(ApiResponse.ok(null, "Published property inventory room deleted"));
     }
 }
 

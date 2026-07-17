@@ -23,7 +23,7 @@ class PropertyControllerTest {
 
         verify(propertyService).deleteOwnedProperty("P-300", "owner");
         assertEquals(true, response.success());
-        assertEquals("Property deleted", response.message());
+        assertEquals("Published property deleted", response.message());
     }
 }
 

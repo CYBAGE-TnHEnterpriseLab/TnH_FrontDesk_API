@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping({ "/api/properties", "/api/property" })
+@RequestMapping("/api/property")
 public class PropertyController {
 
     private final PropertyService propertyService;
@@ -24,22 +24,25 @@ public class PropertyController {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @GetMapping("/{propertyId}")
+    /** Fetches a single published property by property id. */
+    @GetMapping("/getPublishedProperty/{propertyId}")
     public ResponseEntity<ApiResponse<PropertyResponse>> getById(@PathVariable String propertyId) {
-        return ResponseEntity.ok(ApiResponse.ok(propertyService.getById(propertyId), "Property fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(propertyService.getById(propertyId), "Published property fetched"));
     }
 
-    @GetMapping("/my")
+    /** Fetches published properties created by the current user. */
+    @GetMapping("/getAllPublishedProperties")
     public ResponseEntity<ApiResponse<List<PropertyResponse>>> listMine() {
         String actor = currentUserProvider.getCurrentUsername();
-        return ResponseEntity.ok(ApiResponse.ok(propertyService.listByCreator(actor), "Properties fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(propertyService.listByCreator(actor), "Published properties fetched"));
     }
 
-    @DeleteMapping("/{propertyId}")
+    /** Deletes a published property owned by the current user. */
+    @DeleteMapping("/deletePublishedProperty/{propertyId}")
     public ResponseEntity<ApiResponse<Void>> deleteById(@PathVariable String propertyId) {
         String actor = currentUserProvider.getCurrentUsername();
         propertyService.deleteOwnedProperty(propertyId, actor);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Property deleted"));
+        return ResponseEntity.ok(ApiResponse.ok(null, "Published property deleted"));
     }
 }
 

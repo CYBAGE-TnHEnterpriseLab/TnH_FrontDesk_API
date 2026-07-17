@@ -2,7 +2,7 @@ package com.pms.property.domain.tax.dto;
 
 public record TaxSummaryResponse(
     String propertyId,
-    boolean hasTaxProfile,
+    boolean hasTaxRules,
     long taxRulesCount
 ) {
 }

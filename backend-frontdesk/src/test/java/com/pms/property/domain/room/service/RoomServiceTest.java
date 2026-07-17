@@ -28,7 +28,7 @@ class RoomServiceTest {
         FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
-        RoomService service = new RoomService(
+        RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
@@ -51,7 +51,7 @@ class RoomServiceTest {
         FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
-        RoomService service = new RoomService(
+        RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
@@ -71,7 +71,7 @@ class RoomServiceTest {
         FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
-        RoomService service = new RoomService(
+        RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,

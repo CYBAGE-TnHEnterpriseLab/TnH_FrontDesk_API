@@ -43,22 +43,25 @@ public class DraftController {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @PostMapping("/addDraft")
+    /** Creates a new draft property for the current user. */
+    @PostMapping("/createDraft")
     public ResponseEntity<ApiResponse<DraftResponse>> createPropertyDraft(@Valid @RequestBody CreateDraftRequest request) {
         String actor = currentUserProvider.getCurrentUsername();
-        return ResponseEntity.ok(ApiResponse.ok(draftFacade.create(request, actor), "Draft created"));
+        return ResponseEntity.ok(ApiResponse.ok(draftFacade.create(request, actor), "Draft property created"));
     }
 
-    @PutMapping("/{draftId}")
+    /** Saves updates to an existing draft property owned by the current user. */
+    @PutMapping("/saveDraft/{draftId}")
     public ResponseEntity<ApiResponse<DraftResponse>> save(
         @PathVariable Long draftId,
         @Valid @RequestBody SaveDraftRequest request
     ) {
         String actor = currentUserProvider.getCurrentUsername();
-        return ResponseEntity.ok(ApiResponse.ok(draftFacade.update(draftId, request, actor), "Draft saved"));
+        return ResponseEntity.ok(ApiResponse.ok(draftFacade.update(draftId, request, actor), "Draft property saved"));
     }
 
-    @GetMapping("/draftList")
+    /** Fetches draft property records, or both draft and published property records when status is not provided. */
+    @GetMapping("/getAllProperties")
     public ResponseEntity<ApiResponse<List<DraftResponse>>> list(
         @RequestParam(name = "status", required = false) List<String> statusFilters
     ) {
@@ -75,39 +78,45 @@ public class DraftController {
                 }
             }
         }
-        return ResponseEntity.ok(ApiResponse.ok(draftFacade.list(statuses, actor), "Drafts fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(draftFacade.list(statuses, actor), "Draft and published properties fetched"));
     }
 
-    @GetMapping("/{draftId}")
+    /** Fetches a single draft property by draft id. */
+    @GetMapping("/getDraft/{draftId}")
     public ResponseEntity<ApiResponse<DraftResponse>> get(@PathVariable Long draftId) {
-        return ResponseEntity.ok(ApiResponse.ok(draftFacade.get(draftId), "Draft fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(draftFacade.get(draftId), "Draft property fetched"));
     }
 
+    /** Fetches published property options that can be used in the wizard flow. */
     @GetMapping("/wizard/properties")
     public ResponseEntity<ApiResponse<List<WizardPropertyOptionResponse>>> listMyWizardProperties() {
         String actor = currentUserProvider.getCurrentUsername();
-        return ResponseEntity.ok(ApiResponse.ok(draftFacade.listMyWizardProperties(actor), "Wizard properties fetched"));
+        return ResponseEntity.ok(
+            ApiResponse.ok(draftFacade.listMyWizardProperties(actor), "Published properties for wizard fetched")
+        );
     }
 
+    /** Fetches the latest draft property version derived from a selected published property. */
     @GetMapping("/wizard/properties/{propertyId}")
     public ResponseEntity<ApiResponse<DraftResponse>> getWizardDraftByProperty(@PathVariable String propertyId) {
         String actor = currentUserProvider.getCurrentUsername();
         return ResponseEntity.ok(
-            ApiResponse.ok(draftFacade.getPublishedDraftByProperty(propertyId, actor), "Wizard draft fetched")
+            ApiResponse.ok(draftFacade.getPublishedDraftByProperty(propertyId, actor), "Draft property from published property fetched")
         );
     }
 
+    /** Publishes a draft property and returns the published property payload. */
     @PostMapping("/{draftId}/publish")
     public ResponseEntity<ApiResponse<PublishResponse>> publish(@PathVariable Long draftId) {
         String actor = currentUserProvider.getCurrentUsername();
-        return ResponseEntity.ok(ApiResponse.ok(publishFacade.publish(draftId, actor), "Draft published"));
+        return ResponseEntity.ok(ApiResponse.ok(publishFacade.publish(draftId, actor), "Draft property published"));
     }
 
-    @DeleteMapping("/{draftId}")
+    /** Deletes a draft property that is still in editable state. */
+    @DeleteMapping("/deleteDraft/{draftId}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long draftId) {
         String actor = currentUserProvider.getCurrentUsername();
         draftFacade.delete(draftId, actor);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Draft deleted"));
+        return ResponseEntity.ok(ApiResponse.ok(null, "Draft property deleted"));
     }
 }
-

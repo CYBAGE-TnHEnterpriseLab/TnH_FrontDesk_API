@@ -23,7 +23,7 @@ class ContentServiceTest {
         PropertyOverviewRepository overviewRepository = mock(PropertyOverviewRepository.class);
         GuestServiceAmenityRepository amenityRepository = mock(GuestServiceAmenityRepository.class);
         NearbyLocationAccessibilityRepository nearbyRepository = mock(NearbyLocationAccessibilityRepository.class);
-        ContentService service = new ContentService(overviewRepository, amenityRepository, nearbyRepository);
+        ContentService service = new ContentServiceImpl(overviewRepository, amenityRepository, nearbyRepository);
 
         when(overviewRepository.findByPropertyId("P-1")).thenReturn(Optional.empty());
         when(overviewRepository.save(any(PropertyOverviewEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -39,7 +39,7 @@ class ContentServiceTest {
         PropertyOverviewRepository overviewRepository = mock(PropertyOverviewRepository.class);
         GuestServiceAmenityRepository amenityRepository = mock(GuestServiceAmenityRepository.class);
         NearbyLocationAccessibilityRepository nearbyRepository = mock(NearbyLocationAccessibilityRepository.class);
-        ContentService service = new ContentService(overviewRepository, amenityRepository, nearbyRepository);
+        ContentService service = new ContentServiceImpl(overviewRepository, amenityRepository, nearbyRepository);
 
         when(overviewRepository.findByPropertyId("P-1")).thenReturn(Optional.of(new PropertyOverviewEntity()));
 

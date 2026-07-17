@@ -18,7 +18,7 @@ class PaymentServiceTest {
     @Test
     void shouldCreatePaymentMethod() {
         PaymentMethodRepository repository = mock(PaymentMethodRepository.class);
-        PaymentService service = new PaymentService(repository);
+        PaymentService service = new PaymentServiceImpl(repository);
 
         when(repository.save(any(PaymentMethodEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -31,7 +31,7 @@ class PaymentServiceTest {
     @Test
     void shouldThrowWhenMethodNotFound() {
         PaymentMethodRepository repository = mock(PaymentMethodRepository.class);
-        PaymentService service = new PaymentService(repository);
+        PaymentService service = new PaymentServiceImpl(repository);
 
         when(repository.findByPropertyIdAndId("P-1", 22L)).thenReturn(Optional.empty());
 

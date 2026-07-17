@@ -18,7 +18,7 @@ class LocalImageStorageServiceTest {
 
     @Test
     void shouldStoreImageAndReturnPublicUrl() throws Exception {
-        LocalImageStorageService service = new LocalImageStorageService(tempDir.toString(), 1024 * 1024, true);
+        LocalImageStorageService service = new LocalImageStorageServiceImpl(tempDir.toString(), 1024 * 1024, true);
 
         MockMultipartFile file = new MockMultipartFile(
             "file",
@@ -35,7 +35,7 @@ class LocalImageStorageServiceTest {
 
     @Test
     void shouldRejectNonImageUpload() {
-        LocalImageStorageService service = new LocalImageStorageService(tempDir.toString(), 1024 * 1024, true);
+        LocalImageStorageService service = new LocalImageStorageServiceImpl(tempDir.toString(), 1024 * 1024, true);
 
         MockMultipartFile file = new MockMultipartFile(
             "file",

@@ -26,48 +26,54 @@ public class FinanceController {
         this.financeService = financeService;
     }
 
+    /** Fetches the finance setup summary for a published property. */
     @GetMapping("/properties/{propertyId}/summary")
     public ResponseEntity<ApiResponse<FinanceSummaryResponse>> getSummary(@PathVariable String propertyId) {
-        return ResponseEntity.ok(ApiResponse.ok(financeService.getSummaryByPropertyId(propertyId), "Finance summary fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(financeService.getSummaryByPropertyId(propertyId), "Published property finance summary fetched"));
     }
 
+    /** Fetches chart of accounts configured for a published property. */
     @GetMapping("/properties/{propertyId}/accounts")
     public ResponseEntity<ApiResponse<List<ChartOfAccountResponse>>> listAccounts(@PathVariable String propertyId) {
-        return ResponseEntity.ok(ApiResponse.ok(financeService.listAccountsByPropertyId(propertyId), "Chart of accounts fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(financeService.listAccountsByPropertyId(propertyId), "Published property chart of accounts fetched"));
     }
 
+    /** Fetches a chart of account by id for a published property. */
     @GetMapping("/properties/{propertyId}/accounts/{accountId}")
     public ResponseEntity<ApiResponse<ChartOfAccountResponse>> getAccountById(
         @PathVariable String propertyId,
         @PathVariable Long accountId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(financeService.getAccountById(propertyId, accountId), "Chart of account fetched"));
+        return ResponseEntity.ok(ApiResponse.ok(financeService.getAccountById(propertyId, accountId), "Published property chart of account fetched"));
     }
 
+    /** Creates a chart of account for a published property. */
     @PostMapping("/properties/{propertyId}/accounts")
     public ResponseEntity<ApiResponse<ChartOfAccountResponse>> createAccount(
         @PathVariable String propertyId,
         @RequestBody ChartOfAccountRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(financeService.createAccount(propertyId, request), "Chart of account created"));
+        return ResponseEntity.ok(ApiResponse.ok(financeService.createAccount(propertyId, request), "Published property chart of account created"));
     }
 
+    /** Updates a chart of account for a published property. */
     @PutMapping("/properties/{propertyId}/accounts/{accountId}")
     public ResponseEntity<ApiResponse<ChartOfAccountResponse>> updateAccount(
         @PathVariable String propertyId,
         @PathVariable Long accountId,
         @RequestBody ChartOfAccountRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(financeService.updateAccount(propertyId, accountId, request), "Chart of account updated"));
+        return ResponseEntity.ok(ApiResponse.ok(financeService.updateAccount(propertyId, accountId, request), "Published property chart of account updated"));
     }
 
+    /** Deletes a chart of account from a published property. */
     @DeleteMapping("/properties/{propertyId}/accounts/{accountId}")
     public ResponseEntity<ApiResponse<Void>> deleteAccount(
         @PathVariable String propertyId,
         @PathVariable Long accountId
     ) {
         financeService.deleteAccount(propertyId, accountId);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Chart of account deleted"));
+        return ResponseEntity.ok(ApiResponse.ok(null, "Published property chart of account deleted"));
     }
 }
 

@@ -33,7 +33,7 @@ class DraftServiceTest {
         PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
         LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+        DraftService draftService = new DraftServiceImpl(repository, propertyRepository, objectMapper, imageStorageService);
 
         when(repository.save(any(PropertyDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -68,7 +68,7 @@ class DraftServiceTest {
         PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
         LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+        DraftService draftService = new DraftServiceImpl(repository, propertyRepository, objectMapper, imageStorageService);
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setSchemaVersion(1);
@@ -92,7 +92,7 @@ class DraftServiceTest {
         PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
         LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+        DraftService draftService = new DraftServiceImpl(repository, propertyRepository, objectMapper, imageStorageService);
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setStatus(DraftStatus.DRAFT);
@@ -113,7 +113,7 @@ class DraftServiceTest {
         PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
         LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+        DraftService draftService = new DraftServiceImpl(repository, propertyRepository, objectMapper, imageStorageService);
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setStatus(DraftStatus.PUBLISHED);
@@ -130,7 +130,7 @@ class DraftServiceTest {
         PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
         LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+        DraftService draftService = new DraftServiceImpl(repository, propertyRepository, objectMapper, imageStorageService);
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setId(12L);
@@ -163,7 +163,7 @@ class DraftServiceTest {
         PropertyRepository propertyRepository = Mockito.mock(PropertyRepository.class);
         LocalImageStorageService imageStorageService = Mockito.mock(LocalImageStorageService.class);
         ObjectMapper objectMapper = new ObjectMapper();
-        DraftService draftService = new DraftService(repository, propertyRepository, objectMapper, imageStorageService);
+        DraftService draftService = new DraftServiceImpl(repository, propertyRepository, objectMapper, imageStorageService);
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setId(13L);
