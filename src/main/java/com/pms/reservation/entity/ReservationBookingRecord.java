@@ -110,6 +110,8 @@ public class ReservationBookingRecord {
     @Column(nullable = false, length = 40)
     private String roomType;
 
+    private Integer floor;
+
     @Column(nullable = false, length = 40)
     private String rateCode;
 

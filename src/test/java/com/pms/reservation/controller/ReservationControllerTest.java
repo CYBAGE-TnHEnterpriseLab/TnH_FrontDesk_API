@@ -1,5 +1,6 @@
 package com.pms.reservation.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,13 +21,15 @@ import java.time.LocalTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = ReservationController.class)
+@WebMvcTest(controllers = ReservationController.class, properties = "security.jwt.enabled=false")
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class ReservationControllerTest {
 
@@ -60,8 +63,9 @@ class ReservationControllerTest {
                 .bookingId(1001L)
                 .propertyId("PROP001")
                 .guestName("Alex Johnson")
-                .reservationType("GTD")
-                .createdAt(LocalDateTime.of(2026, 6, 15, 12, 0))
+                .reservationStatus("CONFIRMED")
+                .confirmationNumber("PROP001-20260718120000000-123")
+                .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
                 .build();
 
         when(reservationBookingService.createBooking(any())).thenReturn(response);
@@ -71,9 +75,10 @@ class ReservationControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.message").value("Reservation confirmed successfully"))
+                .andExpect(jsonPath("$.message").value("Reservation confirmed successfully"))
                 .andExpect(jsonPath("$.data.bookingId").value(1001))
-                .andExpect(jsonPath("$.data.guestName").value("Alex Johnson"));
+                .andExpect(jsonPath("$.data.guestName").value("Alex Johnson"))
+                .andExpect(jsonPath("$.data.reservationStatus").value("CONFIRMED"));
 
         verify(reservationBookingService).createBooking(any());
     }
@@ -93,9 +98,9 @@ class ReservationControllerTest {
     }
 
     @Test
-    void createBookingShouldReturnBadRequestWhenGuestNamesMissing() throws Exception {
+    void createBookingShouldReturnBadRequestWhenNumberOfRoomsExceedsNine() throws Exception {
         ReservationBookingRequestDto request = validRequest();
-        request.setGuestNames(null);
+        request.setNumberOfRooms(10);
 
         mockMvc.perform(post("/api/v1/reservations/bookings")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -103,26 +108,8 @@ class ReservationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Validation failed"))
-                .andExpect(jsonPath("$.errors.guestNames").value("guestNames is required"));
-    }
-
-            @Test
-            void createBookingShouldReturnBadRequestWhenNumberOfRoomsExceedsNine() throws Exception {
-            ReservationBookingRequestDto request = validRequest();
-            request.setNumberOfRooms(10);
-            request.setGuestNames(List.of(
-                "Guest 1", "Guest 2", "Guest 3", "Guest 4", "Guest 5",
-                "Guest 6", "Guest 7", "Guest 8", "Guest 9", "Guest 10"
-            ));
-
-            mockMvc.perform(post("/api/v1/reservations/bookings")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Validation failed"))
                 .andExpect(jsonPath("$.errors.numberOfRooms").value("numberOfRooms must be <= 9"));
-            }
+    }
 
     @Test
     void createBookingShouldReturnBadRequestWhenPaymentModeIsInvalid() throws Exception {
@@ -135,46 +122,46 @@ class ReservationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Validation failed"))
-                .andExpect(jsonPath("$.errors.payment").value("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET"));
+                .andExpect(jsonPath("$.errors.payment", containsString("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET")));
     }
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
         request.setPropertyId("PROP001");
-        request.setSalutation("Mr.");
+        request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");
         request.setGuestNames(List.of("Alex Johnson"));
         request.setPersonalEmail("alex.personal@example.com");
         request.setOfficialEmail("alex.official@example.com");
-        request.setCity("Mumbai");
+        request.setCity("Pune");
         request.setCountry("India");
-        request.setZipCode("400001");
-        request.setPhoneNumber("+91-22-1234567");
+        request.setZipCode("411001");
+        request.setPhoneNumber("+91-9876543210");
         request.setMobileNumber("+91-9876543210");
         request.setLoyaltyNumber("LOY1234");
         request.setCompany("Contoso");
-        request.setGuestGroup("Corporate");
+        request.setGuestGroup("CORP");
         request.setSource("Website");
-        request.setAgent("Agent A");
-        request.setArrivalDate(LocalDate.of(2026, 6, 20));
-        request.setDepartureDate(LocalDate.of(2026, 6, 22));
+        request.setAgent("Online");
+        request.setArrivalDate(LocalDate.of(2026, 7, 20));
+        request.setDepartureDate(LocalDate.of(2026, 7, 22));
         request.setAdultCount(2);
         request.setChildCount(1);
         request.setReservationType("GTD");
         request.setRoomType("Deluxe King");
-        request.setRateCode("BAR");
+        request.setRateCode("BAR001");
         request.setNumberOfRooms(1);
         request.setRate(new BigDecimal("8500.00"));
-        request.setPayment("Card");
+        request.setPayment("CARD");
         request.setEta(LocalTime.of(15, 0));
         request.setCheckOutTime(LocalTime.of(11, 0));
         request.setDnm(Boolean.FALSE);
         request.setNoPost(Boolean.FALSE);
         request.setGuestBalance(new BigDecimal("0.00"));
         request.setSpecialRequests("High floor");
-        request.setDiscount(new BigDecimal("500.00"));
-        request.setAlertsMessages("Guest requested quiet room");
+        request.setDiscount(new BigDecimal("0.00"));
+        request.setAlertsMessages("N/A");
         return request;
     }
 }

@@ -9,7 +9,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +32,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final List<String> PUBLIC_PATHS = List.of(
+            "/actuator/health",
             "/swagger-ui.html",
             "/swagger-ui/**",
-            "/api-docs/**",
             "/v3/api-docs/**",
             "/error"
     );
@@ -55,13 +54,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith("Bearer ")) {
-            writeUnauthorized(response, "Missing or invalid Authorization header");
+            writeUnauthorized(response);
             return;
         }
 
         String token = authorizationHeader.substring(7).trim();
         if (!StringUtils.hasText(token)) {
-            writeUnauthorized(response, "Missing or invalid Authorization header");
+            writeUnauthorized(response);
             return;
         }
 
@@ -80,7 +79,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } catch (JwtException ex) {
             SecurityContextHolder.clearContext();
-            writeUnauthorized(response, "Invalid access token");
+            writeUnauthorized(response);
         }
     }
 
@@ -101,16 +100,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return "ROLE_" + normalized;
     }
 
-    private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
+    private void writeUnauthorized(HttpServletResponse response) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
         Map<String, Object> body = new HashMap<>();
         body.put("success", false);
-        body.put("message", message);
         body.put("data", null);
-        body.put("errors", null);
-        body.put("timestamp", OffsetDateTime.now().toString());
+        body.put("message", "Invalid or expired access token");
         response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }

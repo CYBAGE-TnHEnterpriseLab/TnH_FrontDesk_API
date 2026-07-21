@@ -7,6 +7,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.util.Date;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -42,7 +43,21 @@ public class AccessTokenVerifier {
             throw new JwtException("Token subject is missing");
         }
 
+        Date issuedAt = claims.getIssuedAt();
+        if (issuedAt == null) {
+            throw new JwtException("Token issued-at claim is missing");
+        }
+
+        Date expiration = claims.getExpiration();
+        if (expiration == null) {
+            throw new JwtException("Token expiration claim is missing");
+        }
+
         List<String> roles = parseRoles(claims.get(CLAIM_ROLES));
+        if (roles.isEmpty()) {
+            throw new JwtException("Token roles are missing");
+        }
+
         return new VerifiedAccessToken(username, roles);
     }
 

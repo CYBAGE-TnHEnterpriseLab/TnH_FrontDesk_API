@@ -20,6 +20,22 @@ public class ReservationAvailabilityRequestDto {
     @NotNull(message = "departureDate is required")
     private LocalDate departureDate;
 
+    @NotNull(message = "night is required")
+    @Min(value = 1, message = "night must be >= 1")
+    private Integer night;
+
+    @NotNull(message = "numberOfRooms is required")
+    @Min(value = 1, message = "numberOfRooms must be >= 1")
+    private Integer numberOfRooms;
+
+    private String groupCode;
+
+    private String company;
+
+    private String rateCode;
+
+    private String blockCode;
+
     private String roomType;
 
     @NotNull(message = "adultCount is required")
@@ -29,4 +45,8 @@ public class ReservationAvailabilityRequestDto {
     @NotNull(message = "childCount is required")
     @Min(value = 0, message = "childCount must be >= 0")
     private Integer childCount = 0;
+
+    private Integer ageOfChild1;
+
+    private Integer ageOfChild2;
 }

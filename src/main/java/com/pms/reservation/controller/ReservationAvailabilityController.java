@@ -29,22 +29,33 @@ public class ReservationAvailabilityController {
 
     @GetMapping("/availability")
     @Operation(summary = "Get room availability and pricing",
-            description = "Returns live inventory and dynamic pricing based on selected dates and room type")
+            description = "Returns live inventory and dynamic pricing based on selected stay details")
     public ResponseEntity<ApiResponse<ReservationAvailabilityResponseDto>> getAvailability(
             @RequestParam @NotBlank(message = "propertyId is required") String propertyId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate arrivalDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate departureDate,
-            @RequestParam(required = false) String roomType,
-            @RequestParam(defaultValue = "1") @Min(value = 1, message = "adultCount must be >= 1") Integer adultCount,
-            @RequestParam(defaultValue = "0") @Min(value = 0, message = "childCount must be >= 0") Integer childCount
+            @RequestParam(name = "date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam @Min(value = 1, message = "night must be >= 1") Integer night,
+            @RequestParam @Min(value = 1, message = "numberOfRooms must be >= 1") Integer numberOfRooms,
+            @RequestParam(required = false) String groupCode,
+            @RequestParam(defaultValue = "1") @Min(value = 1, message = "adults must be >= 1") Integer adults,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "children must be >= 0") Integer children,
+            @RequestParam(required = false) String company,
+            @RequestParam(required = false) String rateCode,
+            @RequestParam(required = false) String blockCode
     ) {
+        LocalDate resolvedDepartureDate = date.plusDays(night.longValue());
+
         ReservationAvailabilityRequestDto request = new ReservationAvailabilityRequestDto();
         request.setPropertyId(propertyId);
-        request.setArrivalDate(arrivalDate);
-        request.setDepartureDate(departureDate);
-        request.setRoomType(roomType);
-        request.setAdultCount(adultCount);
-        request.setChildCount(childCount);
+        request.setArrivalDate(date);
+        request.setDepartureDate(resolvedDepartureDate);
+        request.setNight(night);
+        request.setNumberOfRooms(numberOfRooms);
+        request.setGroupCode(groupCode);
+        request.setCompany(company);
+        request.setRateCode(rateCode);
+        request.setBlockCode(blockCode);
+        request.setAdultCount(adults);
+        request.setChildCount(children);
 
         ReservationAvailabilityResponseDto result = reservationAvailabilityService.getAvailability(request);
         return ResponseEntity.ok(ApiResponse.success("Availability and pricing fetched successfully", result));

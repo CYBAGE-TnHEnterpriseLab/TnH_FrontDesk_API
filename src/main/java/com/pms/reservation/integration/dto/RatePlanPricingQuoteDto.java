@@ -7,6 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class RatePlanPricingQuoteDto {
+    private Long roomTypeId;
     private String roomType;
     private String ratePlan;
     private String rateCode;

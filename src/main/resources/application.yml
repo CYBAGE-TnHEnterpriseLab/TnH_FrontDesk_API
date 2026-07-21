@@ -36,9 +36,16 @@ property-wizard-service:
   inventory-deduction-path: /api/v1/property-wizard/inventory/deduct
   inventory-sync-path: /api/v1/property-wizard/inventory/sync
 
-rate-management-service:
-  base-url: http://localhost:8087
-  availability-pricing-path: /api/master-rooms/property/{propertyId}
+rate-management:
+  baseUrl: http://localhost:8087
+  serviceAuthToken: ${PMS_RATE_MANAGEMENT_SERVICE_TOKEN:}
+  listRatePlansPath: /api/rate-plans/property/{propertyId}
+  availablePlansPath: /api/rate-plans/property/{propertyId}/available
+  calculatedPricePath: /api/rate-plans/property/{propertyId}/{ratePlanId}/calculated-price
+  connectTimeoutMs: 3000
+  readTimeoutMs: 6000
+  retryMaxAttempts: 2
+  retryBackoffMs: 100
 
 arrivals:
   search:
@@ -57,6 +64,7 @@ springdoc:
 app:
   cors:
     allowed-origins: http://172.27.57.211:4200,http://172.27.57.175:4200,http://172.27.57.97:4200,http://localhost:4200
+    
 security:
   jwt:
     enabled: true

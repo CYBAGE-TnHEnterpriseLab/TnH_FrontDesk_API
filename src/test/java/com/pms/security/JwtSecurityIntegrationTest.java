@@ -56,11 +56,12 @@ class JwtSecurityIntegrationTest {
         mockMvc.perform(get("/api/v1/reservations/payment-modes"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Missing or invalid Authorization header"));
+                .andExpect(jsonPath("$.data").isEmpty())
+                .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
     }
 
     @Test
-    void protectedEndpointShouldAllowValidAccessTokenAndRejectRefreshToken() throws Exception {
+    void protectedEndpointShouldAllowValidAccessTokenAndRejectInvalidTypeToken() throws Exception {
         String accessToken = buildToken("access", List.of("ADMIN"));
         String refreshToken = buildToken("refresh", List.of("ADMIN"));
 
@@ -73,7 +74,29 @@ class JwtSecurityIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + refreshToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Invalid access token"));
+                .andExpect(jsonPath("$.data").isEmpty())
+                .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
+    }
+
+    @Test
+    void protectedEndpointShouldReturnForbiddenForValidTokenWithoutAdminRole() throws Exception {
+        String userToken = buildToken("access", List.of("USER"));
+
+        mockMvc.perform(get("/api/v1/reservations/payment-modes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void protectedEndpointShouldReturnUnauthorizedWhenRequiredClaimsMissing() throws Exception {
+        String tokenMissingExp = buildTokenWithoutExpiration();
+
+        mockMvc.perform(get("/api/v1/reservations/payment-modes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenMissingExp))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.data").isEmpty())
+                .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
     }
 
     private String buildToken(String type, List<String> roles) {
@@ -89,4 +112,17 @@ class JwtSecurityIntegrationTest {
                 .signWith(key)
                 .compact();
     }
+
+        private String buildTokenWithoutExpiration() {
+                SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+                Instant now = Instant.now();
+
+                return Jwts.builder()
+                                .subject("admin.user")
+                                .claim("typ", "access")
+                                .claim("roles", "ADMIN")
+                                .issuedAt(Date.from(now))
+                                .signWith(key)
+                                .compact();
+        }
 }

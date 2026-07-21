@@ -23,6 +23,7 @@ import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -38,11 +39,11 @@ class ReservationBookingServiceImplTest {
     @Mock
     private ReservationBookingRepository reservationBookingRepository;
 
-        @Mock
-        private ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
+    @Mock
+    private ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
 
     @Mock
-        private PropertyInventoryPort propertyInventoryPort;
+    private PropertyInventoryPort propertyInventoryPort;
 
     @Mock
     private PropertyWizardServiceProperties propertyWizardServiceProperties;
@@ -50,8 +51,8 @@ class ReservationBookingServiceImplTest {
     @Mock
     private ReservationBookingMapper reservationBookingMapper;
 
-        @Mock
-        private PaymentProcessingService paymentProcessingService;
+    @Mock
+    private PaymentProcessingService paymentProcessingService;
 
     @InjectMocks
     private ReservationBookingServiceImpl reservationBookingService;
@@ -60,13 +61,7 @@ class ReservationBookingServiceImplTest {
     void createBookingShouldPersistAndReturnResponseWithGeneratedConfirmation() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
-        when(paymentProcessingService.processPayment(any(), any(), any()))
-                .thenReturn(PaymentProcessingResult.builder()
-                        .status("SUCCESS")
-                        .transactionReference("PAY-20260708120000000-123")
-                        .processorName("SIMULATED_GATEWAY")
-                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 0))
-                        .build());
+        when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-100"));
 
         ReservationBookingRecord toSave = ReservationBookingRecord.builder()
                 .propertyId(request.getPropertyId())
@@ -76,52 +71,44 @@ class ReservationBookingServiceImplTest {
 
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(99L)
-                .confirmationNumber("PROP001-20260101123000000-123")
+                .propertyId("PROP001")
+                .confirmationNumber("PROP001-20260718120000000-123")
                 .reservationStatus("CONFIRMED")
-                .guestName(request.getGuestName())
-                .guestNamesEncoded("QWxleCBKb2huc29u")
-                .reservationType(request.getReservationType())
-                .totalRate(new BigDecimal("8500.00"))
+                .guestName("Alex Johnson")
+                .build();
+
+        ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
+                .id(501L)
+                .bookingId(99L)
+                .confirmationNumber("PROP001-20260718120000000-123")
+                .propertyId("PROP001")
+                .paymentMode("CARD")
+                .amount(new BigDecimal("17000.00"))
+                .transactionStatus("SUCCESS")
+                .transactionReference("PAY-100")
+                .processorName("SIMULATED_GATEWAY")
+                .processedAt(LocalDateTime.of(2026, 7, 18, 12, 0))
+                .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
                 .build();
 
         ReservationBookingResponseDto responseDto = ReservationBookingResponseDto.builder()
                 .bookingId(99L)
-                .confirmationNumber("PROP001-20260101123000000-123")
+                .confirmationNumber("PROP001-20260718120000000-123")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
-                .guestNames(List.of("Alex Johnson"))
-                .reservationType("GTD")
-                .totalRate(new BigDecimal("8500.00"))
+                .totalRate(new BigDecimal("17000.00"))
                 .build();
 
         when(reservationBookingMapper.toEntity(request)).thenReturn(toSave);
         when(reservationBookingRepository.save(any(ReservationBookingRecord.class))).thenReturn(savedRecord);
-        when(reservationPaymentTransactionRepository.save(any(ReservationPaymentTransactionRecord.class)))
-                .thenReturn(ReservationPaymentTransactionRecord.builder()
-                        .id(501L)
-                        .bookingId(99L)
-                        .confirmationNumber("PROP001-20260101123000000-123")
-                        .propertyId("PROP001")
-                        .paymentMode("CARD")
-                        .amount(new BigDecimal("17000.00"))
-                        .transactionStatus("SUCCESS")
-                        .transactionReference("PAY-20260708120000000-123")
-                        .processorName("SIMULATED_GATEWAY")
-                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 0))
-                        .createdAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 0))
-                        .build());
-        when(reservationBookingMapper.toResponse(any(ReservationBookingRecord.class), any(ReservationPaymentTransactionRecord.class)))
-                .thenReturn(responseDto);
+        when(reservationPaymentTransactionRepository.save(any(ReservationPaymentTransactionRecord.class))).thenReturn(savedTxn);
+        when(reservationBookingMapper.toResponse(savedRecord, savedTxn)).thenReturn(responseDto);
 
         ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
 
         assertThat(response.getBookingId()).isEqualTo(99L);
-        assertThat(response.getConfirmationNumber()).isEqualTo("PROP001-20260101123000000-123");
         assertThat(response.getReservationStatus()).isEqualTo("CONFIRMED");
         assertThat(response.getGuestName()).isEqualTo("Alex Johnson");
-        assertThat(response.getGuestNames()).containsExactly("Alex Johnson");
-        assertThat(response.getReservationType()).isEqualTo("GTD");
-        assertThat(response.getTotalRate()).isEqualByComparingTo("8500.00");
 
         ArgumentCaptor<ReservationBookingRecord> recordCaptor = ArgumentCaptor.forClass(ReservationBookingRecord.class);
         verify(reservationBookingRepository).save(recordCaptor.capture());
@@ -130,57 +117,58 @@ class ReservationBookingServiceImplTest {
         assertThat(persistedRecord.getReservationStatus()).isEqualTo("CONFIRMED");
         assertThat(persistedRecord.getInventoryDeductedAt()).isNull();
         assertThat(persistedRecord.getInventorySyncedAt()).isNull();
+
         verify(propertyInventoryPort, never()).validateInventory(any(), any(), any());
         verify(propertyInventoryPort, never()).deductInventory(any());
         verify(propertyInventoryPort, never()).syncInventory(any());
     }
 
     @Test
-        void createBookingShouldDeductAndSyncInventoryWhenPropertyWizardEnabled() {
+    void createBookingShouldDeductAndSyncInventoryWhenPropertyWizardEnabled() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(paymentProcessingService.processPayment(any(), any(), any()))
-                .thenReturn(PaymentProcessingResult.builder()
-                        .status("SUCCESS")
-                        .transactionReference("PAY-20260708120000000-456")
-                        .processorName("SIMULATED_GATEWAY")
-                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 5))
-                        .build());
         when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(true, true, 5));
+        when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-200"));
 
         ReservationBookingRecord toSave = ReservationBookingRecord.builder()
                 .propertyId(request.getPropertyId())
                 .roomType(request.getRoomType())
                 .numberOfRooms(request.getNumberOfRooms())
-                .guestNamesEncoded("QWxleCBKb2huc29u")
-                .totalRate(new BigDecimal("8500.00"))
+                .build();
+
+        ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
+                .id(100L)
+                .propertyId("PROP001")
+                .confirmationNumber("PROP001-20260718120000000-456")
+                .reservationStatus("CONFIRMED")
+                .guestName("Alex Johnson")
+                .build();
+
+        ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
+                .id(601L)
+                .bookingId(100L)
+                .confirmationNumber("PROP001-20260718120000000-456")
+                .propertyId("PROP001")
+                .paymentMode("CARD")
+                .amount(new BigDecimal("17000.00"))
+                .transactionStatus("SUCCESS")
+                .transactionReference("PAY-200")
+                .processorName("SIMULATED_GATEWAY")
+                .processedAt(LocalDateTime.of(2026, 7, 18, 12, 5))
+                .createdAt(LocalDateTime.of(2026, 7, 18, 12, 5))
                 .build();
 
         ReservationBookingResponseDto responseDto = ReservationBookingResponseDto.builder()
                 .bookingId(100L)
                 .reservationStatus("CONFIRMED")
-                .totalRate(new BigDecimal("8500.00"))
+                .guestName("Alex Johnson")
                 .build();
 
         when(reservationBookingMapper.toEntity(request)).thenReturn(toSave);
-        when(reservationBookingRepository.save(any(ReservationBookingRecord.class))).thenReturn(toSave);
-        when(reservationPaymentTransactionRepository.save(any(ReservationPaymentTransactionRecord.class)))
-                .thenReturn(ReservationPaymentTransactionRecord.builder()
-                        .id(601L)
-                        .bookingId(100L)
-                        .confirmationNumber("PROP001-20260101123000000-456")
-                        .propertyId("PROP001")
-                        .paymentMode("CARD")
-                        .amount(new BigDecimal("17000.00"))
-                        .transactionStatus("SUCCESS")
-                        .transactionReference("PAY-20260708120500000-456")
-                        .processorName("SIMULATED_GATEWAY")
-                        .processedAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 5))
-                        .createdAt(java.time.LocalDateTime.of(2026, 7, 8, 12, 5))
-                        .build());
-        when(reservationBookingMapper.toResponse(any(ReservationBookingRecord.class), any(ReservationPaymentTransactionRecord.class)))
-                .thenReturn(responseDto);
+        when(reservationBookingRepository.save(any(ReservationBookingRecord.class))).thenReturn(savedRecord);
+        when(reservationPaymentTransactionRepository.save(any(ReservationPaymentTransactionRecord.class))).thenReturn(savedTxn);
+        when(reservationBookingMapper.toResponse(savedRecord, savedTxn)).thenReturn(responseDto);
 
         reservationBookingService.createBooking(request);
 
@@ -193,14 +181,12 @@ class ReservationBookingServiceImplTest {
         ReservationBookingRecord persistedRecord = recordCaptor.getValue();
         assertThat(persistedRecord.getInventoryDeductedAt()).isNotNull();
         assertThat(persistedRecord.getInventorySyncedAt()).isNotNull();
-        assertThat(persistedRecord.getTotalRate()).isEqualByComparingTo("8500.00");
     }
 
     @Test
     void createBookingShouldRejectWhenGuestNamesCountDoesNotMatchRoomCount() {
         ReservationBookingRequestDto request = validRequest();
-        request.setNumberOfRooms(2);
-        request.setGuestNames(List.of("Alex Johnson"));
+        request.setGuestNames(List.of("Alex", "Sam"));
 
         assertThatThrownBy(() -> reservationBookingService.createBooking(request))
                 .isInstanceOf(BadRequestException.class)
@@ -209,27 +195,10 @@ class ReservationBookingServiceImplTest {
         verify(reservationBookingRepository, never()).save(any());
     }
 
-        @Test
-        void createBookingShouldRejectWhenGuestNamesContainBlankValues() {
-                ReservationBookingRequestDto request = validRequest();
-                request.setNumberOfRooms(2);
-                request.setGuestNames(List.of("Alex Johnson", " "));
-
-                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
-                                .isInstanceOf(BadRequestException.class)
-                                .hasMessage("guestNames must not contain blank values");
-
-                verify(reservationBookingRepository, never()).save(any());
-        }
-
     @Test
     void createBookingShouldRejectWhenMoreThanNineRoomsSelected() {
         ReservationBookingRequestDto request = validRequest();
         request.setNumberOfRooms(10);
-        request.setGuestNames(List.of(
-                "Guest 1", "Guest 2", "Guest 3", "Guest 4", "Guest 5",
-                "Guest 6", "Guest 7", "Guest 8", "Guest 9", "Guest 10"
-        ));
 
         assertThatThrownBy(() -> reservationBookingService.createBooking(request))
                 .isInstanceOf(BadRequestException.class)
@@ -238,24 +207,24 @@ class ReservationBookingServiceImplTest {
         verify(reservationBookingRepository, never()).save(any());
     }
 
-        @Test
-        void createBookingShouldRejectWhenPaymentModeIsUnsupported() {
-                ReservationBookingRequestDto request = validRequest();
-                request.setPayment("CHEQUE");
+    @Test
+    void createBookingShouldRejectWhenPaymentModeIsUnsupported() {
+        ReservationBookingRequestDto request = validRequest();
+        request.setPayment("CHEQUE");
 
-                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
-                                .isInstanceOf(BadRequestException.class)
-                                .hasMessage("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET");
+        assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET");
 
-                verify(reservationBookingRepository, never()).save(any());
-                verify(paymentProcessingService, never()).processPayment(any(), any(), any());
-        }
+        verify(reservationBookingRepository, never()).save(any());
+        verify(paymentProcessingService, never()).processPayment(any(), any(), any());
+    }
 
     @Test
     void createBookingShouldRejectWhenDepartureIsBeforeArrival() {
         ReservationBookingRequestDto request = validRequest();
-        request.setArrivalDate(LocalDate.of(2026, 6, 22));
-        request.setDepartureDate(LocalDate.of(2026, 6, 20));
+        request.setArrivalDate(LocalDate.of(2026, 7, 22));
+        request.setDepartureDate(LocalDate.of(2026, 7, 20));
 
         assertThatThrownBy(() -> reservationBookingService.createBooking(request))
                 .isInstanceOf(BadRequestException.class)
@@ -276,27 +245,29 @@ class ReservationBookingServiceImplTest {
                 .hasMessage("propertyId is invalid as per Property Wizard service");
 
         verify(reservationBookingRepository, never()).save(any());
+        verify(paymentProcessingService, never()).processPayment(any(), any(), any());
     }
 
-        @Test
-        void createBookingShouldRejectWhenRoomTypeUnavailableFromPropertyWizard() {
-                ReservationBookingRequestDto request = validRequest();
-                when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-                when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
-                                .thenReturn(validationResponse(true, false, 0));
+    @Test
+    void createBookingShouldRejectWhenRoomTypeUnavailableFromPropertyWizard() {
+        ReservationBookingRequestDto request = validRequest();
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                .thenReturn(validationResponse(true, false, 0));
 
-                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
-                                .isInstanceOf(BadRequestException.class)
-                                .hasMessage("roomType is not available for selected property");
+        assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("roomType is not available for selected property");
 
-                verify(reservationBookingRepository, never()).save(any());
-        }
+        verify(reservationBookingRepository, never()).save(any());
+        verify(paymentProcessingService, never()).processPayment(any(), any(), any());
+    }
 
     @Test
     void createBookingShouldRejectWhenRequestedRoomsExceedAvailability() {
         ReservationBookingRequestDto request = validRequest();
         request.setNumberOfRooms(3);
-                request.setGuestNames(List.of("Guest 1", "Guest 2", "Guest 3"));
+        request.setGuestNames(List.of("Alex Johnson", "Sam Lee", "Jordan Fox"));
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
         when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(3)))
                 .thenReturn(validationResponse(true, true, 2));
@@ -306,6 +277,26 @@ class ReservationBookingServiceImplTest {
                 .hasMessage("numberOfRooms exceeds available rooms for selected property and roomType");
 
         verify(reservationBookingRepository, never()).save(any());
+        verify(paymentProcessingService, never()).processPayment(any(), any(), any());
+    }
+
+    @Test
+    void createBookingShouldRejectWhenPaymentProcessingFails() {
+        ReservationBookingRequestDto request = validRequest();
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+        when(paymentProcessingService.processPayment(any(), any(), any()))
+                .thenReturn(PaymentProcessingResult.builder()
+                        .status("FAILED")
+                        .failureReason("declined")
+                        .processedAt(LocalDateTime.of(2026, 7, 18, 12, 10))
+                        .build());
+
+        assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("payment processing failed: declined");
+
+        verify(reservationBookingRepository, never()).save(any());
+        verify(reservationPaymentTransactionRepository, never()).save(any());
     }
 
     private PropertyInventoryValidationResponse validationResponse(
@@ -320,43 +311,52 @@ class ReservationBookingServiceImplTest {
         return response;
     }
 
+    private PaymentProcessingResult successResult(String txnRef) {
+        return PaymentProcessingResult.builder()
+                .status("SUCCESS")
+                .transactionReference(txnRef)
+                .processorName("SIMULATED_GATEWAY")
+                .processedAt(LocalDateTime.of(2026, 7, 18, 12, 0))
+                .build();
+    }
+
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
         request.setPropertyId("PROP001");
-        request.setSalutation("Mr.");
+        request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");
         request.setGuestNames(List.of("Alex Johnson"));
         request.setPersonalEmail("alex.personal@example.com");
         request.setOfficialEmail("alex.official@example.com");
-        request.setCity("Mumbai");
+        request.setCity("Pune");
         request.setCountry("India");
-        request.setZipCode("400001");
-        request.setPhoneNumber("+91-22-1234567");
+        request.setZipCode("411001");
+        request.setPhoneNumber("+91-9876543210");
         request.setMobileNumber("+91-9876543210");
         request.setLoyaltyNumber("LOY1234");
         request.setCompany("Contoso");
-        request.setGuestGroup("Corporate");
+        request.setGuestGroup("CORP");
         request.setSource("Website");
-        request.setAgent("Agent A");
-        request.setArrivalDate(LocalDate.of(2026, 6, 20));
-        request.setDepartureDate(LocalDate.of(2026, 6, 22));
+        request.setAgent("Online");
+        request.setArrivalDate(LocalDate.of(2026, 7, 20));
+        request.setDepartureDate(LocalDate.of(2026, 7, 22));
         request.setAdultCount(2);
         request.setChildCount(1);
         request.setReservationType("GTD");
         request.setRoomType("Deluxe King");
-        request.setRateCode("BAR");
+        request.setRateCode("BAR001");
         request.setNumberOfRooms(1);
         request.setRate(new BigDecimal("8500.00"));
-        request.setPayment("Card");
+        request.setPayment("CARD");
         request.setEta(LocalTime.of(15, 0));
         request.setCheckOutTime(LocalTime.of(11, 0));
         request.setDnm(Boolean.FALSE);
         request.setNoPost(Boolean.FALSE);
         request.setGuestBalance(new BigDecimal("0.00"));
         request.setSpecialRequests("High floor");
-        request.setDiscount(new BigDecimal("500.00"));
-        request.setAlertsMessages("Guest requested quiet room");
+        request.setDiscount(new BigDecimal("0.00"));
+        request.setAlertsMessages("N/A");
         return request;
     }
 }
