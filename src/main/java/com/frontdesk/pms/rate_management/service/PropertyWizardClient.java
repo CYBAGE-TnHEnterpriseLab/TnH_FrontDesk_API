@@ -41,9 +41,21 @@ public class PropertyWizardClient {
                 return false;
             }
 
-            boolean success = !response.has("success") || response.path("success").asBoolean(true);
-            JsonNode data = response.path("data");
-            return success && !data.isMissingNode() && !data.isNull();
+            if (response.has("success")) {
+                boolean success = response.path("success").asBoolean(true);
+                if (!success) {
+                    return false;
+                }
+
+                JsonNode data = response.path("data");
+                return isPresentPayload(data);
+            }
+
+            if (response.has("data")) {
+                return isPresentPayload(response.path("data"));
+            }
+
+            return isPresentPayload(response);
         } catch (WebClientResponseException.NotFound ex) {
             return false;
         } catch (WebClientResponseException ex) {
@@ -56,6 +68,22 @@ public class PropertyWizardClient {
                     "Failed to communicate with Property Wizard during property validation",
                     ex);
         }
+    }
+
+    private boolean isPresentPayload(JsonNode payload) {
+        if (payload == null || payload.isMissingNode() || payload.isNull()) {
+            return false;
+        }
+
+        if (payload.isArray()) {
+            return payload.size() > 0;
+        }
+
+        if (payload.isObject()) {
+            return payload.size() > 0;
+        }
+
+        return true;
     }
 
     public RoomDTO[] getRoomTypesByProperty(String propertyId) {

@@ -24,7 +24,7 @@ services:
   property-wizard:
     base-url: ${property.wizard.base-url}
     endpoints:
-      property-by-id: /api/properties/{propertyId}
+      property-by-id: /api/property/getPublishedProperty/{propertyId}
       room-types-by-property: /api/rooms/properties/{propertyId}/room-outlet-types
 
 property:
