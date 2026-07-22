@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
@@ -52,7 +53,7 @@ class ReservationServiceClientTest {
         when(restTemplate.exchange(
                 any(String.class),
                 eq(HttpMethod.GET),
-                eq(null),
+            any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(List.of(dto)));
 
@@ -65,7 +66,7 @@ class ReservationServiceClientTest {
         verify(restTemplate).exchange(
                 urlCaptor.capture(),
                 eq(HttpMethod.GET),
-                eq(null),
+            any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)
         );
         assertThat(urlCaptor.getValue()).contains("propertyId=PROP001");
@@ -77,7 +78,7 @@ class ReservationServiceClientTest {
         when(restTemplate.exchange(
                 any(String.class),
                 eq(HttpMethod.GET),
-                eq(null),
+            any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(null));
 
@@ -91,7 +92,7 @@ class ReservationServiceClientTest {
         when(restTemplate.exchange(
                 any(String.class),
                 eq(HttpMethod.GET),
-                eq(null),
+            any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)
         )).thenThrow(new RestClientException("upstream down"));
 
@@ -108,7 +109,7 @@ class ReservationServiceClientTest {
         when(restTemplate.exchange(
             any(String.class),
             eq(HttpMethod.GET),
-            eq(null),
+            any(HttpEntity.class),
             any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(List.of(dto)));
 
@@ -121,7 +122,7 @@ class ReservationServiceClientTest {
         verify(restTemplate).exchange(
             urlCaptor.capture(),
             eq(HttpMethod.GET),
-            eq(null),
+            any(HttpEntity.class),
             any(ParameterizedTypeReference.class)
         );
         assertThat(urlCaptor.getValue()).contains("/api/v1/departures");
@@ -134,7 +135,7 @@ class ReservationServiceClientTest {
         when(restTemplate.exchange(
             any(String.class),
             eq(HttpMethod.GET),
-            eq(null),
+            any(HttpEntity.class),
             any(ParameterizedTypeReference.class)
         )).thenThrow(new RestClientException("upstream down"));
 
@@ -148,7 +149,7 @@ class ReservationServiceClientTest {
         when(restTemplate.exchange(
                 any(String.class),
                 eq(HttpMethod.GET),
-                eq(null),
+            any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(null));
 

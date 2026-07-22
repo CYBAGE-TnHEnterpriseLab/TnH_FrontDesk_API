@@ -180,13 +180,13 @@ public class RateManagementServiceClient implements RateManagementPort {
             try {
                 return getAvailableRatePlans(propertyId, roomTypeId, occupancyType, null, stayDate);
             } catch (ExternalServiceException ex) {
-                if (!isMethodNotAllowed(ex)) {
+                if (!isAvailableEndpointUnsupported(ex)) {
                     throw ex;
                 }
 
                 if (availablePlansGetUnsupported.compareAndSet(false, true)) {
                     log.warn(
-                        "Rate Management available endpoint rejected GET (405). Falling back to list endpoint. propertyId={}",
+                        "Rate Management available endpoint rejected request (400/405). Falling back to list endpoint. propertyId={}",
                         propertyId
                     );
                 }
@@ -377,8 +377,8 @@ public class RateManagementServiceClient implements RateManagementPort {
         return ex.getMessage();
     }
 
-    private boolean isMethodNotAllowed(Throwable throwable) {
-        return hasHttpStatus(throwable, 405);
+    private boolean isAvailableEndpointUnsupported(Throwable throwable) {
+        return hasHttpStatus(throwable, 400) || hasHttpStatus(throwable, 405);
     }
 
     private boolean isCalculatedPriceEndpointUnavailable(Throwable throwable) {

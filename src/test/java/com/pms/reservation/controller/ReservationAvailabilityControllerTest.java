@@ -2,7 +2,6 @@ package com.pms.reservation.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -171,16 +170,70 @@ class ReservationAvailabilityControllerTest {
 
     @Test
     void getAvailabilityShouldRejectLegacyDateRangeParams() throws Exception {
+        ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
+                .propertyId("PROP001")
+                .arrivalDate(LocalDate.of(2026, 7, 1))
+                .departureDate(LocalDate.of(2026, 7, 3))
+                .night(2)
+                .numberOfRooms(1)
+                .adults(2)
+                .children(1)
+                .availableRateCodes(List.of("BAR001"))
+                .ratePlans(List.of(RatePlanAvailabilityDto.builder()
+                        .ratePlan("BAR")
+                        .rateCode("BAR001")
+                        .roomTypes(List.of())
+                        .build()))
+                .next15DaysPricing(List.of())
+                .build();
+
+        when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
+
         mockMvc.perform(get("/api/v1/reservations/availability")
                         .param("propertyId", "PROP001")
                         .param("arrivalDate", "2026-07-01")
                         .param("departureDate", "2026-07-03")
                         .param("adultCount", "2")
                         .param("childCount", "1"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Validation failed"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.ratePlans[0].ratePlan").value("BAR"));
 
-        verifyNoInteractions(reservationAvailabilityService);
+        verify(reservationAvailabilityService).getAvailability(any());
+    }
+
+    @Test
+    void getAvailabilityShouldDefaultNumberOfRoomsWhenMissing() throws Exception {
+        ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
+                .propertyId("PROP001")
+                .arrivalDate(LocalDate.of(2026, 7, 1))
+                .departureDate(LocalDate.of(2026, 7, 3))
+                .night(2)
+                .numberOfRooms(1)
+                .adults(2)
+                .children(0)
+                .availableRateCodes(List.of("BAR001"))
+                .ratePlans(List.of(RatePlanAvailabilityDto.builder()
+                        .ratePlan("BAR")
+                        .rateCode("BAR001")
+                        .roomTypes(List.of())
+                        .build()))
+                .next15DaysPricing(List.of())
+                .build();
+
+        when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/reservations/availability")
+                        .param("propertyId", "PROP001")
+                        .param("date", "2026-07-01")
+                        .param("night", "2")
+                        .param("adults", "2")
+                        .param("children", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.numberOfRooms").value(1))
+                .andExpect(jsonPath("$.data.ratePlans[0].ratePlan").value("BAR"));
+
+        verify(reservationAvailabilityService).getAvailability(any());
     }
 }

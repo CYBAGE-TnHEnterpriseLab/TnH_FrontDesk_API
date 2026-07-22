@@ -110,6 +110,9 @@ public class ReservationBookingRecord {
     @Column(nullable = false, length = 40)
     private String roomType;
 
+    @Column(length = 20)
+    private String assignedRoomNo;
+
     private Integer floor;
 
     @Column(nullable = false, length = 40)
@@ -154,6 +157,13 @@ public class ReservationBookingRecord {
     private LocalDateTime inventoryDeductedAt;
 
     private LocalDateTime inventorySyncedAt;
+
+    private LocalDateTime checkInCompletedAt;
+
+    @Column(length = 160)
+    private String checkInCompletedBy;
+
+    private LocalDate checkInBusinessDate;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

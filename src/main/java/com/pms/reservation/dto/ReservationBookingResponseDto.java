@@ -37,6 +37,7 @@ public class ReservationBookingResponseDto {
     Integer childCount;
     String reservationType;
     String roomType;
+    String assignedRoomNo;
     String rateCode;
     Integer numberOfRooms;
     BigDecimal rate;
@@ -52,6 +53,9 @@ public class ReservationBookingResponseDto {
     String alertsMessages;
     LocalDateTime inventoryDeductedAt;
     LocalDateTime inventorySyncedAt;
+    LocalDate checkInBusinessDate;
+    LocalDateTime checkInCompletedAt;
+    String checkInCompletedBy;
     String paymentTransactionStatus;
     String paymentTransactionReference;
     String paymentProcessorName;
