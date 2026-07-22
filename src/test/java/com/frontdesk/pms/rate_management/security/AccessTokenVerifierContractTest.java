@@ -1,86 +1,119 @@
 package com.frontdesk.pms.rate_management.security;
 
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccessTokenVerifierContractTest {
 
     private static final String JWT_SECRET = "0123456789abcdef0123456789abcdef";
     private static final String OTHER_SECRET = "abcdef0123456789abcdef0123456789";
 
-    private AccessTokenVerifier accessTokenVerifier;
-
-    @BeforeEach
-    void setUp() {
-        accessTokenVerifier = new AccessTokenVerifier();
-        ReflectionTestUtils.setField(accessTokenVerifier, "jwtSecret", JWT_SECRET);
-    }
+    private final AccessTokenVerifier accessTokenVerifier = new AccessTokenVerifier(JWT_SECRET);
 
     @Test
-    void verifyAccessToken_shouldAcceptValidAccessTokenWithRoles() {
+    void verify_shouldAcceptValidAccessTokenWithRoles() {
         String token = buildToken("admin-user", "access", List.of("ADMIN"));
 
-        AccessTokenVerifier.VerifiedAccessToken verifiedToken = accessTokenVerifier.verifyAccessToken(token);
+        Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
 
-        assertEquals("admin-user", verifiedToken.username());
-        assertEquals(List.of("ADMIN"), verifiedToken.roles());
+        assertTrue(verifiedToken.isPresent());
+        assertEquals("admin-user", verifiedToken.get().username());
+        assertEquals(Set.of("ADMIN"), verifiedToken.get().roles());
     }
 
     @Test
-    void verifyAccessToken_shouldRejectRefreshToken() {
+    void verify_shouldRejectRefreshToken() {
         String token = buildToken("admin-user", "refresh", List.of("ADMIN"));
 
-        assertThrows(JwtException.class, () -> accessTokenVerifier.verifyAccessToken(token));
+        assertTrue(accessTokenVerifier.verify(token).isEmpty());
     }
 
     @Test
-    void verifyAccessToken_shouldRejectTokenWithoutRoles() {
+    void verify_shouldRejectTokenWithMissingTypeClaim() {
+        String token = buildTokenWithoutType("admin-user", List.of("ADMIN"));
+
+        assertTrue(accessTokenVerifier.verify(token).isEmpty());
+    }
+
+    @Test
+    void verify_shouldAcceptCommaSeparatedRoles() {
+        String token = buildTokenWithRolesClaim("admin-user", "access", "ADMIN, MANAGER");
+
+        Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
+
+        assertTrue(verifiedToken.isPresent());
+        assertEquals(Set.of("ADMIN", "MANAGER"), verifiedToken.get().roles());
+    }
+
+    @Test
+    void verify_shouldAllowEmptyRolesClaim() {
         String token = buildToken("admin-user", "access", List.of());
 
-        assertThrows(JwtException.class, () -> accessTokenVerifier.verifyAccessToken(token));
+        Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
+
+        assertTrue(verifiedToken.isPresent());
+        assertTrue(verifiedToken.get().roles().isEmpty());
     }
 
     @Test
-    void verifyAccessToken_shouldRejectShortJwtSecret() {
-        AccessTokenVerifier verifierWithShortSecret = new AccessTokenVerifier();
-        ReflectionTestUtils.setField(verifierWithShortSecret, "jwtSecret", "short-secret");
+    void verify_shouldRejectShortJwtSecret() {
+        String shortSecret = "short-secret";
 
-        assertThrows(JwtException.class, () -> verifierWithShortSecret.verifyAccessToken("invalid-token"));
+        try {
+            new AccessTokenVerifier(shortSecret);
+        } catch (IllegalArgumentException ex) {
+            assertEquals("JWT secret must be at least 32 bytes long", ex.getMessage());
+            return;
+        }
+        throw new AssertionError("Expected IllegalArgumentException for short JWT secret");
     }
 
     @Test
-    void verifyAccessToken_shouldRejectTokenSignedWithDifferentSecret() {
+    void verify_shouldRejectTokenSignedWithDifferentSecret() {
         String token = buildTokenWithSecret("admin-user", "access", List.of("ADMIN"), OTHER_SECRET);
 
-        assertThrows(JwtException.class, () -> accessTokenVerifier.verifyAccessToken(token));
+        assertTrue(accessTokenVerifier.verify(token).isEmpty());
     }
 
     private String buildToken(String username, String tokenType, List<String> roles) {
         return buildTokenWithSecret(username, tokenType, roles, JWT_SECRET);
     }
 
-    private String buildTokenWithSecret(String username, String tokenType, List<String> roles, String secret) {
+    private String buildTokenWithSecret(String username, String tokenType, Object rolesClaim, String secret) {
+        return Jwts.builder()
+                .subject(username)
+                .claim("typ", tokenType)
+                .claim("roles", rolesClaim)
+                .issuedAt(Date.from(Instant.now()))
+                .expiration(Date.from(Instant.now().plusSeconds(300)))
+                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+    }
+
+    private String buildTokenWithoutType(String username, List<String> roles) {
         Instant now = Instant.now();
 
         return Jwts.builder()
                 .subject(username)
-                .claim("typ", tokenType)
                 .claim("roles", roles)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(300)))
-                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)))
+                .signWith(Keys.hmacShaKeyFor(JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
+    }
+
+    private String buildTokenWithRolesClaim(String username, String tokenType, String rolesClaim) {
+        return buildTokenWithSecret(username, tokenType, rolesClaim, JWT_SECRET);
     }
 }
