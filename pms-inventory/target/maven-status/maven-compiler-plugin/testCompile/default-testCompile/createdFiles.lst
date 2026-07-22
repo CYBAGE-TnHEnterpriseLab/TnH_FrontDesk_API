@@ -1,0 +1,7 @@
+com\pms\inventory\common\exception\GlobalExceptionHandlerTest.class
+com\pms\inventory\inventory\service\InventoryServiceTest.class
+com\pms\inventory\block\service\InventoryBlockServiceTest.class
+com\pms\inventory\integration\InventoryIntegrationTest.class
+com\pms\inventory\InventoryApplicationTests.class
+com\pms\inventory\reconciliation\service\InventoryReconciliationServiceTest.class
+com\pms\inventory\reservation\service\InventoryReservationServiceTest.class

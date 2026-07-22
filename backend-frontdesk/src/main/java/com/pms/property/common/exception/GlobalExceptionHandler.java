@@ -1,6 +1,7 @@
 package com.pms.property.common.exception;
 
 import com.pms.property.common.response.ApiResponse;
+import com.pms.property.integration.inventory.exception.InventorySyncException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +45,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ApiResponse.fail("Unexpected error"));
+    }
+
+    @ExceptionHandler(InventorySyncException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInventorySync(InventorySyncException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiResponse.fail(ex.getMessage()));
     }
 }
 

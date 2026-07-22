@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.pms.property.draft.service.DraftServiceTest
 -------------------------------------------------------------------------------
-Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.549 s -- in com.pms.property.draft.service.DraftServiceTest
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.900 s -- in com.pms.property.draft.service.DraftServiceTest

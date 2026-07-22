@@ -31,6 +31,7 @@ import com.pms.property.domain.tax.repository.TaxRuleRepository;
 import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.service.DraftService;
+import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.mapper.PublishMapper;
 import com.pms.property.publish.validator.PublishValidator;
@@ -59,6 +60,7 @@ public class PublishServiceImpl implements PublishService {
     private final PublishMapper publishMapper;
     private final PublishValidator publishValidator;
     private final LocalImageStorageService localImageStorageService;
+    private final InventorySyncService inventorySyncService;
 
     public PublishServiceImpl(
         DraftService draftService,
@@ -77,7 +79,8 @@ public class PublishServiceImpl implements PublishService {
         TaxRuleRepository taxRuleRepository,
         PublishMapper publishMapper,
         PublishValidator publishValidator,
-        LocalImageStorageService localImageStorageService
+        LocalImageStorageService localImageStorageService,
+        InventorySyncService inventorySyncService
     ) {
         this.draftService = draftService;
         this.propertyRepository = propertyRepository;
@@ -96,6 +99,7 @@ public class PublishServiceImpl implements PublishService {
         this.publishMapper = publishMapper;
         this.publishValidator = publishValidator;
         this.localImageStorageService = localImageStorageService;
+        this.inventorySyncService = inventorySyncService;
     }
 
     @Override
@@ -111,6 +115,8 @@ public class PublishServiceImpl implements PublishService {
         } else {
             propertyId = publishNewProperty(normalized, actor);
         }
+
+        inventorySyncService.requestSyncAfterCommit(propertyId);
 
         draftService.markPublished(draft, propertyId, actor);
         return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());

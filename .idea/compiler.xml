@@ -11,11 +11,34 @@
         <module name="pms-security-common" />
         <module name="pms-auth" />
       </profile>
+      <profile name="Annotation profile for pms-inventory" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <option name="mapstruct.defaultComponentModel" value="spring" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct-processor/1.6.0/mapstruct-processor-1.6.0.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/mapstruct/mapstruct/1.6.0/mapstruct-1.6.0.jar" />
+        </processorPath>
+        <module name="pms-inventory" />
+      </profile>
+      <profile name="Annotation profile for pms-housekeeping" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
+        </processorPath>
+        <module name="pms-housekeeping" />
+      </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="pms-auth" options="-parameters" />
+      <module name="pms-housekeeping" options="-parameters" />
+      <module name="pms-inventory" options="-parameters -Amapstruct.defaultComponentModel=spring" />
       <module name="pms-security-common" options="-parameters" />
       <module name="property-service" options="-parameters" />
     </option>

@@ -7,6 +7,8 @@
         <option value="$PROJECT_DIR$/pms-auth/pom.xml" />
         <option value="$PROJECT_DIR$/backend-frontdesk/pom.xml" />
         <option value="$PROJECT_DIR$/pms-security-common/pom.xml" />
+        <option value="$PROJECT_DIR$/pms-inventory/pom.xml" />
+        <option value="$PROJECT_DIR$/pms-housekeeping/pom.xml" />
       </list>
     </option>
   </component>

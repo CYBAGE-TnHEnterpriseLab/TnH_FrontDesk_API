@@ -28,6 +28,7 @@ import com.pms.property.domain.tax.repository.TaxRuleRepository;
 import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.service.DraftService;
+import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.mapper.PublishMapper;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
@@ -57,6 +58,7 @@ class PublishServiceTest {
         PublishMapper publishMapper = mock(PublishMapper.class);
         PublishValidator publishValidator = mock(PublishValidator.class);
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
+        InventorySyncService inventorySyncService = mock(InventorySyncService.class);
 
         PublishService service = new PublishServiceImpl(
             draftService,
@@ -75,7 +77,8 @@ class PublishServiceTest {
             taxRuleRepository,
             publishMapper,
             publishValidator,
-            localImageStorageService
+            localImageStorageService,
+            inventorySyncService
         );
 
         PropertyDraftEntity draft = new PropertyDraftEntity();

@@ -1,4 +1,4 @@
-package com.pms.property.upload.service;
+package com.pms.property.upload.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.upload.dto.UploadImageResponse;
@@ -11,6 +11,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+
+import com.pms.property.upload.service.LocalImageStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,7 +35,7 @@ public class LocalImageStorageServiceImpl implements LocalImageStorageService {
         this.maxUploadBytes = maxUploadBytes;
     }
 
-    LocalImageStorageServiceImpl(String uploadBaseDir, long maxUploadBytes, boolean ignored) {
+    public LocalImageStorageServiceImpl(String uploadBaseDir, long maxUploadBytes, boolean ignored) {
         this.uploadRoot = Paths.get(uploadBaseDir).toAbsolutePath().normalize();
         this.maxUploadBytes = maxUploadBytes;
     }

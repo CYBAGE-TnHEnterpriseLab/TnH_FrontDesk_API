@@ -15,6 +15,7 @@ import com.pms.property.domain.room.repository.FloorPropertyAreaRepository;
 import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
+import com.pms.property.integration.inventory.service.InventorySyncService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -28,12 +29,14 @@ class RoomServiceTest {
         FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
+        InventorySyncService inventorySyncService = mock(InventorySyncService.class);
         RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
             roomOutletTypeRepository,
-            inventoryRoomRepository
+            inventoryRoomRepository,
+            inventorySyncService
         );
 
         when(inventoryRoomRepository.save(any(InventoryRoomEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -51,12 +54,14 @@ class RoomServiceTest {
         FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
+        InventorySyncService inventorySyncService = mock(InventorySyncService.class);
         RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
             roomOutletTypeRepository,
-            inventoryRoomRepository
+            inventoryRoomRepository,
+            inventorySyncService
         );
 
         when(inventoryRoomRepository.findByPropertyIdAndId("P-1", 33L)).thenReturn(Optional.empty());
@@ -71,12 +76,14 @@ class RoomServiceTest {
         FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
+        InventorySyncService inventorySyncService = mock(InventorySyncService.class);
         RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
             roomOutletTypeRepository,
-            inventoryRoomRepository
+            inventoryRoomRepository,
+            inventorySyncService
         );
 
         RoomOutletTypeEntity entity = new RoomOutletTypeEntity();

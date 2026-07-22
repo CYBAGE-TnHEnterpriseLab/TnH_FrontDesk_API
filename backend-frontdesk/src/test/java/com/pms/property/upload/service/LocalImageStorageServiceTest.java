@@ -7,6 +7,8 @@ import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.upload.dto.UploadImageResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import com.pms.property.upload.service.serviceImpl.LocalImageStorageServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;

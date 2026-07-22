@@ -15,6 +15,7 @@ com\pms\property\domain\payment\controller\PaymentControllerTest.class
 com\pms\property\domain\finance\service\FinanceServiceTest.class
 com\pms\property\domain\payment\service\PaymentServiceTest.class
 com\pms\property\domain\finance\controller\FinanceControllerTest.class
+com\pms\property\integration\inventory\service\InventorySyncPayloadMapperTest.class
 com\pms\property\security\JwtAccessTokenValidatorTest.class
 com\pms\property\publish\service\PublishServiceTest.class
 com\pms\property\security\AuthFilterTest.class

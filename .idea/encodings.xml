@@ -3,6 +3,8 @@
   <component name="Encoding">
     <file url="file://$PROJECT_DIR$/backend-frontdesk/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/pms-auth/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/pms-housekeeping/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/pms-inventory/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/pms-security-common/src/main/java" charset="UTF-8" />
   </component>
 </project>

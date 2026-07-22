@@ -13,6 +13,7 @@ E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\domain\tax\service\TaxServiceTest.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\draft\service\DraftServiceTest.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\finance\service\ChartOfAccountQueryServiceTest.java
+E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\integration\inventory\service\InventorySyncPayloadMapperTest.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\PropertyServiceApplicationTests.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\publish\mapper\PublishMapperTest.java
 E:\Features on git\pw-with-security\TnH_FrontDesk_API\backend-frontdesk\src\test\java\com\pms\property\publish\service\PublishServiceTest.java

@@ -12,6 +12,7 @@ import com.pms.property.domain.room.repository.FloorPropertyAreaRepository;
 import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
+import com.pms.property.integration.inventory.service.InventorySyncService;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -25,19 +26,22 @@ public class RoomServiceImpl implements RoomService {
     private final FloorPropertyAreaRepository floorPropertyAreaRepository;
     private final RoomOutletTypeRepository roomOutletTypeRepository;
     private final InventoryRoomRepository inventoryRoomRepository;
+    private final InventorySyncService inventorySyncService;
 
     public RoomServiceImpl(
         FloorConfigurationRepository floorConfigurationRepository,
         PropertyAreaRepository propertyAreaRepository,
         FloorPropertyAreaRepository floorPropertyAreaRepository,
         RoomOutletTypeRepository roomOutletTypeRepository,
-        InventoryRoomRepository inventoryRoomRepository
+        InventoryRoomRepository inventoryRoomRepository,
+        InventorySyncService inventorySyncService
     ) {
         this.floorConfigurationRepository = floorConfigurationRepository;
         this.propertyAreaRepository = propertyAreaRepository;
         this.floorPropertyAreaRepository = floorPropertyAreaRepository;
         this.roomOutletTypeRepository = roomOutletTypeRepository;
         this.inventoryRoomRepository = inventoryRoomRepository;
+        this.inventorySyncService = inventorySyncService;
     }
 
     @Override
@@ -87,7 +91,9 @@ public class RoomServiceImpl implements RoomService {
         entity.setFloorName(request.floorName());
         entity.setRoomTypeName(request.roomTypeName());
         entity.setRoomNumber(request.roomNumber());
-        return toResponse(inventoryRoomRepository.save(entity));
+        InventoryRoomResponse response = toResponse(inventoryRoomRepository.save(entity));
+        inventorySyncService.requestSyncAfterCommit(propertyId);
+        return response;
     }
 
     @Override
@@ -98,7 +104,9 @@ public class RoomServiceImpl implements RoomService {
         entity.setFloorName(request.floorName());
         entity.setRoomTypeName(request.roomTypeName());
         entity.setRoomNumber(request.roomNumber());
-        return toResponse(inventoryRoomRepository.save(entity));
+        InventoryRoomResponse response = toResponse(inventoryRoomRepository.save(entity));
+        inventorySyncService.requestSyncAfterCommit(propertyId);
+        return response;
     }
 
     @Override
@@ -107,6 +115,7 @@ public class RoomServiceImpl implements RoomService {
         InventoryRoomEntity entity = inventoryRoomRepository.findByPropertyIdAndId(propertyId, roomId)
             .orElseThrow(() -> new NotFoundException("Inventory room not found: " + roomId));
         inventoryRoomRepository.delete(entity);
+        inventorySyncService.requestSyncAfterCommit(propertyId);
     }
 
     private InventoryRoomResponse toResponse(InventoryRoomEntity entity) {
