@@ -1,6 +1,11 @@
 package com.pms.reservation.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.pms.reservation.constant.PaymentModes;
+import com.pms.reservation.constant.PaymentTypes;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -14,8 +19,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Locale;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.util.StringUtils;
 
 @Getter
 @Setter
@@ -24,7 +31,6 @@ public class ReservationBookingRequestDto {
     @NotBlank(message = "propertyId is required")
     private String propertyId;
 
-    @NotBlank(message = "salutation is required")
     private String salutation;
 
     @NotNull(message = "vipTag is required")
@@ -33,31 +39,32 @@ public class ReservationBookingRequestDto {
     @NotBlank(message = "guestName is required")
     private String guestName;
 
-    @NotEmpty(message = "guestNames is required")
+        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+        private String firstName;
+
+        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+        private String lastName;
+
     private List<@NotBlank(message = "guestNames must not contain blank values") String> guestNames;
 
-    @NotBlank(message = "personalEmail is required")
     @Email(message = "personalEmail must be a valid email")
     private String personalEmail;
 
-    @NotBlank(message = "officialEmail is required")
     @Email(message = "officialEmail must be a valid email")
+        @JsonAlias({"email", "guestEmail"})
     private String officialEmail;
 
-    @NotBlank(message = "city is required")
     private String city;
 
-    @NotBlank(message = "country is required")
     private String country;
 
-    @NotBlank(message = "zipCode is required")
     private String zipCode;
 
     @NotBlank(message = "phoneNumber is required")
+        @JsonAlias({"phone", "contactNumber"})
     @Pattern(regexp = "^[0-9+()\\-\\s]{7,20}$", message = "phoneNumber is invalid")
     private String phoneNumber;
 
-    @NotBlank(message = "mobileNumber is required")
     @Pattern(regexp = "^[0-9+()\\-\\s]{7,20}$", message = "mobileNumber is invalid")
     private String mobileNumber;
 
@@ -81,7 +88,6 @@ public class ReservationBookingRequestDto {
     @Min(value = 0, message = "childCount must be >= 0")
     private Integer childCount;
 
-    @NotBlank(message = "reservationType is required")
     @Pattern(regexp = "(?i)GTD|NON[\\s-]?GTD", message = "reservationType must be GTD or Non GTD")
     private String reservationType;
 
@@ -89,6 +95,7 @@ public class ReservationBookingRequestDto {
     private String roomType;
 
     @NotBlank(message = "rateCode is required")
+        @JsonAlias({"ratePlan", "ratePlanCode", "planCode"})
     private String rateCode;
 
     @NotNull(message = "numberOfRooms is required")
@@ -114,16 +121,27 @@ public class ReservationBookingRequestDto {
     )
     private String payment;
 
+    @Schema(description = "Reservation payment type", allowableValues = {
+            PaymentTypes.ADVANCE,
+            PaymentTypes.FULL_PAYMENT
+    })
+    @Pattern(
+            regexp = PaymentTypes.VALIDATION_PATTERN,
+            message = "paymentType must be one of ADVANCE, FULL_PAYMENT"
+    )
+    private String paymentType;
+
+    @JsonDeserialize(using = LenientLocalTimeDeserializer.class)
     @NotNull(message = "eta is required")
     private LocalTime eta;
 
+    @JsonDeserialize(using = LenientLocalTimeDeserializer.class)
     @NotNull(message = "checkOutTime is required")
     private LocalTime checkOutTime;
 
     @NotNull(message = "dnm is required")
     private Boolean dnm = Boolean.FALSE;
 
-    @NotNull(message = "noPost is required")
     private Boolean noPost = Boolean.FALSE;
 
     @NotNull(message = "guestBalance is required")
@@ -137,4 +155,69 @@ public class ReservationBookingRequestDto {
     private BigDecimal discount;
 
     private String alertsMessages;
+
+        @JsonIgnore
+        private boolean guestNameExplicitlyProvided;
+
+        public void setGuestName(String guestName) {
+                this.guestName = guestName;
+                this.guestNameExplicitlyProvided = StringUtils.hasText(guestName);
+        }
+
+        public void setFirstName(String firstName) {
+                this.firstName = firstName;
+                populateGuestNameFromNameParts();
+        }
+
+        public void setLastName(String lastName) {
+                this.lastName = lastName;
+                populateGuestNameFromNameParts();
+        }
+
+        public void setPaymentType(String paymentType) {
+                if (!StringUtils.hasText(paymentType)) {
+                        this.paymentType = paymentType;
+                        return;
+                }
+
+                String normalized = paymentType.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+                if ("SELECT_PAYMENT_TYPE".equals(normalized) || "SELECT".equals(normalized)) {
+                        this.paymentType = null;
+                        return;
+                }
+
+                this.paymentType = paymentType;
+        }
+
+        public void setGuestBalance(BigDecimal guestBalance) {
+                if (guestBalance == null) {
+                        this.guestBalance = null;
+                        return;
+                }
+
+                this.guestBalance = guestBalance.signum() < 0 ? guestBalance.abs() : guestBalance;
+        }
+
+        private void populateGuestNameFromNameParts() {
+                if (guestNameExplicitlyProvided) {
+                        return;
+                }
+
+                String first = StringUtils.hasText(this.firstName) ? this.firstName.trim() : "";
+                String last = StringUtils.hasText(this.lastName) ? this.lastName.trim() : "";
+                String combined = (first + " " + last).trim();
+                if (StringUtils.hasText(combined)) {
+                        this.guestName = combined;
+                        return;
+                }
+
+                if (StringUtils.hasText(first)) {
+                        this.guestName = first;
+                        return;
+                }
+
+                if (StringUtils.hasText(last)) {
+                        this.guestName = last;
+                }
+        }
 }

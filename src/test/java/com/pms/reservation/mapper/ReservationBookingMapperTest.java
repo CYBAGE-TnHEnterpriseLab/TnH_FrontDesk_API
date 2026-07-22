@@ -30,6 +30,7 @@ class ReservationBookingMapperTest {
         assertThat(entity.getRateCode()).isEqualTo("BAR001");
         assertThat(entity.getGuestNamesEncoded()).isNotBlank();
         assertThat(entity.getTotalRate()).isEqualByComparingTo("10000.00");
+        assertThat(entity.getPaymentType()).isEqualTo("FULL_PAYMENT");
         assertThat(entity.getCreatedAt()).isNotNull();
     }
 
@@ -86,6 +87,7 @@ class ReservationBookingMapperTest {
                 .rate(new BigDecimal("2500.00"))
                 .totalRate(new BigDecimal("10000.00"))
                 .payment("CARD")
+                .paymentType("FULL_PAYMENT")
                 .eta(LocalTime.of(15, 0))
                 .checkOutTime(LocalTime.of(11, 0))
                 .dnm(Boolean.FALSE)
@@ -110,6 +112,7 @@ class ReservationBookingMapperTest {
         assertThat(response.getPaymentTransactionStatus()).isEqualTo("SUCCESS");
         assertThat(response.getPaymentTransactionReference()).isEqualTo("PAY-777");
         assertThat(response.getPaymentProcessorName()).isEqualTo("SIMULATED_GATEWAY");
+        assertThat(response.getPaymentType()).isEqualTo("FULL_PAYMENT");
     }
 
     private ReservationBookingRequestDto validRequest() {
@@ -141,6 +144,7 @@ class ReservationBookingMapperTest {
         request.setNumberOfRooms(1);
         request.setRate(new BigDecimal("8500.00"));
         request.setPayment("CARD");
+        request.setPaymentType("FULL_PAYMENT");
         request.setEta(LocalTime.of(15, 0));
         request.setCheckOutTime(LocalTime.of(11, 0));
         request.setDnm(Boolean.FALSE);

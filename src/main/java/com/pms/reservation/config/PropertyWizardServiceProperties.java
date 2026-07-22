@@ -13,6 +13,8 @@ import org.springframework.validation.annotation.Validated;
 public class PropertyWizardServiceProperties {
 
     private boolean enabled = false;
+    private boolean failOpenOnValidationError = false;
+    private boolean failOpenOnWriteError = false;
 
     @NotBlank(message = "property-wizard-service.base-url is required")
     private String baseUrl;
@@ -22,6 +24,8 @@ public class PropertyWizardServiceProperties {
 
     @NotBlank(message = "property-wizard-service.inventory-availability-path is required")
     private String inventoryAvailabilityPath;
+
+    private String roomOutletTypesPath;
 
     @NotBlank(message = "property-wizard-service.tax-rules-path is required")
     private String taxRulesPath;

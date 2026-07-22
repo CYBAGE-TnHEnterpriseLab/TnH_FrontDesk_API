@@ -43,6 +43,7 @@ public class ReservationBookingResponseDto {
     BigDecimal rate;
     BigDecimal totalRate;
     String payment;
+    String paymentType;
     LocalTime eta;
     LocalTime checkOutTime;
     Boolean dnm;

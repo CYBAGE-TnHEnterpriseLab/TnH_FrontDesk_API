@@ -42,6 +42,7 @@ public class RateManagementServiceClient implements RateManagementPort {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String MASTER_ROOM_PRICING_PATH = "/api/master-rooms/{id}/pricing";
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
+    private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
     private final Map<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache = new ConcurrentHashMap<>();
 
@@ -176,7 +177,10 @@ public class RateManagementServiceClient implements RateManagementPort {
             String occupancyType,
             LocalDate stayDate
     ) {
-        if (!availablePlansGetUnsupported.get()) {
+        boolean shouldTryAvailableEndpoint = !availablePlansGetUnsupported.get()
+            && !(roomTypeId == null && availablePlansRequireRoomTypeId.get());
+
+        if (shouldTryAvailableEndpoint) {
             try {
                 return getAvailableRatePlans(propertyId, roomTypeId, occupancyType, null, stayDate);
             } catch (ExternalServiceException ex) {
@@ -184,7 +188,15 @@ public class RateManagementServiceClient implements RateManagementPort {
                     throw ex;
                 }
 
-                if (availablePlansGetUnsupported.compareAndSet(false, true)) {
+                if (roomTypeId == null
+                        && (hasHttpStatus(ex, 400) || isAvailableEndpointMissingRoomTypeId(ex))) {
+                    if (availablePlansRequireRoomTypeId.compareAndSet(false, true)) {
+                        log.info(
+                            "Rate Management available endpoint requires roomTypeId. Falling back to list endpoint for null-roomType lookups while keeping per-room available endpoint enabled. propertyId={}",
+                            propertyId
+                        );
+                    }
+                } else if (availablePlansGetUnsupported.compareAndSet(false, true)) {
                     log.warn(
                         "Rate Management available endpoint rejected request (400/405). Falling back to list endpoint. propertyId={}",
                         propertyId
@@ -381,6 +393,23 @@ public class RateManagementServiceClient implements RateManagementPort {
         return hasHttpStatus(throwable, 400) || hasHttpStatus(throwable, 405);
     }
 
+    private boolean isAvailableEndpointMissingRoomTypeId(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof RestClientResponseException responseException
+                    && responseException.getRawStatusCode() == 400) {
+                String body = safeBodySnippet(responseException.getResponseBodyAsString()).toLowerCase(Locale.ROOT);
+                if (body.contains("roomtypeid")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+
+        String message = throwable == null ? null : throwable.getMessage();
+        return message != null && message.toLowerCase(Locale.ROOT).contains("roomtypeid");
+    }
+
     private boolean isCalculatedPriceEndpointUnavailable(Throwable throwable) {
         return hasHttpStatus(throwable, 404) || hasHttpStatus(throwable, 405);
     }
@@ -530,29 +559,50 @@ public class RateManagementServiceClient implements RateManagementPort {
         }
 
         String targetKey = normalizeOccupancyKey(occupancyType);
+        BigDecimal bestNormalizedMatch = null;
         for (MasterRoomPricingEntry entry : pricingEntries) {
             if (entry == null || !StringUtils.hasText(entry.getOccupancyType())) {
                 continue;
             }
 
             if (normalizeOccupancyKey(entry.getOccupancyType()).equals(targetKey)) {
-                return entry.getPrice();
+                bestNormalizedMatch = maxPositive(bestNormalizedMatch, entry.getPrice());
             }
+        }
+
+        if (bestNormalizedMatch != null && bestNormalizedMatch.signum() > 0) {
+            return bestNormalizedMatch;
         }
 
         Integer targetGuests = extractFirstInteger(occupancyType);
         if (targetGuests == null) {
-            return null;
+            return bestNormalizedMatch;
         }
 
+        BigDecimal bestNumericMatch = null;
         for (MasterRoomPricingEntry entry : pricingEntries) {
             Integer entryGuests = extractFirstInteger(entry.getOccupancyType());
             if (entryGuests != null && entryGuests.equals(targetGuests)) {
-                return entry.getPrice();
+                bestNumericMatch = maxPositive(bestNumericMatch, entry.getPrice());
             }
         }
 
-        return null;
+        if (bestNumericMatch != null && bestNumericMatch.signum() > 0) {
+            return bestNumericMatch;
+        }
+
+        return bestNormalizedMatch;
+    }
+
+    private BigDecimal maxPositive(BigDecimal left, BigDecimal right) {
+        if (right == null || right.signum() <= 0) {
+            return left;
+        }
+        if (left == null || left.signum() <= 0) {
+            return right;
+        }
+
+        return left.max(right);
     }
 
     private String normalizeOccupancyKey(String value) {
@@ -951,20 +1001,37 @@ public class RateManagementServiceClient implements RateManagementPort {
 
         Map<String, RatePlanPricingQuoteDto> uniqueBySignature = new LinkedHashMap<>();
         for (RatePlanPricingQuoteDto quote : quotes) {
-            String signature = String.join(
+            String groupingKey = String.join(
                 "|",
                 quote.getRoomTypeId() == null ? "" : String.valueOf(quote.getRoomTypeId()),
                 normalize(quote.getRoomType()),
                 normalize(quote.getRatePlan()),
                 normalize(quote.getRateCode()),
                 normalize(quote.getOccupancy()),
-                normalize(quote.getMealPlan()),
-                quote.getFinalAmount() == null ? "" : quote.getFinalAmount().toPlainString()
+                normalize(quote.getMealPlan())
             );
-            uniqueBySignature.putIfAbsent(signature, quote);
+
+            RatePlanPricingQuoteDto existing = uniqueBySignature.get(groupingKey);
+            if (existing == null || compareAmounts(quote.getFinalAmount(), existing.getFinalAmount()) > 0) {
+                uniqueBySignature.put(groupingKey, quote);
+            }
         }
 
         return new ArrayList<>(uniqueBySignature.values());
+    }
+
+    private int compareAmounts(BigDecimal left, BigDecimal right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+
+        return left.compareTo(right);
     }
 
     private String asText(Object value) {

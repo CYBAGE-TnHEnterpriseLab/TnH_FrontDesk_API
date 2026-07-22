@@ -28,6 +28,8 @@ reservation-service:
 
 property-wizard-service:
   enabled: true
+  failOpenOnValidationError: true
+  failOpenOnWriteError: true
   base-url: http://localhost:8082
   inventory-validation-path: /api/v1/property-wizard/inventory/validate
   inventory-availability-path: /api/rooms/properties/{propertyId}/inventory-rooms

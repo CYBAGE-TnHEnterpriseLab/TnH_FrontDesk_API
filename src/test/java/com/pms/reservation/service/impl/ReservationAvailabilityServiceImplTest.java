@@ -20,6 +20,7 @@ import com.pms.reservation.dto.RoomAvailabilityPricingDto;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.mapper.ReservationAvailabilityMapper;
@@ -471,6 +472,99 @@ class ReservationAvailabilityServiceImplTest {
     }
 
     @Test
+    void getAvailabilityShouldApplyPlanOnlyToApplicableRoomTypeAfterInventoryIdEnrichment() {
+        ReservationAvailabilityRequestDto request = validRequest();
+        request.setNumberOfRooms(1);
+        request.setRateCode(null);
+
+        PropertyRoomInventoryDto dlxInventory = new PropertyRoomInventoryDto();
+        dlxInventory.setRoomType("DLX");
+        dlxInventory.setAvailableRooms(20);
+
+        PropertyRoomInventoryDto kngInventory = new PropertyRoomInventoryDto();
+        kngInventory.setRoomType("KNG");
+        kngInventory.setAvailableRooms(20);
+
+        PropertyRoomOutletTypeDto dlxOutlet = new PropertyRoomOutletTypeDto();
+        dlxOutlet.setId(27L);
+        dlxOutlet.setRoomCode("DLX");
+        dlxOutlet.setRoomName("Deluxe");
+
+        PropertyRoomOutletTypeDto kngOutlet = new PropertyRoomOutletTypeDto();
+        kngOutlet.setId(28L);
+        kngOutlet.setRoomCode("KNG");
+        kngOutlet.setRoomName("King");
+
+        RatePlanPricingQuoteDto directQuote = new RatePlanPricingQuoteDto();
+        directQuote.setRoomType(null);
+        directQuote.setRoomTypeId(null);
+        directQuote.setRatePlan("DeluzeRP");
+        directQuote.setRateCode("DLX");
+        directQuote.setMealPlan("breakfast and lunch");
+        directQuote.setBaseRate(new BigDecimal("1800.00"));
+        directQuote.setTaxAmount(BigDecimal.ZERO);
+        directQuote.setFinalAmount(new BigDecimal("1800.00"));
+
+        RatePlanPricingQuoteDto dlxPerRoomQuote = new RatePlanPricingQuoteDto();
+        dlxPerRoomQuote.setRoomType("DLX");
+        dlxPerRoomQuote.setRoomTypeId(27L);
+        dlxPerRoomQuote.setRatePlan("DeluzeRP");
+        dlxPerRoomQuote.setRateCode("DLX");
+        dlxPerRoomQuote.setMealPlan("breakfast and lunch");
+        dlxPerRoomQuote.setBaseRate(new BigDecimal("1800.00"));
+        dlxPerRoomQuote.setTaxAmount(BigDecimal.ZERO);
+        dlxPerRoomQuote.setFinalAmount(new BigDecimal("1800.00"));
+
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchLiveInventory(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            .thenReturn(List.of(dlxInventory, kngInventory));
+        when(propertyInventoryPort.fetchRoomOutletTypes(eq("PROP001")))
+            .thenReturn(List.of(dlxOutlet, kngOutlet));
+
+        when(rateManagementPort.fetchRateQuotes(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            .thenReturn(List.of(directQuote));
+
+        when(rateManagementPort.fetchRateQuotes(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("DLX"), eq(27L), eq(2), eq(1)))
+            .thenReturn(List.of(dlxPerRoomQuote));
+
+        when(rateManagementPort.fetchRateQuotes(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("KNG"), eq(28L), eq(2), eq(1)))
+            .thenReturn(List.of());
+
+        when(reservationAvailabilityMapper.toRoomAvailability(dlxPerRoomQuote, dlxInventory)).thenReturn(RoomAvailabilityPricingDto.builder()
+            .roomType("DLX")
+            .ratePlan("DeluzeRP")
+            .rateCode("DLX")
+            .occupancy("2")
+            .mealPlan("breakfast and lunch")
+            .availableRooms(20)
+            .baseRate(new BigDecimal("1800.00"))
+            .taxAmount(BigDecimal.ZERO)
+            .finalAmount(new BigDecimal("1800.00"))
+            .build());
+
+        when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
+            ReservationAvailabilityResponseDto.builder()
+                .propertyId("PROP001")
+                .availability(invocation.getArgument(1))
+                .next15DaysPricing(invocation.getArgument(2))
+                .availableRateCodes(invocation.getArgument(3))
+                .build()
+        );
+
+        ReservationAvailabilityResponseDto response = reservationAvailabilityService.getAvailability(request);
+
+        assertThat(response.getAvailability()).hasSize(1);
+        assertThat(response.getAvailability().get(0).getRoomType()).isEqualTo("DLX");
+        assertThat(response.getAvailability().get(0).getRateCode()).isEqualTo("DLX");
+        assertThat(response.getAvailableRateCodes()).containsExactly("DLX");
+    }
+
+    @Test
     void getAvailabilityShouldJoinRateQuotesByRoomTypeIdWhenRoomTypeLabelMissing() {
         ReservationAvailabilityRequestDto request = validRequest();
 
@@ -527,6 +621,151 @@ class ReservationAvailabilityServiceImplTest {
         assertThat(response.getAvailability().get(0).getRoomType()).isEqualTo("Deluxe King");
         assertThat(response.getAvailability().get(0).getRateCode()).isEqualTo("CORP");
         assertThat(response.getAvailableRateCodes()).containsExactly("CORP");
+    }
+
+    @Test
+    void getAvailabilityShouldKeepHigherAmountWhenDirectFetchReturnsDuplicateSignatures() {
+        ReservationAvailabilityRequestDto request = validRequest();
+
+        PropertyRoomInventoryDto inventory = new PropertyRoomInventoryDto();
+        inventory.setRoomType("Deluxe King");
+        inventory.setOccupancy("2 Adults");
+        inventory.setAvailableRooms(4);
+
+        RatePlanPricingQuoteDto zeroQuote = new RatePlanPricingQuoteDto();
+        zeroQuote.setRoomTypeId(101L);
+        zeroQuote.setRoomType("Deluxe King");
+        zeroQuote.setRatePlan("Bar Rate");
+        zeroQuote.setRateCode("BARR");
+        zeroQuote.setOccupancy("2");
+        zeroQuote.setMealPlan("breakfast");
+        zeroQuote.setBaseRate(BigDecimal.ZERO);
+        zeroQuote.setTaxAmount(BigDecimal.ZERO);
+        zeroQuote.setFinalAmount(BigDecimal.ZERO);
+
+        RatePlanPricingQuoteDto pricedQuote = new RatePlanPricingQuoteDto();
+        pricedQuote.setRoomTypeId(999L);
+        pricedQuote.setRoomType("Deluxe King");
+        pricedQuote.setRatePlan("Bar Rate");
+        pricedQuote.setRateCode("BARR");
+        pricedQuote.setOccupancy("2");
+        pricedQuote.setMealPlan("breakfast");
+        pricedQuote.setBaseRate(new BigDecimal("1800.00"));
+        pricedQuote.setTaxAmount(BigDecimal.ZERO);
+        pricedQuote.setFinalAmount(new BigDecimal("1800.00"));
+
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchLiveInventory(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            .thenReturn(List.of(inventory));
+
+        when(rateManagementPort.fetchRateQuotes(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            .thenReturn(List.of(zeroQuote, pricedQuote));
+
+        when(reservationAvailabilityMapper.toRoomAvailability(pricedQuote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
+            .roomType("Deluxe King")
+            .ratePlan("Bar Rate")
+            .rateCode("BARR")
+            .occupancy("2")
+            .mealPlan("breakfast")
+            .availableRooms(4)
+            .baseRate(new BigDecimal("1800.00"))
+            .taxAmount(BigDecimal.ZERO)
+            .finalAmount(new BigDecimal("1800.00"))
+            .build());
+
+        when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
+            ReservationAvailabilityResponseDto.builder()
+                .propertyId("PROP001")
+                .availability(invocation.getArgument(1))
+                .next15DaysPricing(invocation.getArgument(2))
+                .availableRateCodes(invocation.getArgument(3))
+                .build()
+        );
+
+        ReservationAvailabilityResponseDto response = reservationAvailabilityService.getAvailability(request);
+
+        assertThat(response.getAvailability()).hasSize(1);
+        assertThat(response.getAvailability().get(0).getRateCode()).isEqualTo("BARR");
+        assertThat(response.getAvailability().get(0).getFinalAmount()).isEqualByComparingTo("1800.00");
+        assertThat(response.getAvailableRateCodes()).containsExactly("BARR");
+    }
+
+    @Test
+    void getAvailabilityShouldKeepHigherAmountWhenPerRoomFallbackReturnsDuplicateSignatures() {
+        ReservationAvailabilityRequestDto request = validRequest();
+
+        PropertyRoomInventoryDto inventory = new PropertyRoomInventoryDto();
+        inventory.setRoomTypeId(101L);
+        inventory.setRoomType("Deluxe King");
+        inventory.setOccupancy("2 Adults");
+        inventory.setAvailableRooms(4);
+
+        RatePlanPricingQuoteDto zeroQuote = new RatePlanPricingQuoteDto();
+        zeroQuote.setRoomTypeId(101L);
+        zeroQuote.setRoomType("Deluxe King");
+        zeroQuote.setRatePlan("Bar Rate");
+        zeroQuote.setRateCode("BARR");
+        zeroQuote.setOccupancy("2");
+        zeroQuote.setMealPlan("breakfast");
+        zeroQuote.setBaseRate(BigDecimal.ZERO);
+        zeroQuote.setTaxAmount(BigDecimal.ZERO);
+        zeroQuote.setFinalAmount(BigDecimal.ZERO);
+
+        RatePlanPricingQuoteDto pricedQuote = new RatePlanPricingQuoteDto();
+        pricedQuote.setRoomTypeId(999L);
+        pricedQuote.setRoomType("Deluxe King");
+        pricedQuote.setRatePlan("Bar Rate");
+        pricedQuote.setRateCode("BARR");
+        pricedQuote.setOccupancy("2");
+        pricedQuote.setMealPlan("breakfast");
+        pricedQuote.setBaseRate(new BigDecimal("1800.00"));
+        pricedQuote.setTaxAmount(BigDecimal.ZERO);
+        pricedQuote.setFinalAmount(new BigDecimal("1800.00"));
+
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchLiveInventory(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            .thenReturn(List.of(inventory));
+
+        when(rateManagementPort.fetchRateQuotes(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            .thenReturn(List.of());
+
+        when(rateManagementPort.fetchRateQuotes(
+            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1)))
+            .thenReturn(List.of(zeroQuote, pricedQuote));
+
+        when(reservationAvailabilityMapper.toRoomAvailability(pricedQuote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
+            .roomType("Deluxe King")
+            .ratePlan("Bar Rate")
+            .rateCode("BARR")
+            .occupancy("2")
+            .mealPlan("breakfast")
+            .availableRooms(4)
+            .baseRate(new BigDecimal("1800.00"))
+            .taxAmount(BigDecimal.ZERO)
+            .finalAmount(new BigDecimal("1800.00"))
+            .build());
+
+        when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
+            ReservationAvailabilityResponseDto.builder()
+                .propertyId("PROP001")
+                .availability(invocation.getArgument(1))
+                .next15DaysPricing(invocation.getArgument(2))
+                .availableRateCodes(invocation.getArgument(3))
+                .build()
+        );
+
+        ReservationAvailabilityResponseDto response = reservationAvailabilityService.getAvailability(request);
+
+        assertThat(response.getAvailability()).hasSize(1);
+        assertThat(response.getAvailability().get(0).getRateCode()).isEqualTo("BARR");
+        assertThat(response.getAvailability().get(0).getFinalAmount()).isEqualByComparingTo("1800.00");
+        assertThat(response.getAvailableRateCodes()).containsExactly("BARR");
     }
 
         @Test

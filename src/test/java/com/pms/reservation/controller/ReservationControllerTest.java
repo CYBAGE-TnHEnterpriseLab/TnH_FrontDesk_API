@@ -18,7 +18,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -56,6 +58,16 @@ class ReservationControllerTest {
     }
 
     @Test
+    void getPaymentTypesShouldReturnSupportedTypes() throws Exception {
+        mockMvc.perform(get("/api/v1/reservations/payment-types"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.message").value("Payment types fetched successfully"))
+            .andExpect(jsonPath("$.data[0]").value("ADVANCE"))
+            .andExpect(jsonPath("$.data[1]").value("FULL_PAYMENT"));
+    }
+
+    @Test
     void createBookingShouldReturnCreatedResponse() throws Exception {
         ReservationBookingRequestDto request = validRequest();
 
@@ -82,6 +94,69 @@ class ReservationControllerTest {
 
         verify(reservationBookingService).createBooking(any());
     }
+
+        @Test
+        void createBookingShouldAcceptUiObjectTimePayload() throws Exception {
+        ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
+            .bookingId(1002L)
+            .propertyId("PROP001")
+            .guestName("Alex Johnson")
+            .reservationStatus("CONFIRMED")
+            .confirmationNumber("PROP001-20260718120000000-456")
+            .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
+            .build();
+
+        when(reservationBookingService.createBooking(any())).thenReturn(response);
+
+        Map<String, Object> payloadMap = new LinkedHashMap<>();
+        payloadMap.put("propertyId", "PROP001");
+        payloadMap.put("salutation", "Mr");
+        payloadMap.put("vipTag", false);
+        payloadMap.put("guestName", "Alex Johnson");
+        payloadMap.put("guestNames", List.of("Alex Johnson"));
+        payloadMap.put("personalEmail", "alex.personal@example.com");
+        payloadMap.put("officialEmail", "alex.official@example.com");
+        payloadMap.put("city", "Pune");
+        payloadMap.put("country", "India");
+        payloadMap.put("zipCode", "411001");
+        payloadMap.put("phoneNumber", "+91-9876543210");
+        payloadMap.put("mobileNumber", "+91-9876543210");
+        payloadMap.put("loyaltyNumber", "LOY1234");
+        payloadMap.put("company", "Contoso");
+        payloadMap.put("guestGroup", "CORP");
+        payloadMap.put("source", "Website");
+        payloadMap.put("agent", "Online");
+        payloadMap.put("arrivalDate", "2026-07-20");
+        payloadMap.put("departureDate", "2026-07-22");
+        payloadMap.put("adultCount", 2);
+        payloadMap.put("childCount", 1);
+        payloadMap.put("reservationType", "GTD");
+        payloadMap.put("roomType", "Deluxe King");
+        payloadMap.put("rateCode", "BAR001");
+        payloadMap.put("numberOfRooms", 1);
+        payloadMap.put("rate", 8500.00);
+        payloadMap.put("payment", "CARD");
+        payloadMap.put("paymentType", "FULL_PAYMENT");
+        payloadMap.put("eta", Map.of("hour", 15, "minute", 0));
+        payloadMap.put("checkOutTime", Map.of("hour", 11, "minute", 0));
+        payloadMap.put("dnm", false);
+        payloadMap.put("noPost", false);
+        payloadMap.put("guestBalance", 0.00);
+        payloadMap.put("specialRequests", "High floor");
+        payloadMap.put("discount", 0.00);
+        payloadMap.put("alertsMessages", "N/A");
+
+        String payload = objectMapper.writeValueAsString(payloadMap);
+
+        mockMvc.perform(post("/api/v1/reservations/bookings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.bookingId").value(1002));
+
+        verify(reservationBookingService).createBooking(any());
+        }
 
     @Test
     void createBookingShouldReturnBadRequestWhenGuestNameMissing() throws Exception {
@@ -125,6 +200,101 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.errors.payment", containsString("payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET")));
     }
 
+            @Test
+            void createBookingShouldAcceptUiAliasFieldsAndPlaceholderPaymentType() throws Exception {
+            ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
+                .bookingId(1003L)
+                .propertyId("PROP001")
+                .guestName("pk kp")
+                .reservationStatus("CONFIRMED")
+                .confirmationNumber("PROP001-20260718120000000-789")
+                .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
+                .build();
+
+            when(reservationBookingService.createBooking(any())).thenReturn(response);
+
+            Map<String, Object> payloadMap = new LinkedHashMap<>();
+            payloadMap.put("propertyId", "PROP001");
+            payloadMap.put("firstName", "pk");
+            payloadMap.put("lastName", "kp");
+            payloadMap.put("officialEmail", "kumar@mail.com");
+            payloadMap.put("phone", "9090912345");
+            payloadMap.put("arrivalDate", "2026-07-15");
+            payloadMap.put("departureDate", "2026-07-17");
+            payloadMap.put("adultCount", 1);
+            payloadMap.put("childCount", 0);
+            payloadMap.put("roomType", "DLX");
+            payloadMap.put("ratePlan", "BARR");
+            payloadMap.put("numberOfRooms", 1);
+            payloadMap.put("rate", 1800);
+            payloadMap.put("payment", "CARD");
+            payloadMap.put("paymentType", "Select Payment Type");
+            payloadMap.put("eta", "11:00 AM");
+            payloadMap.put("checkOutTime", "11:00 AM");
+            payloadMap.put("dnm", false);
+            payloadMap.put("guestBalance", -1800);
+            payloadMap.put("discount", 0);
+            payloadMap.put("specialRequests", "High Floor");
+
+            String payload = objectMapper.writeValueAsString(payloadMap);
+
+            mockMvc.perform(post("/api/v1/reservations/bookings")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.bookingId").value(1003));
+
+            verify(reservationBookingService).createBooking(any());
+            }
+
+        @Test
+        void createBookingShouldAcceptEmailAliasField() throws Exception {
+            ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
+                    .bookingId(1004L)
+                    .propertyId("PROP001")
+                    .guestName("pk kp")
+                    .reservationStatus("CONFIRMED")
+                    .confirmationNumber("PROP001-20260718120000000-790")
+                    .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
+                    .build();
+
+            when(reservationBookingService.createBooking(any())).thenReturn(response);
+
+            Map<String, Object> payloadMap = new LinkedHashMap<>();
+            payloadMap.put("propertyId", "PROP001");
+            payloadMap.put("firstName", "pk");
+            payloadMap.put("lastName", "kp");
+            payloadMap.put("email", "kumar@mail.com");
+            payloadMap.put("phone", "9090912345");
+            payloadMap.put("arrivalDate", "2026-07-15");
+            payloadMap.put("departureDate", "2026-07-17");
+            payloadMap.put("adultCount", 1);
+            payloadMap.put("childCount", 0);
+            payloadMap.put("roomType", "DLX");
+            payloadMap.put("ratePlan", "BARR");
+            payloadMap.put("numberOfRooms", 1);
+            payloadMap.put("rate", 1800);
+            payloadMap.put("payment", "CARD");
+            payloadMap.put("paymentType", "ADVANCE");
+            payloadMap.put("eta", "11:00 AM");
+            payloadMap.put("checkOutTime", "11:00 AM");
+            payloadMap.put("dnm", false);
+            payloadMap.put("guestBalance", 1800);
+            payloadMap.put("discount", 0);
+
+            String payload = objectMapper.writeValueAsString(payloadMap);
+
+            mockMvc.perform(post("/api/v1/reservations/bookings")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(payload))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.bookingId").value(1004));
+
+            verify(reservationBookingService).createBooking(any());
+        }
+
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
         request.setPropertyId("PROP001");
@@ -154,6 +324,7 @@ class ReservationControllerTest {
         request.setNumberOfRooms(1);
         request.setRate(new BigDecimal("8500.00"));
         request.setPayment("CARD");
+        request.setPaymentType("FULL_PAYMENT");
         request.setEta(LocalTime.of(15, 0));
         request.setCheckOutTime(LocalTime.of(11, 0));
         request.setDnm(Boolean.FALSE);

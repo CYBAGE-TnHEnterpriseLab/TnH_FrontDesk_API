@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -197,6 +198,41 @@ class PropertyWizardServiceClientTest {
 
         String authorization = entityCaptor.getValue().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         assertThat(authorization).isEqualTo("Bearer tax-token");
+    }
+
+    @Test
+    void fetchRoomOutletTypesShouldForwardAuthorizationHeaderAndParseWrappedData() {
+        withAuthorizationHeader("Bearer room-types-token");
+        when(properties.getBaseUrl()).thenReturn("http://localhost:8082");
+        when(properties.getRoomOutletTypesPath()).thenReturn("/api/rooms/properties/{propertyId}/room-outlet-types");
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenReturn(ResponseEntity.ok(
+            "{\"success\":true,\"data\":[{\"id\":28,\"roomCode\":\"KNG\",\"roomName\":\"King\"}],\"message\":\"ok\"}"
+        ));
+
+        var outletTypes = client.fetchRoomOutletTypes("PROP001");
+
+        assertThat(outletTypes).hasSize(1);
+        PropertyRoomOutletTypeDto item = outletTypes.get(0);
+        assertThat(item.getId()).isEqualTo(28L);
+        assertThat(item.getRoomCode()).isEqualTo("KNG");
+        assertThat(item.getRoomName()).isEqualTo("King");
+
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            entityCaptor.capture(),
+            eq(String.class)
+        );
+
+        String authorization = entityCaptor.getValue().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        assertThat(authorization).isEqualTo("Bearer room-types-token");
     }
 
     private void withAuthorizationHeader(String value) {

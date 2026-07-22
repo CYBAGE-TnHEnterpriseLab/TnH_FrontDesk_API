@@ -11,6 +11,7 @@ import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.mapper.ReservationAvailabilityMapper;
 import java.math.BigDecimal;
@@ -108,6 +109,8 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         if (inventory == null) {
             inventory = List.of();
         }
+
+        inventory = enrichInventoryWithRoomTypeIds(request.getPropertyId(), inventory);
 
             List<RatePlanPricingQuoteDto> rateQuotes = fetchRateQuotesWithRoomTypeFallback(
                 request,
@@ -274,7 +277,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             List<RatePlanPricingQuoteDto> normalizedDirectFetch = directFetch == null ? List.of() : directFetch;
             if (!normalizedDirectFetch.isEmpty()) {
                 if (!requiresRoomTypeEnrichment(normalizedDirectFetch, roomTypeCandidates)) {
-                    return normalizedDirectFetch;
+                    return deduplicateRateQuotes(normalizedDirectFetch);
                 }
 
                 log.info(
@@ -298,7 +301,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     return enrichedByRoomType;
                 }
 
-                return normalizedDirectFetch;
+                return deduplicateRateQuotes(normalizedDirectFetch);
             }
 
             if (roomTypeCandidates.isEmpty()) {
@@ -392,6 +395,71 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         }
 
         return roomTypeCandidates;
+    }
+
+    private List<PropertyRoomInventoryDto> enrichInventoryWithRoomTypeIds(
+        String propertyId,
+        List<PropertyRoomInventoryDto> inventory
+    ) {
+        if (inventory == null || inventory.isEmpty()) {
+            return List.of();
+        }
+
+        boolean allRowsAlreadyHaveRoomTypeId = inventory.stream()
+            .filter(java.util.Objects::nonNull)
+            .allMatch(item -> item.getRoomTypeId() != null);
+        if (allRowsAlreadyHaveRoomTypeId) {
+            return inventory;
+        }
+
+        List<PropertyRoomOutletTypeDto> outletTypes;
+        try {
+            outletTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+        } catch (ExternalServiceException ex) {
+            log.warn(
+                "Room outlet types unavailable for propertyId={}; continuing without roomTypeId enrichment. reason={}",
+                propertyId,
+                ex.getMessage()
+            );
+            return inventory;
+        }
+
+        if (outletTypes == null || outletTypes.isEmpty()) {
+            return inventory;
+        }
+
+        Map<String, Long> roomTypeIdByNormalizedCode = new LinkedHashMap<>();
+        Map<String, Long> roomTypeIdByNormalizedName = new LinkedHashMap<>();
+        for (PropertyRoomOutletTypeDto outletType : outletTypes) {
+            if (outletType == null || outletType.getId() == null) {
+                continue;
+            }
+
+            if (StringUtils.hasText(outletType.getRoomCode())) {
+                roomTypeIdByNormalizedCode.putIfAbsent(normalize(outletType.getRoomCode()), outletType.getId());
+            }
+            if (StringUtils.hasText(outletType.getRoomName())) {
+                roomTypeIdByNormalizedName.putIfAbsent(normalize(outletType.getRoomName()), outletType.getId());
+            }
+        }
+
+        for (PropertyRoomInventoryDto item : inventory) {
+            if (item == null || item.getRoomTypeId() != null || !StringUtils.hasText(item.getRoomType())) {
+                continue;
+            }
+
+            String normalizedRoomType = normalize(item.getRoomType());
+            Long mappedRoomTypeId = roomTypeIdByNormalizedCode.get(normalizedRoomType);
+            if (mappedRoomTypeId == null) {
+                mappedRoomTypeId = roomTypeIdByNormalizedName.get(normalizedRoomType);
+            }
+
+            if (mappedRoomTypeId != null) {
+                item.setRoomTypeId(mappedRoomTypeId);
+            }
+        }
+
+        return inventory;
     }
 
     private boolean requiresRoomTypeEnrichment(
@@ -498,20 +566,40 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
         Map<String, RatePlanPricingQuoteDto> uniqueBySignature = new LinkedHashMap<>();
         for (RatePlanPricingQuoteDto quote : quotes) {
+            String roomTypeGroupingKey = StringUtils.hasText(quote.getRoomType())
+                ? normalize(quote.getRoomType())
+                : "id:" + (quote.getRoomTypeId() == null ? "" : quote.getRoomTypeId());
+
             String signature = String.join(
                 "|",
-                normalize(quote.getRoomType()),
-                quote.getRoomTypeId() == null ? "" : String.valueOf(quote.getRoomTypeId()),
+                roomTypeGroupingKey,
                 normalize(quote.getRatePlan()),
                 normalize(quote.getRateCode()),
                 normalize(quote.getOccupancy()),
-                normalize(quote.getMealPlan()),
-                quote.getBaseRate() == null ? "" : quote.getBaseRate().toPlainString()
+                normalize(quote.getMealPlan())
             );
-            uniqueBySignature.putIfAbsent(signature, quote);
+
+            RatePlanPricingQuoteDto existing = uniqueBySignature.get(signature);
+            if (existing == null || compareAmounts(quote.getFinalAmount(), existing.getFinalAmount()) > 0) {
+                uniqueBySignature.put(signature, quote);
+            }
         }
 
         return new ArrayList<>(uniqueBySignature.values());
+    }
+
+    private int compareAmounts(BigDecimal left, BigDecimal right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+
+        return left.compareTo(right);
     }
 
         private List<PropertyTaxRuleResponseDto> safeFetchTaxRules(String propertyId) {

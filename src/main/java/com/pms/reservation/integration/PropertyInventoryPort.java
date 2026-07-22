@@ -4,6 +4,7 @@ import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import java.time.LocalDate;
 import java.util.List;
@@ -22,6 +23,8 @@ public interface PropertyInventoryPort {
             LocalDate departureDate,
             String roomType
     );
+
+    List<PropertyRoomOutletTypeDto> fetchRoomOutletTypes(String propertyId);
 
     List<PropertyTaxRuleResponseDto> fetchTaxRules(String propertyId);
 }

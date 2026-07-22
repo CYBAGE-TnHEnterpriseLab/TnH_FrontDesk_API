@@ -1,8 +1,10 @@
 package com.pms.reservation.service.impl;
 
 import com.pms.guestlisting.exception.BadRequestException;
+import com.pms.guestlisting.exception.ExternalServiceException;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.constant.PaymentModes;
+import com.pms.reservation.constant.PaymentTypes;
 import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
@@ -48,9 +51,12 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     @Override
     @Transactional
     public ReservationBookingResponseDto createBooking(ReservationBookingRequestDto request) {
+        normalizeCreateRequest(request);
         validateDates(request.getArrivalDate(), request.getDepartureDate());
+        validateRequiredContactFields(request);
         validateRoomSelectionAndGuestNames(request);
         validateAndNormalizePaymentMode(request);
+        validateAndNormalizePaymentType(request);
         String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
         LocalDateTime inventoryDeductedAt = null;
@@ -70,11 +76,17 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         if (propertyWizardServiceProperties.isEnabled()) {
-            propertyInventoryPort.deductInventory(buildInventoryDeductionRequest(request, confirmationNumber));
-            inventoryDeductedAt = LocalDateTime.now();
+            try {
+                propertyInventoryPort.deductInventory(buildInventoryDeductionRequest(request, confirmationNumber));
+                inventoryDeductedAt = LocalDateTime.now();
 
-            propertyInventoryPort.syncInventory(buildInventorySyncRequest(request, confirmationNumber));
-            inventorySyncedAt = LocalDateTime.now();
+                propertyInventoryPort.syncInventory(buildInventorySyncRequest(request, confirmationNumber));
+                inventorySyncedAt = LocalDateTime.now();
+            } catch (ExternalServiceException ex) {
+                if (!propertyWizardServiceProperties.isFailOpenOnWriteError()) {
+                    throw ex;
+                }
+            }
         }
 
         ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
@@ -87,6 +99,79 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
             .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction);
+    }
+
+    private void normalizeCreateRequest(ReservationBookingRequestDto request) {
+        if (request == null) {
+            return;
+        }
+
+        request.setSalutation(defaultIfBlank(request.getSalutation(), "Mr"));
+        request.setReservationType(defaultIfBlank(request.getReservationType(), "GTD"));
+        request.setCity(defaultIfBlank(request.getCity(), "UNKNOWN"));
+        request.setCountry(defaultIfBlank(request.getCountry(), "UNKNOWN"));
+        request.setZipCode(defaultIfBlank(request.getZipCode(), "000000"));
+
+        if (!StringUtils.hasText(request.getMobileNumber()) && StringUtils.hasText(request.getPhoneNumber())) {
+            request.setMobileNumber(request.getPhoneNumber().trim());
+        }
+
+        if (!StringUtils.hasText(request.getPersonalEmail()) && StringUtils.hasText(request.getOfficialEmail())) {
+            request.setPersonalEmail(request.getOfficialEmail().trim());
+        }
+        if (!StringUtils.hasText(request.getOfficialEmail()) && StringUtils.hasText(request.getPersonalEmail())) {
+            request.setOfficialEmail(request.getPersonalEmail().trim());
+        }
+
+        if (!StringUtils.hasText(request.getGuestName()) && request.getGuestNames() != null && !request.getGuestNames().isEmpty()) {
+            String first = request.getGuestNames().get(0);
+            if (StringUtils.hasText(first)) {
+                request.setGuestName(first.trim());
+            }
+        }
+
+        if ((request.getGuestNames() == null || request.getGuestNames().isEmpty()) && StringUtils.hasText(request.getGuestName())) {
+            request.setGuestNames(List.of(request.getGuestName().trim()));
+        }
+
+        if (request.getGuestNames() != null && request.getNumberOfRooms() != null && request.getNumberOfRooms() > 1) {
+            List<String> normalizedGuestNames = new ArrayList<>(request.getGuestNames());
+            while (normalizedGuestNames.size() < request.getNumberOfRooms()) {
+                normalizedGuestNames.add(request.getGuestName());
+            }
+            request.setGuestNames(normalizedGuestNames);
+        }
+
+        if (request.getNoPost() == null) {
+            request.setNoPost(Boolean.FALSE);
+        }
+
+        if (request.getVipTag() == null) {
+            request.setVipTag(Boolean.FALSE);
+        }
+
+        if (request.getDnm() == null) {
+            request.setDnm(Boolean.FALSE);
+        }
+
+        if (request.getDiscount() == null) {
+            request.setDiscount(BigDecimal.ZERO);
+        }
+
+        if (request.getGuestBalance() == null) {
+            request.setGuestBalance(BigDecimal.ZERO);
+        }
+
+        if (!StringUtils.hasText(request.getPaymentType())) {
+            request.setPaymentType(PaymentTypes.FULL_PAYMENT);
+        }
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        if (StringUtils.hasText(value)) {
+            return value.trim();
+        }
+        return fallback;
     }
 
     private ReservationPaymentTransactionRecord buildPaymentTransaction(
@@ -174,11 +259,19 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
 
-        PropertyInventoryValidationResponse validation = propertyInventoryPort.validateInventory(
+        PropertyInventoryValidationResponse validation;
+        try {
+            validation = propertyInventoryPort.validateInventory(
                 request.getPropertyId(),
                 request.getRoomType(),
                 request.getNumberOfRooms()
-        );
+            );
+        } catch (ExternalServiceException ex) {
+            if (propertyWizardServiceProperties.isFailOpenOnValidationError()) {
+                return;
+            }
+            throw ex;
+        }
 
         if (!Boolean.TRUE.equals(validation.getPropertyExists())) {
             throw new BadRequestException("propertyId is invalid as per Property Wizard service");
@@ -215,6 +308,16 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
     }
 
+    private void validateRequiredContactFields(ReservationBookingRequestDto request) {
+        if (!StringUtils.hasText(request.getOfficialEmail())) {
+            throw new BadRequestException("officialEmail is required");
+        }
+
+        if (!StringUtils.hasText(request.getPersonalEmail())) {
+            throw new BadRequestException("personalEmail is required");
+        }
+    }
+
     private void validateAndNormalizePaymentMode(ReservationBookingRequestDto request) {
         if (!StringUtils.hasText(request.getPayment())) {
             throw new BadRequestException("payment is required");
@@ -227,5 +330,18 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         request.setPayment(normalizedPaymentMode);
+    }
+
+    private void validateAndNormalizePaymentType(ReservationBookingRequestDto request) {
+        if (!StringUtils.hasText(request.getPaymentType())) {
+            throw new BadRequestException("paymentType is required");
+        }
+
+        String normalizedPaymentType = PaymentTypes.normalize(request.getPaymentType());
+        if (!PaymentTypes.isSupported(normalizedPaymentType)) {
+            throw new BadRequestException("paymentType must be one of ADVANCE, FULL_PAYMENT");
+        }
+
+        request.setPaymentType(normalizedPaymentType);
     }
 }

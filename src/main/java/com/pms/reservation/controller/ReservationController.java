@@ -2,6 +2,7 @@ package com.pms.reservation.controller;
 
 import com.pms.guestlisting.dto.ApiResponse;
 import com.pms.reservation.constant.PaymentModes;
+import com.pms.reservation.constant.PaymentTypes;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.service.ReservationBookingService;
@@ -41,5 +42,12 @@ public class ReservationController {
         ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Reservation confirmed successfully", response));
+    }
+
+    @GetMapping("/payment-types")
+    @Operation(summary = "Get supported reservation payment types",
+            description = "Returns the list of supported payment types for reservation bookings")
+    public ResponseEntity<ApiResponse<List<String>>> getPaymentTypes() {
+        return ResponseEntity.ok(ApiResponse.success("Payment types fetched successfully", PaymentTypes.supportedTypes()));
     }
 }

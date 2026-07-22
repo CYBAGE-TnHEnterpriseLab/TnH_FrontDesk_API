@@ -9,6 +9,7 @@ import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -157,6 +158,34 @@ public class PropertyWizardServiceClient implements PropertyInventoryPort {
             );
         } catch (RestClientException ex) {
             throw new ExternalServiceException("Failed to fetch tax rules from Property Wizard service", ex);
+        }
+    }
+
+    @Override
+    public List<PropertyRoomOutletTypeDto> fetchRoomOutletTypes(String propertyId) {
+        if (!StringUtils.hasText(properties.getRoomOutletTypesPath())) {
+            return List.of();
+        }
+
+        String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+            .path(properties.getRoomOutletTypesPath())
+            .buildAndExpand(propertyId)
+            .toUriString();
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<>(buildHeaders()),
+                String.class
+            );
+            return readListResponseBody(
+                response.getBody(),
+                PropertyRoomOutletTypeDto.class,
+                "room outlet types"
+            );
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to fetch room outlet types from Property Wizard service", ex);
         }
     }
 

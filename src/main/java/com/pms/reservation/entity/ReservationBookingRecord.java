@@ -130,6 +130,9 @@ public class ReservationBookingRecord {
     @Column(nullable = false, length = 40)
     private String payment;
 
+    @Column(nullable = false, length = 40)
+    private String paymentType;
+
     @Column(nullable = false)
     private LocalTime eta;
 
