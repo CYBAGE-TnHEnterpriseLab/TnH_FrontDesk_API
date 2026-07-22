@@ -66,21 +66,21 @@ public class RatePlanController {
         return ResponseEntity.ok(ratePlanService.updateRatePlanStatus(propertyId, id, status));
     }
 
-    // // Fetch available rate plans for a room type/occupancy/meal/date in the given property.
-    // @GetMapping("/available")
-    // public List<RatePlanResponseDTO> getAvailableRatePlans(@PathVariable String propertyId,
-    //                                                         @RequestParam Long roomTypeId,
-    //                                                         @RequestParam String occupancyType,
-    //                                                         @RequestParam MasterRoomMealOption mealOption,
-    //                                                         @RequestParam LocalDate stayDate) {
-    //     return ratePlanService.getAvailableRatePlans(propertyId, roomTypeId, occupancyType, mealOption, stayDate);
-    // }
+    // Fetch available rate plans for a room type/occupancy/meal/date in the given property.
+    @GetMapping("/available")
+    public List<RatePlanResponseDTO> getAvailableRatePlans(@PathVariable String propertyId,
+                                                            @RequestParam Long roomTypeId,
+                                                            @RequestParam String occupancyType,
+                                                            @RequestParam MasterRoomMealOption mealOption,
+                                                            @RequestParam LocalDate stayDate) {
+        return ratePlanService.getAvailableRatePlans(propertyId, roomTypeId, occupancyType, mealOption, stayDate);
+    }
 
-    // // Calculate final price for a rate plan and room type in the given property.
-    // @GetMapping("/{id}/calculated-price")
-    // public ResponseEntity<RatePlanPriceResponseDTO> getCalculatedPrice(@PathVariable String propertyId,
-    //                                                                    @PathVariable Long id,
-    //                                                                    @RequestParam Long roomTypeId) {
-    //     return ResponseEntity.ok(ratePlanService.calculatePriceFromMasterBar(propertyId, id, roomTypeId));
-    // }
+    // Calculate final price for a rate plan and room type in the given property.
+    @GetMapping("/{id}/calculated-price")
+    public ResponseEntity<RatePlanPriceResponseDTO> getCalculatedPrice(@PathVariable String propertyId,
+                                                                       @PathVariable Long id,
+                                                                       @RequestParam Long roomTypeId) {
+        return ResponseEntity.ok(ratePlanService.calculatePriceFromMasterBar(propertyId, id, roomTypeId));
+    }
 }
