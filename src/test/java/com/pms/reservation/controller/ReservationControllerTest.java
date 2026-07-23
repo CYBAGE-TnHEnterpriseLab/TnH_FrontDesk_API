@@ -76,7 +76,7 @@ class ReservationControllerTest {
                 .propertyId("PROP001")
                 .guestName("Alex Johnson")
                 .reservationStatus("CONFIRMED")
-                .confirmationNumber("PROP001-20260718120000000-123")
+            .confirmationNumber("1234567890")
                 .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
                 .build();
 
@@ -102,7 +102,7 @@ class ReservationControllerTest {
             .propertyId("PROP001")
             .guestName("Alex Johnson")
             .reservationStatus("CONFIRMED")
-            .confirmationNumber("PROP001-20260718120000000-456")
+            .confirmationNumber("1234567891")
             .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
             .build();
 
@@ -207,7 +207,7 @@ class ReservationControllerTest {
                 .propertyId("PROP001")
                 .guestName("pk kp")
                 .reservationStatus("CONFIRMED")
-                .confirmationNumber("PROP001-20260718120000000-789")
+                .confirmationNumber("1234567892")
                 .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
                 .build();
 
@@ -255,7 +255,7 @@ class ReservationControllerTest {
                     .propertyId("PROP001")
                     .guestName("pk kp")
                     .reservationStatus("CONFIRMED")
-                    .confirmationNumber("PROP001-20260718120000000-790")
+                    .confirmationNumber("1234567893")
                     .createdAt(LocalDateTime.of(2026, 7, 18, 12, 0))
                     .build();
 

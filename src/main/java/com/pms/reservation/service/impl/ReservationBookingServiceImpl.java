@@ -23,10 +23,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,7 +37,9 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
     private static final String RESERVATION_STATUS_CONFIRMED = "CONFIRMED";
     private static final String PAYMENT_STATUS_SUCCESS = "SUCCESS";
-    private static final DateTimeFormatter CONFIRMATION_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final int CONFIRMATION_MIN = 1000000000;
+    private static final int CONFIRMATION_MAX_EXCLUSIVE = 2000000000;
+    private static final int CONFIRMATION_MAX_ATTEMPTS = 50;
 
     private final ReservationBookingRepository reservationBookingRepository;
     private final ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
@@ -238,20 +238,16 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     }
 
     private String generateConfirmationNumber(String propertyId) {
-        String propertyToken = propertyId == null
-                ? "RES"
-                : propertyId.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+        for (int attempt = 0; attempt < CONFIRMATION_MAX_ATTEMPTS; attempt++) {
+            String candidate = String.valueOf(ThreadLocalRandom.current()
+                .nextInt(CONFIRMATION_MIN, CONFIRMATION_MAX_EXCLUSIVE));
 
-        if (propertyToken.isBlank()) {
-            propertyToken = "RES";
+            if (!reservationBookingRepository.existsByConfirmationNumber(candidate)) {
+                return candidate;
+            }
         }
 
-        int randomSuffix = ThreadLocalRandom.current().nextInt(100, 1000);
-        return propertyToken
-                + "-"
-                + LocalDateTime.now().format(CONFIRMATION_TIME_FORMATTER)
-                + "-"
-                + randomSuffix;
+        throw new IllegalStateException("Unable to generate unique confirmation number");
     }
 
     private void validatePropertyAndInventory(ReservationBookingRequestDto request) {

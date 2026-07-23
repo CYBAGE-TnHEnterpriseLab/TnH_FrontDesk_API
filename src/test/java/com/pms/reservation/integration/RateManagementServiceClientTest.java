@@ -28,8 +28,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -604,6 +604,200 @@ class RateManagementServiceClientTest {
         assertThat(typedRoomTypeAvailableCalls.get()).isEqualTo(1);
         assertThat(listCalls.get()).isEqualTo(1);
     }
+
+        @Test
+        void fetchRateQuotesShouldPassNormalizedOccupancyTypeToCalculatedPrice() {
+                configureProperties(1, 0);
+
+                when(restTemplate.exchange(
+                        anyString(),
+                        eq(HttpMethod.GET),
+                        any(HttpEntity.class),
+                        eq(String.class)
+                )).thenAnswer(invocation -> {
+                        String url = invocation.getArgument(0);
+
+                        if (url.contains("/available")) {
+                                return ResponseEntity.ok("""
+                                        {
+                                            "success": true,
+                                            "data": [
+                                                {
+                                                    "id": 32,
+                                                    "name": "DeluzeRP",
+                                                    "code": "DLX",
+                                                    "occupancyType": "2 Guest",
+                                                    "applicableRoomTypeIds": [28]
+                                                }
+                                            ]
+                                        }
+                                        """);
+                        }
+
+                        if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
+                            assertThat(url).containsPattern("occupancyType=1(\\+|%20| )Guest");
+                                return ResponseEntity.ok("""
+                                        {
+                                            "ratePlanId": 32,
+                                            "masterBarAmount": 10000,
+                                            "finalAmount": 1500
+                                        }
+                                        """);
+                        }
+
+                        throw new IllegalStateException("Unexpected URL: " + url);
+                });
+
+                var quotes = client.fetchRateQuotes(
+                        "PROP001",
+                        LocalDate.of(2026, 7, 14),
+                        LocalDate.of(2026, 7, 16),
+                        "Deluxe Room",
+                        28L,
+                        1,
+                        0
+                );
+
+                assertThat(quotes).hasSize(1);
+                assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("1500");
+        }
+
+            @Test
+            void fetchRateQuotesShouldFallbackToLegacyCalculatedPriceWhenOccupancyTypeVariantFails() {
+                configureProperties(1, 0);
+
+                when(restTemplate.exchange(
+                    anyString(),
+                    eq(HttpMethod.GET),
+                    any(HttpEntity.class),
+                    eq(String.class)
+                )).thenAnswer(invocation -> {
+                    String url = invocation.getArgument(0);
+
+                    if (url.contains("/available")) {
+                        return ResponseEntity.ok("""
+                            {
+                              "success": true,
+                              "data": [
+                                {
+                                  "id": 32,
+                                  "name": "DeluzeRP",
+                                  "code": "DLX",
+                                  "occupancyType": "2 Guest",
+                                  "applicableRoomTypeIds": [28]
+                                }
+                              ]
+                            }
+                            """);
+                    }
+
+                    if (url.contains("/calculated-price")
+                        && url.contains("roomTypeId=28")
+                        && url.contains("occupancyType=1")) {
+                        throw HttpClientErrorException.create(
+                            HttpStatus.BAD_REQUEST,
+                            "Bad Request",
+                            HttpHeaders.EMPTY,
+                            "invalid occupancyType".getBytes(StandardCharsets.UTF_8),
+                            StandardCharsets.UTF_8
+                        );
+                    }
+
+                    if (url.contains("/calculated-price") && url.contains("roomTypeId=28") && !url.contains("occupancyType=")) {
+                        return ResponseEntity.ok("""
+                            {
+                              "ratePlanId": 32,
+                              "masterBarAmount": 10000,
+                              "finalAmount": 1800
+                            }
+                            """);
+                    }
+
+                    throw new IllegalStateException("Unexpected URL: " + url);
+                });
+
+                var quotes = client.fetchRateQuotes(
+                    "PROP001",
+                    LocalDate.of(2026, 7, 14),
+                    LocalDate.of(2026, 7, 16),
+                    "Deluxe Room",
+                    28L,
+                    1,
+                    0
+                );
+
+                assertThat(quotes).hasSize(1);
+                assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("1800");
+            }
+
+            @Test
+            void fetchRateQuotesShouldFallbackToLegacyCalculatedPriceWhenOccupancyTypeVariantFailsWith5xx() {
+                configureProperties(1, 0);
+
+                when(restTemplate.exchange(
+                    anyString(),
+                    eq(HttpMethod.GET),
+                    any(HttpEntity.class),
+                    eq(String.class)
+                )).thenAnswer(invocation -> {
+                    String url = invocation.getArgument(0);
+
+                    if (url.contains("/available")) {
+                        return ResponseEntity.ok("""
+                            {
+                              "success": true,
+                              "data": [
+                                {
+                                  "id": 43,
+                                  "name": "Flexible Rate",
+                                  "code": "FRP",
+                                  "occupancyType": "2 Guest",
+                                  "applicableRoomTypeIds": [27]
+                                }
+                              ]
+                            }
+                            """);
+                    }
+
+                    if (url.contains("/calculated-price")
+                        && url.contains("roomTypeId=27")
+                        && url.contains("occupancyType=4")) {
+                        throw HttpServerErrorException.create(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Internal Server Error",
+                            HttpHeaders.EMPTY,
+                            "InvalidRatePlanException: Requested occupancy type is not applicable for this rate plan"
+                                .getBytes(StandardCharsets.UTF_8),
+                            StandardCharsets.UTF_8
+                        );
+                    }
+
+                    if (url.contains("/calculated-price") && url.contains("roomTypeId=27") && !url.contains("occupancyType=")) {
+                        return ResponseEntity.ok("""
+                            {
+                              "ratePlanId": 43,
+                              "masterBarAmount": 2000,
+                              "finalAmount": 1900
+                            }
+                            """);
+                    }
+
+                    throw new IllegalStateException("Unexpected URL: " + url);
+                });
+
+                var quotes = client.fetchRateQuotes(
+                    "PROP001",
+                    LocalDate.of(2026, 7, 14),
+                    LocalDate.of(2026, 7, 16),
+                    "Deluxe Room",
+                    27L,
+                    4,
+                    0
+                );
+
+                assertThat(quotes).hasSize(1);
+                assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("1900");
+            }
 
     @Test
     void getPricingByRoomTypeForRatePlanShouldCalculateForEachApplicableRoomType() {

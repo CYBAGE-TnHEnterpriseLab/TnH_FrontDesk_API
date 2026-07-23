@@ -9,4 +9,6 @@ public interface ReservationBookingRepository
 	extends JpaRepository<ReservationBookingRecord, Long>, JpaSpecificationExecutor<ReservationBookingRecord> {
 
 	Optional<ReservationBookingRecord> findByConfirmationNumber(String confirmationNumber);
+
+	boolean existsByConfirmationNumber(String confirmationNumber);
 }

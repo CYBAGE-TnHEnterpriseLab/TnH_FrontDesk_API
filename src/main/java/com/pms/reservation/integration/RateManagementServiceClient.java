@@ -234,6 +234,39 @@ public class RateManagementServiceClient implements RateManagementPort {
         return readObjectResponseBody(responseBody, RatePlanCalculatedPriceResponseDto.class, "calculated-price");
     }
 
+    private RatePlanCalculatedPriceResponseDto getCalculatedPrice(
+            String propertyId,
+            Long ratePlanId,
+            Long roomTypeId,
+            String occupancyType
+    ) {
+        if (roomTypeId == null) {
+            throw new ExternalServiceException("roomTypeId is required for calculated-price API");
+        }
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+            .path(properties.getCalculatedPricePath())
+            .queryParam("roomTypeId", roomTypeId);
+
+        String normalizedOccupancyType = normalizeCalculatedPriceOccupancy(occupancyType);
+        if (StringUtils.hasText(normalizedOccupancyType)) {
+            builder.queryParam("occupancyType", normalizedOccupancyType);
+        }
+
+        String url = builder
+            .buildAndExpand(propertyId, ratePlanId)
+            .toUriString();
+
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("propertyId", propertyId);
+        context.put("ratePlanId", ratePlanId);
+        context.put("roomTypeId", roomTypeId);
+        context.put("occupancyType", normalizedOccupancyType);
+
+        String responseBody = executeGetWithRetry("calculated-price", url, context);
+        return readObjectResponseBody(responseBody, RatePlanCalculatedPriceResponseDto.class, "calculated-price");
+    }
+
     @Override
     public Map<Long, BigDecimal> getPricingByRoomTypeForRatePlan(String propertyId, Long ratePlanId) {
         List<RateManagementPlanDto> plans = listRatePlans(propertyId);
@@ -414,6 +447,26 @@ public class RateManagementServiceClient implements RateManagementPort {
         return hasHttpStatus(throwable, 404) || hasHttpStatus(throwable, 405);
     }
 
+    private boolean isOccupancyTypeFailure(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof RestClientResponseException responseException
+                    && responseException.getRawStatusCode() >= 400
+                    && responseException.getRawStatusCode() < 600) {
+                String body = safeBodySnippet(responseException.getResponseBodyAsString()).toLowerCase(Locale.ROOT);
+                if (body.contains("occupancy")
+                        || body.contains("not applicable for this rate plan")
+                        || body.contains("invalidrateplanexception")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+
+        String message = throwable == null ? null : throwable.getMessage();
+        return message != null && message.toLowerCase(Locale.ROOT).contains("occupancy");
+    }
+
     private boolean hasHttpStatus(Throwable throwable, int statusCode) {
         Throwable current = throwable;
         while (current != null) {
@@ -440,12 +493,46 @@ public class RateManagementServiceClient implements RateManagementPort {
         }
 
         try {
-            RatePlanCalculatedPriceResponseDto calculatedPrice = getCalculatedPrice(propertyId, plan.getId(), roomTypeId);
+            RatePlanCalculatedPriceResponseDto calculatedPrice = getCalculatedPrice(
+                propertyId,
+                plan.getId(),
+                roomTypeId,
+                requestedOccupancyType
+            );
             if (calculatedPrice != null && calculatedPrice.getFinalAmount() != null) {
                 return calculatedPrice.getFinalAmount();
             }
+
+            if (StringUtils.hasText(requestedOccupancyType)) {
+                RatePlanCalculatedPriceResponseDto legacyCalculatedPrice = getCalculatedPrice(
+                    propertyId,
+                    plan.getId(),
+                    roomTypeId
+                );
+                if (legacyCalculatedPrice != null && legacyCalculatedPrice.getFinalAmount() != null) {
+                    return legacyCalculatedPrice.getFinalAmount();
+                }
+            }
+
             return deriveFallbackFinalAmount(propertyId, plan, requestedOccupancyType);
         } catch (ExternalServiceException ex) {
+            if (StringUtils.hasText(requestedOccupancyType)
+                    && !isCalculatedPriceEndpointUnavailable(ex)
+                    && isOccupancyTypeFailure(ex)) {
+                try {
+                    RatePlanCalculatedPriceResponseDto legacyCalculatedPrice = getCalculatedPrice(
+                        propertyId,
+                        plan.getId(),
+                        roomTypeId
+                    );
+                    if (legacyCalculatedPrice != null && legacyCalculatedPrice.getFinalAmount() != null) {
+                        return legacyCalculatedPrice.getFinalAmount();
+                    }
+                } catch (ExternalServiceException ignored) {
+                    // Continue with existing fallback chain.
+                }
+            }
+
             if (!isCalculatedPriceEndpointUnavailable(ex)) {
                 throw ex;
             }
@@ -1059,6 +1146,26 @@ public class RateManagementServiceClient implements RateManagementPort {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeCalculatedPriceOccupancy(String occupancyType) {
+        if (!StringUtils.hasText(occupancyType)) {
+            return null;
+        }
+
+        String normalized = occupancyType.trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.matches("\\d+\\s*adults?(\\s+\\d+\\s*children?)?")) {
+            String[] tokens = lower.split("\\s+");
+            try {
+                int adults = Integer.parseInt(tokens[0]);
+                return adults + " Guest";
+            } catch (NumberFormatException ignored) {
+                return normalized;
+            }
+        }
+
+        return normalized;
     }
 
     private String buildOccupancyType(Integer adultCount, Integer childCount) {

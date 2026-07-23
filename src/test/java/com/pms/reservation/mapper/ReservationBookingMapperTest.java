@@ -62,7 +62,7 @@ class ReservationBookingMapperTest {
     void toResponseShouldDecodeGuestNamesAndExposePaymentTransactionFields() {
         ReservationBookingRecord record = ReservationBookingRecord.builder()
                 .id(42L)
-                .confirmationNumber("PROP001-20260626111111111-123")
+            .confirmationNumber("1234567890")
                 .reservationStatus("CONFIRMED")
                 .propertyId("PROP001")
                 .salutation("Mr")

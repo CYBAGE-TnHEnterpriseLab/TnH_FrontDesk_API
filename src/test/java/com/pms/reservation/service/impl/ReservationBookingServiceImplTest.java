@@ -63,6 +63,7 @@ class ReservationBookingServiceImplTest {
     void createBookingShouldPersistAndReturnResponseWithGeneratedConfirmation() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
         when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-100"));
 
         ReservationBookingRecord toSave = ReservationBookingRecord.builder()
@@ -74,7 +75,7 @@ class ReservationBookingServiceImplTest {
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(99L)
                 .propertyId("PROP001")
-                .confirmationNumber("PROP001-20260718120000000-123")
+                .confirmationNumber("1234567890")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
                 .build();
@@ -82,7 +83,7 @@ class ReservationBookingServiceImplTest {
         ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                 .id(501L)
                 .bookingId(99L)
-                .confirmationNumber("PROP001-20260718120000000-123")
+                .confirmationNumber("1234567890")
                 .propertyId("PROP001")
                 .paymentMode("CARD")
                 .amount(new BigDecimal("17000.00"))
@@ -95,7 +96,7 @@ class ReservationBookingServiceImplTest {
 
         ReservationBookingResponseDto responseDto = ReservationBookingResponseDto.builder()
                 .bookingId(99L)
-                .confirmationNumber("PROP001-20260718120000000-123")
+                .confirmationNumber("1234567890")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
                 .totalRate(new BigDecimal("17000.00"))
@@ -116,6 +117,7 @@ class ReservationBookingServiceImplTest {
         verify(reservationBookingRepository).save(recordCaptor.capture());
         ReservationBookingRecord persistedRecord = recordCaptor.getValue();
         assertThat(persistedRecord.getConfirmationNumber()).isNotBlank();
+        assertThat(persistedRecord.getConfirmationNumber()).matches("\\d{10}");
         assertThat(persistedRecord.getReservationStatus()).isEqualTo("CONFIRMED");
         assertThat(persistedRecord.getInventoryDeductedAt()).isNull();
         assertThat(persistedRecord.getInventorySyncedAt()).isNull();
@@ -129,6 +131,7 @@ class ReservationBookingServiceImplTest {
     void createBookingShouldDeductAndSyncInventoryWhenPropertyWizardEnabled() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
         when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(true, true, 5));
         when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-200"));
@@ -142,7 +145,7 @@ class ReservationBookingServiceImplTest {
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(100L)
                 .propertyId("PROP001")
-                .confirmationNumber("PROP001-20260718120000000-456")
+                .confirmationNumber("1234567891")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
                 .build();
@@ -150,7 +153,7 @@ class ReservationBookingServiceImplTest {
         ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                 .id(601L)
                 .bookingId(100L)
-                .confirmationNumber("PROP001-20260718120000000-456")
+                .confirmationNumber("1234567891")
                 .propertyId("PROP001")
                 .paymentMode("CARD")
                 .amount(new BigDecimal("17000.00"))
@@ -213,6 +216,7 @@ class ReservationBookingServiceImplTest {
                 request.setPaymentType(null);
 
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
                 when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-330"));
 
                 ReservationBookingRecord toSave = ReservationBookingRecord.builder()
@@ -224,7 +228,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(140L)
                         .propertyId("PROP001")
-                        .confirmationNumber("PROP001-20260718120000000-330")
+                        .confirmationNumber("1234567892")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
                         .build();
@@ -232,7 +236,7 @@ class ReservationBookingServiceImplTest {
                 ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                         .id(701L)
                         .bookingId(140L)
-                        .confirmationNumber("PROP001-20260718120000000-330")
+                        .confirmationNumber("1234567892")
                         .propertyId("PROP001")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("17000.00"))
@@ -291,6 +295,7 @@ class ReservationBookingServiceImplTest {
                 request.setGuestNames(List.of("Alex Johnson"));
 
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
                 when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-331"));
 
                 ReservationBookingRecord toSave = ReservationBookingRecord.builder()
@@ -302,7 +307,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(141L)
                         .propertyId("PROP001")
-                        .confirmationNumber("PROP001-20260718120000000-331")
+                        .confirmationNumber("1234567893")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
                         .build();
@@ -310,7 +315,7 @@ class ReservationBookingServiceImplTest {
                 ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                         .id(702L)
                         .bookingId(141L)
-                        .confirmationNumber("PROP001-20260718120000000-331")
+                        .confirmationNumber("1234567893")
                         .propertyId("PROP001")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("51000.00"))
@@ -347,6 +352,7 @@ class ReservationBookingServiceImplTest {
         request.setGuestBalance(new BigDecimal("-1800"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
         when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-332"));
 
         ReservationBookingRecord toSave = ReservationBookingRecord.builder()
@@ -358,7 +364,7 @@ class ReservationBookingServiceImplTest {
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(142L)
                 .propertyId("PROP001")
-                .confirmationNumber("PROP001-20260718120000000-332")
+                .confirmationNumber("1234567894")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
                 .build();
@@ -366,7 +372,7 @@ class ReservationBookingServiceImplTest {
         ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                 .id(703L)
                 .bookingId(142L)
-                .confirmationNumber("PROP001-20260718120000000-332")
+                .confirmationNumber("1234567894")
                 .propertyId("PROP001")
                 .paymentMode("CARD")
                 .amount(new BigDecimal("17000.00"))
@@ -468,6 +474,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRequestDto request = validRequest();
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(propertyWizardServiceProperties.isFailOpenOnValidationError()).thenReturn(true);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
                 when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
                         .thenThrow(new ExternalServiceException("pw unavailable"));
                 when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-299"));
@@ -481,7 +488,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(120L)
                         .propertyId("PROP001")
-                        .confirmationNumber("PROP001-20260718120000000-299")
+                        .confirmationNumber("1234567895")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
                         .build();
@@ -489,7 +496,7 @@ class ReservationBookingServiceImplTest {
                 ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                         .id(699L)
                         .bookingId(120L)
-                        .confirmationNumber("PROP001-20260718120000000-299")
+                        .confirmationNumber("1234567895")
                         .propertyId("PROP001")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("17000.00"))
@@ -554,6 +561,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRequestDto request = validRequest();
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(propertyWizardServiceProperties.isFailOpenOnWriteError()).thenReturn(true);
+                when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
                 when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
                         .thenReturn(validationResponse(true, true, 5));
                 doThrow(new ExternalServiceException("deduct unavailable"))
@@ -569,7 +577,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(150L)
                         .propertyId("PROP001")
-                        .confirmationNumber("PROP001-20260718120000000-350")
+                        .confirmationNumber("1234567896")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
                         .build();
@@ -577,7 +585,7 @@ class ReservationBookingServiceImplTest {
                 ReservationPaymentTransactionRecord savedTxn = ReservationPaymentTransactionRecord.builder()
                         .id(750L)
                         .bookingId(150L)
-                        .confirmationNumber("PROP001-20260718120000000-350")
+                        .confirmationNumber("1234567896")
                         .propertyId("PROP001")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("17000.00"))
