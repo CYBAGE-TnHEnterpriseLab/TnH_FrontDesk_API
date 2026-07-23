@@ -1,5 +1,0 @@
-# Created at 2026-07-07T10:03:54.305
-Boot Manifest-JAR contains absolute paths in classpath 'E:\Features on git\pw-with-security\TnH_FrontDesk_API\pms-auth\target\test-classes'
-Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
-'other' has different root
-

@@ -1,8 +1,0 @@
-package com.pms.property.common.exception;
-
-public class NotFoundException extends RuntimeException {
-    public NotFoundException(String message) {
-        super(message);
-    }
-}
-

@@ -4,6 +4,7 @@ import Policy_Management.Policy.dto.APIResponse;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyDto;
 import Policy_Management.Policy.dto.Status;
+import Policy_Management.Policy.security.CurrentUserProvider;
 import Policy_Management.Policy.service.PolicyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,14 +21,17 @@ public class PolicyController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PolicyController.class);
     private final PolicyService service;
+    private final CurrentUserProvider currentUserProvider;
 
     @Autowired
-    public PolicyController(PolicyService service) {
+    public PolicyController(PolicyService service, CurrentUserProvider currentUserProvider) {
         this.service = service;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @PostMapping(value = "/createPolicy")
     public ResponseEntity<APIResponse<PolicyDto>> create(@RequestBody PolicyDto dto) {
+        dto.setCreatedBy(currentUserProvider.getCurrentUsername());
         LOGGER.info("POST /api/v1/policies/createPolicy request: {}", dto);
         PolicyDto created = service.createPolicy(dto);
         APIResponse<PolicyDto> response = new APIResponse<>("success", "Policy created successfully", created);
