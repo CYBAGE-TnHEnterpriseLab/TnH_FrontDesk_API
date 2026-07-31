@@ -24,6 +24,8 @@ public class PolicyMapper {
         dto.setCreatedBy(p.getCreatedBy());
         dto.setAction(p.getAction());
         dto.setPolicyCount(p.getPolicyCount());
+        dto.setPropertyId(p.getPropertyId());
+        dto.setPropertyCode(p.getPropertyCode());
         return dto;
     }
 
@@ -46,6 +48,8 @@ public class PolicyMapper {
         p.setCreatedBy(dto.getCreatedBy());
         p.setAction(dto.getAction());
         p.setPolicyCount(dto.getPolicyCount());
+        p.setPropertyId(dto.getPropertyId());
+        p.setPropertyCode(dto.getPropertyCode());
         return p;
     }
 
@@ -66,5 +70,8 @@ public class PolicyMapper {
         if (dto.getStatus() != null) p.setStatus(dto.getStatus());
         if (dto.getCreatedBy() != null) p.setCreatedBy(dto.getCreatedBy());
         if (dto.getAction() != null) p.setAction(dto.getAction());
+        if (dto.getPolicyCount() != 0) p.setPolicyCount(dto.getPolicyCount());
+        if (dto.getPropertyId() != null) p.setPropertyId(dto.getPropertyId());
+        if (dto.getPropertyCode() != null) p.setPropertyCode(dto.getPropertyCode());
     }
 }

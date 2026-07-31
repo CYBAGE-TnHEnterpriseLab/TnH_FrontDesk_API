@@ -38,6 +38,10 @@ public class PolicyDto {
 
     private int policyCount;
 
+    private Long propertyId;
+
+    private String propertyCode;
+
     public Long getId() {
         return id;
     }

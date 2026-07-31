@@ -3,6 +3,7 @@ package Policy_Management.Policy.service.impl;
 import Policy_Management.Policy.dto.PolicyDto;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyMapper;
+import Policy_Management.Policy.dto.PropertyDto;
 import Policy_Management.Policy.dto.Status;
 import Policy_Management.Policy.entity.Policy;
 import Policy_Management.Policy.exception.DuplicatePolicyException;
@@ -33,6 +34,9 @@ public class PolicyServiceImpl implements PolicyService {
         this.repository = repository;
     }
 
+    @Autowired
+    PropertyClient propertyClient;
+
     @Override
     @Transactional
     public PolicyDto createPolicy(PolicyDto dto) {
@@ -45,7 +49,11 @@ public class PolicyServiceImpl implements PolicyService {
             LOGGER.warn("Duplicate policy creation attempt for policyCode={}", dto.getPolicyCode());
             throw new DuplicatePolicyException(dto);
         }
+PropertyDto propertyDto = propertyClient.getProperty(dto.getPropertyId());
+
         Policy p = PolicyMapper.toEntity(dto);
+        p.setPropertyId(propertyDto.getId());
+        p.setPropertyCode(propertyDto.getPropertyCode());
         p.setPolicyCount(calculatePolicyCountForStatus(p.getStatus()) + 1);
         Policy saved = repository.save(p);
         repository.updatePolicyCountByStatus(p.getStatus(), (int) calculatePolicyCountForStatus(p.getStatus()));
