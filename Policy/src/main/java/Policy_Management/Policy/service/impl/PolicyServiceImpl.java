@@ -37,6 +37,9 @@ public class PolicyServiceImpl implements PolicyService {
     @Autowired
     PropertyClient propertyClient;
 
+    @Value("${property.service.url}")
+    private String propertyServiceUrl;
+
     @Override
     @Transactional
     public PolicyDto createPolicy(PolicyDto dto) {
@@ -49,7 +52,7 @@ public class PolicyServiceImpl implements PolicyService {
             LOGGER.warn("Duplicate policy creation attempt for policyCode={}", dto.getPolicyCode());
             throw new DuplicatePolicyException(dto);
         }
-PropertyDto propertyDto = propertyClient.getProperty(dto.getPropertyId());
+      PropertyDto propertyDto = propertyClient.getProperty(dto.getPropertyId());
 
         Policy p = PolicyMapper.toEntity(dto);
         p.setPropertyId(propertyDto.getId());

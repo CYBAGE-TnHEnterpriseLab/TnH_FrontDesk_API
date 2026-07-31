@@ -28,6 +28,7 @@ public class PolicyMapper {
         dto.setPropertyCode(p.getPropertyCode());
         return dto;
     }
+     
 
     public static Policy toEntity(PolicyDto dto) {
         if (dto == null) {
@@ -47,10 +48,18 @@ public class PolicyMapper {
         p.setStatus(dto.getStatus());
         p.setCreatedBy(dto.getCreatedBy());
         p.setAction(dto.getAction());
-        p.setPolicyCount(dto.getPolicyCount());
-        p.setPropertyId(dto.getPropertyId());
-        p.setPropertyCode(dto.getPropertyCode());
+        p.setPolicyCount(dto.getPolicyCount());       
         return p;
+    }
+
+    public static Policy toPropertyDto(PropertyDto propertyDto){
+        if (propertyDto == null) {
+            return null;
+        }
+        Policy p = new Policy();
+        p.setPropertyId(propertyDto.getId());
+        p.setPropertyCode(propertyDto.getPropertyCode());
+        return p;   
     }
 
     public static void copyToEntity(PolicyDto dto, Policy p) {

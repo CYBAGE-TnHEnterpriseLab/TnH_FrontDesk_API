@@ -1,6 +1,7 @@
 package Policy_Management.Policy.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +15,7 @@ import Policy_Management.Policy.dto.PropertyDto;
 import jakarta.servlet.http.HttpServletRequest;
 
 
+
 @Service
 public class PropertyClient {
     
@@ -23,9 +25,12 @@ public class PropertyClient {
     @Autowired
      private HttpServletRequest request;
 
+     @Value("${property.service.url}")
+     private String url;
+
      public PropertyDto getProperty(Long propertyId){
         String token = request.getHeader("Authorization");
-        String url = "http://localhost:8082/api/property/getPublishedProperty/" + propertyId;
+      //  String url = "http://localhost:8082/api/property/getPublishedProperty/" + propertyId;
 
            HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", token);
