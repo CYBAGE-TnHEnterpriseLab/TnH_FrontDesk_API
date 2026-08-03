@@ -48,7 +48,9 @@ public class PolicyMapper {
         p.setStatus(dto.getStatus());
         p.setCreatedBy(dto.getCreatedBy());
         p.setAction(dto.getAction());
-        p.setPolicyCount(dto.getPolicyCount());       
+        p.setPolicyCount(dto.getPolicyCount());
+        p.setPropertyId(dto.getPropertyId());
+        p.setPropertyCode(dto.getPropertyCode());
         return p;
     }
 

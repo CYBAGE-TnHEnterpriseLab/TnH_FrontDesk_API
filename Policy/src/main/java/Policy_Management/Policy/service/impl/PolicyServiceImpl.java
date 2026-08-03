@@ -37,9 +37,7 @@ public class PolicyServiceImpl implements PolicyService {
     @Autowired
     PropertyClient propertyClient;
 
-    @Value("${property.service.url}")
-    private String propertyServiceUrl;
-
+    
     @Override
     @Transactional
     public PolicyDto createPolicy(PolicyDto dto) {
@@ -47,16 +45,13 @@ public class PolicyServiceImpl implements PolicyService {
         if (dto.getStatus() == null) {
             dto.setStatus(Status.DRAFT);
         }
+        enrichPropertyDetailsWithDraftFallback(dto);
         validateForStatus(dto);
         if (repository.existsByPolicyCode(dto.getPolicyCode())) {
             LOGGER.warn("Duplicate policy creation attempt for policyCode={}", dto.getPolicyCode());
             throw new DuplicatePolicyException(dto);
         }
-      PropertyDto propertyDto = propertyClient.getProperty(dto.getPropertyId());
-
         Policy p = PolicyMapper.toEntity(dto);
-        p.setPropertyId(propertyDto.getId());
-        p.setPropertyCode(propertyDto.getPropertyCode());
         p.setPolicyCount(calculatePolicyCountForStatus(p.getStatus()) + 1);
         Policy saved = repository.save(p);
         repository.updatePolicyCountByStatus(p.getStatus(), (int) calculatePolicyCountForStatus(p.getStatus()));
@@ -119,6 +114,11 @@ public class PolicyServiceImpl implements PolicyService {
         if (dto.getStatus() != null) {
             existing.setStatus(dto.getStatus());
         }
+        if (dto.getPropertyId() == null) {
+            dto.setPropertyId(existing.getPropertyId());
+        }
+        enrichPropertyDetailsWithDraftFallback(dto);
+        
         PolicyMapper.copyToEntity(dto, existing);
         validateForStatus(PolicyMapper.toDto(existing));
         Policy saved = repository.save(existing);
@@ -127,6 +127,9 @@ public class PolicyServiceImpl implements PolicyService {
             repository.updatePolicyCountByStatus(oldStatus, (int) calculatePolicyCountForStatus(oldStatus));
             repository.updatePolicyCountByStatus(saved.getStatus(), (int) calculatePolicyCountForStatus(saved.getStatus()));
         }
+
+        
+
         PolicyDto result = PolicyMapper.toDto(saved);
         LOGGER.info("Service updatePolicy returning {}", result);
         return result;
@@ -193,9 +196,34 @@ public class PolicyServiceImpl implements PolicyService {
             if (dto.getCreatedBy() == null || dto.getCreatedBy().isBlank()) {
                 errors.put("createdBy", "Created by is required for published policies");
             }
+            if (dto.getPropertyId() == null) {
+                errors.put("propertyId", "Property id is required for published policies");
+            }
             if (!errors.isEmpty()) {
                 throw new PolicyValidationException(errors);
             }
         }
     }
+
+    private void enrichPropertyDetails(PolicyDto dto) {
+        if (dto.getPropertyId() == null) {
+            return;
+        }
+        PropertyDto property = propertyClient.getPropertyById(dto.getPropertyId());
+        dto.setPropertyCode(property.getPropertyCode());
+    }
+
+    private void enrichPropertyDetailsWithDraftFallback(PolicyDto dto) {
+        try {
+            enrichPropertyDetails(dto);
+        } catch (PolicyValidationException ex) {
+            Status status = dto.getStatus() == null ? Status.DRAFT : dto.getStatus();
+            if (Status.PUBLISHED.equals(status)) {
+                throw ex;
+            }
+            LOGGER.warn("Property API lookup failed for DRAFT policy. Continuing without propertyCode. errors={}", ex.getErrors());
+        }
+    }
+
+   
 }
