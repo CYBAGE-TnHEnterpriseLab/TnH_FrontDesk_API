@@ -1,5 +1,5 @@
 package Policy_Management.Policy.dto;
-
+import Policy_Management.Policy.dto.Status;
 import java.util.List;
 
 public class PolicyListResponse {
@@ -9,6 +9,15 @@ public class PolicyListResponse {
     private int activePolicies;
     private int draftPolicies;
     private int inactivePolicies;
+
+    public PolicyListResponse(List<PolicyDto> list) {
+        //TODO Auto-generated constructor stub
+        this.policies = list;
+        this.totalPolicies = list.size();
+        this.activePolicies = (int) list.stream().filter(p -> p.getStatus() == Status.ACTIVE).count();
+        this.draftPolicies = (int) list.stream().filter(p -> p.getStatus() == Status.DRAFT).count();
+        this.inactivePolicies = (int) list.stream().filter(p -> p.getStatus() == Status.INACTIVE).count();
+    }
 
     public List<PolicyDto> getPolicies() {
         return policies;

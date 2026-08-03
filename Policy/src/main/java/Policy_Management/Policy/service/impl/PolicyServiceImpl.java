@@ -45,7 +45,7 @@ public class PolicyServiceImpl implements PolicyService {
         if (dto.getStatus() == null) {
             dto.setStatus(Status.DRAFT);
         }
-        enrichPropertyDetailsWithDraftFallback(dto);
+        enrichPropertyDetails(dto);
         validateForStatus(dto);
         if (repository.existsByPolicyCode(dto.getPolicyCode())) {
             LOGGER.warn("Duplicate policy creation attempt for policyCode={}", dto.getPolicyCode());
@@ -77,7 +77,7 @@ public class PolicyServiceImpl implements PolicyService {
 
         List<PolicyDto> policyDtos = policies.stream().map(this::toDto).
         collect(Collectors.toList());
-        PolicyListResponse response = new PolicyListResponse();
+        PolicyListResponse response = new PolicyListResponse(policyDtos);
         response.setPolicies(policyDtos);
         response.setTotalPolicies(repository.findAll().size());
         response.setActivePolicies((int) repository.findAllByStatus(Status.ACTIVE).size());
@@ -117,7 +117,7 @@ public class PolicyServiceImpl implements PolicyService {
         if (dto.getPropertyId() == null) {
             dto.setPropertyId(existing.getPropertyId());
         }
-        enrichPropertyDetailsWithDraftFallback(dto);
+        enrichPropertyDetails(dto);
         
         PolicyMapper.copyToEntity(dto, existing);
         validateForStatus(PolicyMapper.toDto(existing));
@@ -213,16 +213,51 @@ public class PolicyServiceImpl implements PolicyService {
         dto.setPropertyCode(property.getPropertyCode());
     }
 
-    private void enrichPropertyDetailsWithDraftFallback(PolicyDto dto) {
-        try {
-            enrichPropertyDetails(dto);
-        } catch (PolicyValidationException ex) {
-            Status status = dto.getStatus() == null ? Status.DRAFT : dto.getStatus();
-            if (Status.PUBLISHED.equals(status)) {
-                throw ex;
-            }
-            LOGGER.warn("Property API lookup failed for DRAFT policy. Continuing without propertyCode. errors={}", ex.getErrors());
+    @Override
+    public PolicyListResponse getAllPoliciesByPropertyId(String propertyId) {
+        
+        if(propertyId == null || propertyId.isBlank()){
+            throw new PolicyValidationException("Property ID cannot be null or blank");
         }
+        return new PolicyListResponse(repository.findAllByPropertyId(propertyId).stream().map(this::toDto).toList());
+    }
+
+    @Override
+    @Transactional
+    public PolicyDto mapPolicyToProperty(Long policyId, String propertyId) {
+        if (propertyId == null || propertyId.isBlank()) {
+            throw new PolicyValidationException("Property ID cannot be null or blank");
+        }
+
+        Policy policy = repository.findById(policyId).orElseThrow(() -> {
+            LOGGER.warn("Policy not found for mapping id={}", policyId);
+            return new PolicyNotFoundException(policyId);
+        });
+
+        PropertyDto property = propertyClient.getPropertyById(propertyId);
+        policy.setPropertyId(propertyId);
+        policy.setPropertyCode(property.getPropertyCode());
+
+        Policy saved = repository.save(policy);
+        LOGGER.info("Policy mapped to property: policyId={} propertyId={} propertyCode={}",
+                policyId, saved.getPropertyId(), saved.getPropertyCode());
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public PolicyDto unmapPolicyFromProperty(Long policyId) {
+        Policy policy = repository.findById(policyId).orElseThrow(() -> {
+            LOGGER.warn("Policy not found for unmapping id={}", policyId);
+            return new PolicyNotFoundException(policyId);
+        });
+
+        policy.setPropertyId(null);
+        policy.setPropertyCode(null);
+
+        Policy saved = repository.save(policy);
+        LOGGER.info("Policy unmapped from property: policyId={}", policyId);
+        return toDto(saved);
     }
 
    

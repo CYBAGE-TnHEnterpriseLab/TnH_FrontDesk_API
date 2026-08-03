@@ -21,6 +21,10 @@ public interface PolicyService {
 
     void deletePolicy(Long id);
 
+    PolicyListResponse getAllPoliciesByPropertyId(String propertyId);
 
+    PolicyDto mapPolicyToProperty(Long policyId, String propertyId);
+
+    PolicyDto unmapPolicyFromProperty(Long policyId);
 
 }
