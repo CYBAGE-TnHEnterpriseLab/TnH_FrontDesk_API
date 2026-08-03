@@ -8,6 +8,7 @@ import com.pms.housekeeping.entity.StatusChangeSource;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record UpdateHousekeepingStatusRequest(
@@ -25,7 +26,7 @@ public record UpdateHousekeepingStatusRequest(
         Boolean sellable,
         String updatedBy,
         @NotNull StatusChangeSource sourceModule,
-        String reason
+        LocalDateTime lastCleanedAt
 ) {
 }
 

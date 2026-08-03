@@ -1,5 +1,6 @@
 package com.pms.housekeeping.controller;
 
+import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
 import com.pms.housekeeping.dto.response.AssignableRoomResponse;
 import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
@@ -10,17 +11,12 @@ import com.pms.housekeeping.entity.FrontOfficeStatus;
 import com.pms.housekeeping.entity.ReservationStatus;
 import com.pms.housekeeping.service.HousekeepingService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -28,6 +24,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/housekeeping")
+@Tag(name = "Housekeeping", description = "Housekeeping Management APIs")
 @Validated
 public class HousekeepingController {
 
@@ -47,41 +44,10 @@ public class HousekeepingController {
     }
 
     @GetMapping("/rooms")
-    @Operation(summary = "Get housekeeping rooms with filters")
-    public HousekeepingRoomsPageResponse rooms(
-            @RequestParam @NotNull UUID propertyId,
-            @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate,
-            @RequestParam(required = false) List<CleaningStatus> cleaningStatus,
-            @RequestParam(required = false) List<FrontOfficeStatus> frontOfficeStatus,
-            @RequestParam(required = false) List<ReservationStatus> reservationStatus,
-            @RequestParam(required = false) UUID roomTypeId,
-            @RequestParam(required = false) String floor,
-            @RequestParam(required = false) String zone,
-            @RequestParam(required = false) String roomClass,
-            @RequestParam(required = false) String attendant,
-            @RequestParam(required = false) Boolean vipOnly,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size,
-            @RequestParam(defaultValue = "roomNumber") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir
+    @Operation(summary = "Get housekeeping rooms")
+    public HousekeepingRoomsPageResponse rooms(@Valid @ModelAttribute HousekeepingRoomFilterRequest request
     ) {
-        return housekeepingService.rooms(
-                propertyId,
-                businessDate,
-                cleaningStatus,
-                frontOfficeStatus,
-                reservationStatus,
-                roomTypeId,
-                floor,
-                zone,
-                roomClass,
-                attendant,
-                vipOnly,
-                page,
-                size,
-                sortBy,
-                sortDir
-        );
+        return housekeepingService.rooms(request);
     }
 
     @GetMapping("/assignable-rooms")
@@ -104,5 +70,3 @@ public class HousekeepingController {
         return housekeepingService.updateRoomStatus(roomNumber, request);
     }
 }
-
-

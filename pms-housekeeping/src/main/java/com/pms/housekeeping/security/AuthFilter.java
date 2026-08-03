@@ -67,8 +67,10 @@ public class AuthFilter extends OncePerRequestFilter {
                 authorities
             );
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            RequestUserContext.setUsername(verifiedToken.username());
             filterChain.doFilter(request, response);
         } finally {
+            RequestUserContext.clear();
             SecurityContextHolder.clearContext();
         }
     }

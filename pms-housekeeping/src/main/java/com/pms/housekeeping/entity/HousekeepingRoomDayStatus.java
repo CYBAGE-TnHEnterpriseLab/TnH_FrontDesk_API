@@ -1,21 +1,7 @@
 package com.pms.housekeeping.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
-import jakarta.persistence.Version;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,11 +11,47 @@ import java.util.UUID;
 @Table(
         name = "housekeeping_room_day_status",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_hk_room_day", columnNames = {"property_id", "business_date", "room_number"})
+                @UniqueConstraint(
+                        name = "uk_hk_room_day",
+                        columnNames = {"property_id", "business_date", "room_number"}
+                )
         },
         indexes = {
-                @Index(name = "idx_hk_room_day_property_date", columnList = "property_id,business_date"),
-                @Index(name = "idx_hk_room_day_filters", columnList = "property_id,business_date,room_type_id,cleaning_status,front_office_status,reservation_status,is_sellable")
+
+                @Index(
+                        name = "idx_hk_property_date",
+                        columnList = "property_id,business_date"
+                ),
+
+                @Index(
+                        name = "idx_hk_room_type",
+                        columnList = "property_id,business_date,room_type_id"
+                ),
+
+                @Index(
+                        name = "idx_hk_cleaning",
+                        columnList = "property_id,business_date,cleaning_status"
+                ),
+
+                @Index(
+                        name = "idx_hk_frontoffice",
+                        columnList = "property_id,business_date,front_office_status"
+                ),
+
+                @Index(
+                        name = "idx_hk_reservation",
+                        columnList = "property_id,business_date,reservation_status"
+                ),
+
+                @Index(
+                        name = "idx_hk_floor",
+                        columnList = "property_id,business_date,floor"
+                ),
+
+                @Index(
+                        name = "idx_hk_attendant",
+                        columnList = "property_id,business_date,attendant_name"
+                )
         }
 )
 @Getter
@@ -55,33 +77,26 @@ public class HousekeepingRoomDayStatus {
     @Column(name = "room_type_id", nullable = false)
     private UUID roomTypeId;
 
+    @Column(name = "room_type_name", nullable = false, length = 100)
+    private String roomTypeName;
+
+    @Column(name = "floor", length = 50)
+    private String floor;
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "cleaning_status", nullable = false, length = 32)
+    @Column(name = "cleaning_status", nullable = false, length = 30)
     private CleaningStatus cleaningStatus;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "front_office_status", nullable = false, length = 32)
+    @Column(name = "front_office_status", nullable = false, length = 30)
     private FrontOfficeStatus frontOfficeStatus;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "reservation_status", nullable = false, length = 32)
+    @Column(name = "reservation_status", nullable = false, length = 30)
     private ReservationStatus reservationStatus;
 
     @Column(name = "assigned_reservation_id")
     private UUID assignedReservationId;
-
-    @Column(name = "attendant_name", length = 160)
-    private String attendantName;
-
-    @Column(name = "last_cleaned_at")
-    private LocalDateTime lastCleanedAt;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "priority", nullable = false, length = 32)
-    private HousekeepingPriority priority;
-
-    @Column(name = "is_sellable", nullable = false)
-    private boolean sellable;
 
     @Column(name = "guest_display_name", length = 200)
     private String guestDisplayName;
@@ -92,14 +107,18 @@ public class HousekeepingRoomDayStatus {
     @Column(name = "departure_date")
     private LocalDate departureDate;
 
-    @Column(name = "status_changed_at")
-    private LocalDateTime statusChangedAt;
+    @Column(name = "attendant_name", length = 160)
+    private String attendantName;
 
-    @Column(name = "fo_status_changed_at")
-    private LocalDateTime foStatusChangedAt;
+    @Column(name = "last_cleaned_at")
+    private LocalDateTime lastCleanedAt;
 
-    @Column(name = "reservation_status_changed_at")
-    private LocalDateTime reservationStatusChangedAt;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority", nullable = false, length = 30)
+    private HousekeepingPriority priority;
+
+    @Column(name = "is_sellable", nullable = false)
+    private boolean sellable;
 
     @Column(name = "updated_by", length = 120)
     private String updatedBy;
@@ -108,11 +127,14 @@ public class HousekeepingRoomDayStatus {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "features_csv", length = 500)
+    private String featuresCsv;
 }
 
 
