@@ -6,98 +6,79 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Component
 public class AccessTokenVerifier {
 
-    @Value("${security.jwt.secret}")
-    private String jwtSecret;
+    private static final String TOKEN_TYPE_CLAIM = "typ";
+    private static final String ROLES_CLAIM = "roles";
+    private static final String ACCESS_TOKEN_TYPE = "access";
 
-    public VerifiedAccessToken verifyAccessToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+    private final SecretKey signingKey;
 
-        String tokenType = claims.get("typ", String.class);
-        if (!"access".equalsIgnoreCase(tokenType)) {
-            throw new JwtException("Only access tokens are allowed");
-        }
-
-        String username = claims.getSubject();
-        if (!StringUtils.hasText(username)) {
-            throw new JwtException("Access token subject is missing");
-        }
-
-        Date issuedAt = claims.getIssuedAt();
-        if (issuedAt == null) {
-            throw new JwtException("Access token issued-at is missing");
-        }
-
-        Date expiration = claims.getExpiration();
-        if (expiration == null) {
-            throw new JwtException("Access token expiration is missing");
-        }
-
-        Object rolesClaim = claims.get("roles");
-        List<String> roles = extractRoles(rolesClaim);
-        if (roles.isEmpty()) {
-            throw new JwtException("Access token roles claim is missing or empty");
-        }
-
-        return new VerifiedAccessToken(username, roles);
-    }
-
-    private SecretKey getSigningKey() {
-        if (!StringUtils.hasText(jwtSecret)) {
-            throw new JwtException("JWT secret is missing");
-        }
-
-        byte[] secretBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+    public AccessTokenVerifier(@Value("${security.jwt.secret}") String secret) {
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
-            throw new JwtException("JWT secret must be at least 32 bytes");
+            throw new IllegalArgumentException("JWT secret must be at least 32 bytes long");
         }
-        return Keys.hmacShaKeyFor(secretBytes);
+        this.signingKey = Keys.hmacShaKeyFor(secretBytes);
     }
 
-    private List<String> extractRoles(Object rolesClaim) {
-        if (rolesClaim == null) {
-            return List.of();
-        }
+    public Optional<VerifiedAccessToken> verify(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
 
-        if (rolesClaim instanceof Collection<?> rolesCollection) {
-            List<String> roles = new ArrayList<>();
-            for (Object role : rolesCollection) {
-                if (role instanceof String roleName && StringUtils.hasText(roleName)) {
-                    roles.add(roleName.trim());
-                }
+            String tokenType = claims.get(TOKEN_TYPE_CLAIM, String.class);
+            if (!ACCESS_TOKEN_TYPE.equals(tokenType)) {
+                return Optional.empty();
             }
-            return roles;
-        }
 
-        if (rolesClaim instanceof String rolesString && StringUtils.hasText(rolesString)) {
-            String[] splitRoles = rolesString.split(",");
-            List<String> roles = new ArrayList<>();
-            for (String role : splitRoles) {
-                if (StringUtils.hasText(role)) {
-                    roles.add(role.trim());
-                }
+            String username = claims.getSubject();
+            if (username == null || username.isBlank()) {
+                return Optional.empty();
             }
-            return roles;
-        }
 
-        return List.of();
+            return Optional.of(new VerifiedAccessToken(username, extractRoles(claims)));
+        } catch (JwtException | IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 
-    public record VerifiedAccessToken(String username, List<String> roles) {
+    private Set<String> extractRoles(Claims claims) {
+        Object rawRoles = claims.get(ROLES_CLAIM);
+        if (rawRoles == null) {
+            return Set.of();
+        }
+
+        Stream<String> roleStream;
+        if (rawRoles instanceof List<?> roleList) {
+            roleStream = roleList.stream().map(String::valueOf);
+        } else if (rawRoles instanceof String roleString) {
+            roleStream = Arrays.stream(roleString.split(","));
+        } else {
+            return Set.of();
+        }
+
+        return roleStream
+                .map(String::trim)
+                .filter(role -> !role.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    public record VerifiedAccessToken(String username, Set<String> roles) {
     }
 }

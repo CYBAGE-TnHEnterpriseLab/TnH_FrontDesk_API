@@ -13,6 +13,7 @@ public class JwtAccessTokenValidator {
     }
 
     public AccessTokenVerifier.VerifiedAccessToken validate(String token) throws JwtException {
-        return accessTokenVerifier.verifyAccessToken(token);
+        return accessTokenVerifier.verify(token)
+                .orElseThrow(() -> new JwtException("Invalid or expired access token"));
     }
 }

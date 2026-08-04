@@ -17,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -96,7 +97,7 @@ class AuthFilterTest {
 
         String token = "valid-token";
         when(jwtAccessTokenValidator.validate(token))
-                .thenReturn(new AccessTokenVerifier.VerifiedAccessToken("admin-user", List.of("ADMIN")));
+                .thenReturn(new AccessTokenVerifier.VerifiedAccessToken("admin-user", Set.of("ADMIN")));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/secure/ping");
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
