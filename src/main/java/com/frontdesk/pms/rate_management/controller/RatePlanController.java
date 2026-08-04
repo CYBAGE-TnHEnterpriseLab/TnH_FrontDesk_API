@@ -13,7 +13,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/rate-plans/property/{propertyId}")
+@RequestMapping("/api/rate-plans")
 public class RatePlanController {
 
     private final RatePlanService ratePlanService;
@@ -23,14 +23,14 @@ public class RatePlanController {
     }
 
     // Create a new rate plan for the given property.
-    @PostMapping
+    @PostMapping("/create-rate-plan/property/{propertyId}")
     public ResponseEntity<RatePlanResponseDTO> createRatePlan(@PathVariable String propertyId,
                                                               @RequestBody RatePlanRequestDTO requestDTO) {
         return ResponseEntity.ok(ratePlanService.createRatePlan(propertyId, requestDTO));
     }
 
     // Update an existing rate plan for the given property.
-    @PutMapping("/{id}")
+    @PutMapping("/update-rate-plan/property/{propertyId}/{id}")
     public ResponseEntity<RatePlanResponseDTO> updateRatePlan(@PathVariable String propertyId,
                                                               @PathVariable Long id,
                                                               @RequestBody RatePlanRequestDTO requestDTO) {
@@ -38,13 +38,13 @@ public class RatePlanController {
     }
 
     // List all rate plans configured for the given property.
-    @GetMapping
+    @GetMapping("/get-all-rate-plans/property/{propertyId}")
     public List<RatePlanResponseDTO> getAllRatePlans(@PathVariable String propertyId) {
         return ratePlanService.getAllRatePlans(propertyId);
     }
 
     // Delete one rate plan from the given property.
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/delete-rate-plan/property/{propertyId}/{id}")
     public ResponseEntity<Void> deleteRatePlan(@PathVariable String propertyId,
                                                @PathVariable Long id) {
         ratePlanService.deleteRatePlan(propertyId, id);
@@ -59,7 +59,7 @@ public class RatePlanController {
     // }
 
     // Change the status (ACTIVE/INACTIVE) of a rate plan in the given property.
-    @PatchMapping("/{id}/status")
+    @PatchMapping("/change-rate-plan-status/property/{propertyId}/{id}/status")
     public ResponseEntity<RatePlanResponseDTO> updateStatus(@PathVariable String propertyId,
                                                             @PathVariable Long id,
                                                             @RequestParam RatePlanStatus status) {
@@ -67,7 +67,7 @@ public class RatePlanController {
     }
 
     // Fetch available rate plans for a room type/occupancy/meal/date in the given property.
-    @GetMapping("/available")
+    @GetMapping("/available/property/{propertyId}")
     public List<RatePlanResponseDTO> getAvailableRatePlans(@PathVariable String propertyId,
                                                             @RequestParam Long roomTypeId,
                                                             @RequestParam String occupancyType,
@@ -77,7 +77,7 @@ public class RatePlanController {
     }
 
     // Calculate final price for a rate plan and room type in the given property.
-    @GetMapping("/{id}/calculated-price")
+    @GetMapping("/final-price/property/{propertyId}/{id}/calculated-price")
     public ResponseEntity<RatePlanPriceResponseDTO> getCalculatedPrice(@PathVariable String propertyId,
                                                                        @PathVariable Long id,
                                                                        @RequestParam Long roomTypeId) {

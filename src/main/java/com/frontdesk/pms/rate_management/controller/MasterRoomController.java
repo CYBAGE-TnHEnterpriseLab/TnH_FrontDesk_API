@@ -24,34 +24,34 @@ public class MasterRoomController {
 
 
     // Create a new master room under a specific property.
-    @PostMapping("/property/{propertyId}")
+    @PostMapping("/create-master-room/property/{propertyId}")
     public ResponseEntity<MasterRoomResponseDTO> createMasterRoom(@PathVariable String propertyId, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
         MasterRoomResponseDTO saved = masterRoomService.createMasterRoom(propertyId, masterRoomRequestDTO);
         return ResponseEntity.ok(saved);
     }
 
     // Update an existing master room within a specific property.
-    @PutMapping("/property/{propertyId}/{id}")
+    @PutMapping("/update-master-room/property/{propertyId}/{id}")
     public ResponseEntity<MasterRoomResponseDTO> updateMasterRoom(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
         MasterRoomResponseDTO saved = masterRoomService.updateMasterRoom(propertyId, id, masterRoomRequestDTO);
         return ResponseEntity.ok(saved);
     }
 
     // List all master rooms configured for a property.
-    @GetMapping("/property/{propertyId}")
+    @GetMapping("/get-all-master-room/property/{propertyId}")
     public List<MasterRoomResponseDTO> getMasterRoomsByProperty(@PathVariable String propertyId) {
         return masterRoomService.getMasterRoomsByPropertyId(propertyId);
     }
 
     // Delete a master room scoped to a property.
-    @DeleteMapping("/property/{propertyId}/{id}")
+    @DeleteMapping("/delete-master-room/property/{propertyId}/{id}")
     public ResponseEntity<Void> deleteMasterRoom(@PathVariable String propertyId, @PathVariable Long id) {
         masterRoomService.deleteMasterRoom(propertyId, id);
         return ResponseEntity.noContent().build();
     }
 
     // Add or update master pricing for a specific occupancy type.
-    @PostMapping("/property/{propertyId}/{id}/pricing")
+    @PostMapping("/update-pricing-by-occupancy/property/{propertyId}/{id}/pricing")
     public ResponseEntity<MasterRoomPricingResponseDTO> addOrUpdatePricing(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomPricingRequestDTO pricingRequestDTO) {
         MasterRoomPricingResponseDTO saved = masterRoomService.addOrUpdatePricing(propertyId, id, pricingRequestDTO);
         return ResponseEntity.ok(saved);
@@ -64,14 +64,14 @@ public class MasterRoomController {
     }
 
     // Map a room type to a master room and inherit pricing.
-    @PostMapping("/property/{propertyId}/{id}/map-room-type")
+    @PostMapping("/map-room-type/property/{propertyId}/{id}")
     public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
         MasterRoomRoomTypeMappingResponseDTO saved = masterRoomService.upsertRoomTypeMapping(propertyId, mappingRequestDTO.getRoomTypeId(), id);
         return ResponseEntity.ok(saved);
     }
 
     // Get all room-type mappings for a master room.
-    @GetMapping("/{id}/mappings")
+    @GetMapping("/get-room-type-mapping/{id}/mappings")
     public List<MasterRoomRoomTypeMappingResponseDTO> getMappingsByMasterRoom(@PathVariable Long id) {
         return masterRoomService.getMappingsByMasterRoom(id);
     }
