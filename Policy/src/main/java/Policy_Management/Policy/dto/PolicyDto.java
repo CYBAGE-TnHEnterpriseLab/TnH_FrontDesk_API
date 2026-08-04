@@ -1,6 +1,7 @@
 package Policy_Management.Policy.dto;
 
 import java.time.LocalDate;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -37,6 +38,10 @@ public class PolicyDto {
     private String action;
 
     private int policyCount;
+
+    private String propertyId;
+
+    private String propertyCode;
 
     public Long getId() {
         return id;

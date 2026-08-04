@@ -362,7 +362,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         saveHistory(row, "cleaningStatus", row.getCleaningStatus().name(), request.cleaningStatus().name(), request, now, loggedInUser);
         row.setCleaningStatus(request.cleaningStatus());
-        if (request.cleaningStatus() == CleaningStatus.CLEAN || request.cleaningStatus() == CleaningStatus.INSPECTED) {
+        if (request.cleaningStatus() == CleaningStatus.CLEAN ) {
             row.setLastCleanedAt(now);
 
             log.info(

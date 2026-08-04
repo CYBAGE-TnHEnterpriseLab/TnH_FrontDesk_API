@@ -1,5 +1,4 @@
 package Policy_Management.Policy.controller;
-
 import Policy_Management.Policy.dto.APIResponse;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyDto;
@@ -28,7 +27,7 @@ public class PolicyController {
         this.service = service;
         this.currentUserProvider = currentUserProvider;
     }
-
+    
     @PostMapping(value = "/createPolicy")
     public ResponseEntity<APIResponse<PolicyDto>> create(@RequestBody PolicyDto dto) {
         dto.setCreatedBy(currentUserProvider.getCurrentUsername());
@@ -55,6 +54,15 @@ public class PolicyController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    @GetMapping(value = "/getPoliciesByPropertyId/{propertyId}")
+    public ResponseEntity<APIResponse<PolicyListResponse>> getByPropertyId(@PathVariable String propertyId) {
+        LOGGER.info("GET /api/v1/policies/getPoliciesByPropertyId/{} request", propertyId);
+        APIResponse<PolicyListResponse> response = new APIResponse<>("success", 
+        "Policies retrieved successfully", service.getAllPoliciesByPropertyId(propertyId));
+        LOGGER.info("GET /api/v1/policies/getPoliciesByPropertyId/{} response: {}", propertyId, response);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
     @PutMapping(value = "/updatePolicy/{id}")
     public ResponseEntity<APIResponse<PolicyDto>> update(@PathVariable Long id, @RequestBody PolicyDto dto) {
         LOGGER.info("PUT /api/v1/policies/updatePolicy/{} request: {}", id, dto);
@@ -63,6 +71,26 @@ public class PolicyController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    @PutMapping(value = "/mapPolicyToProperty/{policyId}/{propertyId}")
+    public ResponseEntity<APIResponse<PolicyDto>> mapPolicyToProperty(@PathVariable Long policyId, @PathVariable String propertyId) {
+        LOGGER.info("PUT /api/v1/policies/mapPolicyToProperty/{}/{} request", policyId, propertyId);
+        PolicyDto mapped = service.mapPolicyToProperty(policyId, propertyId);
+        APIResponse<PolicyDto> response = new APIResponse<>("success", "Policy mapped to property successfully", mapped);
+        LOGGER.info("PUT /api/v1/policies/mapPolicyToProperty/{}/{} response: {}", policyId, propertyId, response);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PutMapping(value = "/unmapPolicyFromProperty/{policyId}")
+    public ResponseEntity<APIResponse<PolicyDto>> unmapPolicyFromProperty(@PathVariable Long policyId) {
+        LOGGER.info("PUT /api/v1/policies/unmapPolicyFromProperty/{} request", policyId);
+        PolicyDto unmapped = service.unmapPolicyFromProperty(policyId);
+        APIResponse<PolicyDto> response = new APIResponse<>("success", "Policy unmapped from property successfully", unmapped);
+        LOGGER.info("PUT /api/v1/policies/unmapPolicyFromProperty/{} response: {}", policyId, response);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    //@PutMapping(value = "/updatePolicyByPropertyId/{PropertyId}")
+     
     @DeleteMapping(value = "/deletePolicy/{id}")
     public ResponseEntity<APIResponse<Void>> delete(@PathVariable Long id) {
         LOGGER.info("DELETE /api/v1/policies/deletePolicy/{} request", id);

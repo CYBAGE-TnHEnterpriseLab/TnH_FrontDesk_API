@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -21,4 +22,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     @Modifying
     @Query("update Policy p set p.policyCount = :count where p.status = :status")
     int updatePolicyCountByStatus(Status status, int count);
+
+    List<Policy> findAllByPropertyId(String propertyId);
 }

@@ -3,6 +3,7 @@ package Policy_Management.Policy.service.impl;
 import Policy_Management.Policy.dto.PolicyDto;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyMapper;
+import Policy_Management.Policy.dto.PropertyDto;
 import Policy_Management.Policy.dto.Status;
 import Policy_Management.Policy.entity.Policy;
 import Policy_Management.Policy.exception.DuplicatePolicyException;
@@ -33,6 +34,10 @@ public class PolicyServiceImpl implements PolicyService {
         this.repository = repository;
     }
 
+    @Autowired
+    PropertyClient propertyClient;
+
+    
     @Override
     @Transactional
     public PolicyDto createPolicy(PolicyDto dto) {
@@ -40,6 +45,7 @@ public class PolicyServiceImpl implements PolicyService {
         if (dto.getStatus() == null) {
             dto.setStatus(Status.DRAFT);
         }
+        enrichPropertyDetails(dto);
         validateForStatus(dto);
         if (repository.existsByPolicyCode(dto.getPolicyCode())) {
             LOGGER.warn("Duplicate policy creation attempt for policyCode={}", dto.getPolicyCode());
@@ -71,7 +77,7 @@ public class PolicyServiceImpl implements PolicyService {
 
         List<PolicyDto> policyDtos = policies.stream().map(this::toDto).
         collect(Collectors.toList());
-        PolicyListResponse response = new PolicyListResponse();
+        PolicyListResponse response = new PolicyListResponse(policyDtos);
         response.setPolicies(policyDtos);
         response.setTotalPolicies(repository.findAll().size());
         response.setActivePolicies((int) repository.findAllByStatus(Status.ACTIVE).size());
@@ -108,6 +114,11 @@ public class PolicyServiceImpl implements PolicyService {
         if (dto.getStatus() != null) {
             existing.setStatus(dto.getStatus());
         }
+        if (dto.getPropertyId() == null) {
+            dto.setPropertyId(existing.getPropertyId());
+        }
+        enrichPropertyDetails(dto);
+        
         PolicyMapper.copyToEntity(dto, existing);
         validateForStatus(PolicyMapper.toDto(existing));
         Policy saved = repository.save(existing);
@@ -116,6 +127,9 @@ public class PolicyServiceImpl implements PolicyService {
             repository.updatePolicyCountByStatus(oldStatus, (int) calculatePolicyCountForStatus(oldStatus));
             repository.updatePolicyCountByStatus(saved.getStatus(), (int) calculatePolicyCountForStatus(saved.getStatus()));
         }
+
+        
+
         PolicyDto result = PolicyMapper.toDto(saved);
         LOGGER.info("Service updatePolicy returning {}", result);
         return result;
@@ -182,9 +196,69 @@ public class PolicyServiceImpl implements PolicyService {
             if (dto.getCreatedBy() == null || dto.getCreatedBy().isBlank()) {
                 errors.put("createdBy", "Created by is required for published policies");
             }
+            if (dto.getPropertyId() == null) {
+                errors.put("propertyId", "Property id is required for published policies");
+            }
             if (!errors.isEmpty()) {
                 throw new PolicyValidationException(errors);
             }
         }
     }
+
+    private void enrichPropertyDetails(PolicyDto dto) {
+        if (dto.getPropertyId() == null) {
+            return;
+        }
+        PropertyDto property = propertyClient.getPropertyById(dto.getPropertyId());
+        dto.setPropertyCode(property.getPropertyCode());
+    }
+
+    @Override
+    public PolicyListResponse getAllPoliciesByPropertyId(String propertyId) {
+        
+        if(propertyId == null || propertyId.isBlank()){
+            throw new PolicyValidationException("Property ID cannot be null or blank");
+        }
+        return new PolicyListResponse(repository.findAllByPropertyId(propertyId).stream().map(this::toDto).toList());
+    }
+
+    @Override
+    @Transactional
+    public PolicyDto mapPolicyToProperty(Long policyId, String propertyId) {
+        if (propertyId == null || propertyId.isBlank()) {
+            throw new PolicyValidationException("Property ID cannot be null or blank");
+        }
+
+        Policy policy = repository.findById(policyId).orElseThrow(() -> {
+            LOGGER.warn("Policy not found for mapping id={}", policyId);
+            return new PolicyNotFoundException(policyId);
+        });
+
+        PropertyDto property = propertyClient.getPropertyById(propertyId);
+        policy.setPropertyId(propertyId);
+        policy.setPropertyCode(property.getPropertyCode());
+
+        Policy saved = repository.save(policy);
+        LOGGER.info("Policy mapped to property: policyId={} propertyId={} propertyCode={}",
+                policyId, saved.getPropertyId(), saved.getPropertyCode());
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public PolicyDto unmapPolicyFromProperty(Long policyId) {
+        Policy policy = repository.findById(policyId).orElseThrow(() -> {
+            LOGGER.warn("Policy not found for unmapping id={}", policyId);
+            return new PolicyNotFoundException(policyId);
+        });
+
+        policy.setPropertyId(null);
+        policy.setPropertyCode(null);
+
+        Policy saved = repository.save(policy);
+        LOGGER.info("Policy unmapped from property: policyId={}", policyId);
+        return toDto(saved);
+    }
+
+   
 }

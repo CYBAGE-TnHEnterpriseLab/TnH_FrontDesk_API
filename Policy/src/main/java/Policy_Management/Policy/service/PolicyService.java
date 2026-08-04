@@ -4,7 +4,8 @@ import Policy_Management.Policy.dto.PolicyDto;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.Status;
 
-import java.util.List;
+
+
 
 public interface PolicyService {
 
@@ -19,4 +20,11 @@ public interface PolicyService {
     PolicyDto updatePolicy(Long id, PolicyDto dto);
 
     void deletePolicy(Long id);
+
+    PolicyListResponse getAllPoliciesByPropertyId(String propertyId);
+
+    PolicyDto mapPolicyToProperty(Long policyId, String propertyId);
+
+    PolicyDto unmapPolicyFromProperty(Long policyId);
+
 }

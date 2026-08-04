@@ -10,6 +10,12 @@ public class PolicyValidationException extends RuntimeException {
         this.errors = errors;
     }
 
+    public PolicyValidationException(String string) {
+        super("Policy validation failed: " + string);
+        this.errors = null;
+        //TODO Auto-generated constructor stub
+    }
+
     public Map<String, String> getErrors() {
         return errors;
     }
