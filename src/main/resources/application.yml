@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/folio_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  jackson:
+    time-zone: UTC
+
+security:
+  jwt:
+    # Use the same signing secret used by auth service.
+    secret: ${PMS_FRONTDESK_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}
+    secret-base64-encoded: false
+    public-paths:
+      - /actuator/health
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /api-docs/**
+      - /v3/api-docs/**
+      - /error
+
+integration:
+  reservation-service:
+    enabled: true
+    base-url: http://localhost:8090
+    # Prefer X-Property-Id request header; this is fallback from env/config.
+    property-id: ${RESERVATION_PROPERTY_ID:}
