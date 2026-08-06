@@ -59,15 +59,15 @@ class ReservationCheckInWorkflowControllerTest {
                 .progressPercent(0)
                 .build();
 
-        when(workflowService.getWorkflow(10L)).thenReturn(response);
+        when(workflowService.getWorkflow("CONF-101")).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/reservations/bookings/10/check-in"))
+        mockMvc.perform(get("/api/v1/reservations/bookings/CONF-101/check-in"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.bookingId").value(10))
                 .andExpect(jsonPath("$.data.currentStep").value("GUEST_DETAILS"));
 
-        verify(workflowService).getWorkflow(10L);
+        verify(workflowService).getWorkflow("CONF-101");
     }
 
     @Test
@@ -81,9 +81,9 @@ class ReservationCheckInWorkflowControllerTest {
                 .totalSteps(5)
                 .build();
 
-        when(workflowService.getStepProgress(10L)).thenReturn(response);
+        when(workflowService.getStepProgress("CONF-101")).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/reservations/bookings/10/check-in/steps"))
+        mockMvc.perform(get("/api/v1/reservations/bookings/CONF-101/check-in/steps"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.currentStep").value("ROOM_STAY"))
@@ -106,9 +106,9 @@ class ReservationCheckInWorkflowControllerTest {
                         .build()))
                 .build();
 
-        when(workflowService.getAuditHistory(10L)).thenReturn(response);
+        when(workflowService.getAuditHistory("CONF-101")).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/reservations/bookings/10/check-in/audit-history"))
+        mockMvc.perform(get("/api/v1/reservations/bookings/CONF-101/check-in/audit-history"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.totalEvents").value(1))
@@ -145,7 +145,7 @@ class ReservationCheckInWorkflowControllerTest {
                 .build();
 
         when(workflowService.getAuditHistoryPage(
-                eq(10L),
+                eq("CONF-101"),
                 eq("SIGNATURE_CAPTURED"),
                 eq(LocalDate.of(2026, 7, 20)),
                 eq(LocalDate.of(2026, 7, 22)),
@@ -154,7 +154,7 @@ class ReservationCheckInWorkflowControllerTest {
                 eq("desc")
         )).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/reservations/bookings/10/check-in/audit-history/page")
+        mockMvc.perform(get("/api/v1/reservations/bookings/CONF-101/check-in/audit-history/page")
                         .queryParam("eventType", "SIGNATURE_CAPTURED")
                         .queryParam("fromDate", "2026-07-20")
                         .queryParam("toDate", "2026-07-22")
@@ -172,7 +172,7 @@ class ReservationCheckInWorkflowControllerTest {
         CheckInGuestUpdateRequestDto request = new CheckInGuestUpdateRequestDto();
         request.setPersonalEmail(" ");
 
-        mockMvc.perform(put("/api/v1/reservations/bookings/10/check-in/guest-details")
+        mockMvc.perform(put("/api/v1/reservations/bookings/CONF-101/check-in/guest-details")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -187,9 +187,9 @@ class ReservationCheckInWorkflowControllerTest {
                 .message("Payment validation passed")
                 .build();
 
-        when(workflowService.validatePayment(eq(10L), any())).thenReturn(response);
+        when(workflowService.validatePayment(eq("CONF-101"), any())).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/reservations/bookings/10/check-in/payment-validation"))
+        mockMvc.perform(post("/api/v1/reservations/bookings/CONF-101/check-in/payment-validation"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.passed").value(true));
@@ -210,9 +210,9 @@ class ReservationCheckInWorkflowControllerTest {
                 .checkInCompletedAt(LocalDateTime.of(2026, 7, 22, 10, 30))
                 .build();
 
-        when(workflowService.completeCheckIn(eq(10L), any(CheckInCompleteRequestDto.class))).thenReturn(response);
+        when(workflowService.completeCheckIn(eq("CONF-101"), any(CheckInCompleteRequestDto.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/reservations/bookings/10/check-in/complete")
+        mockMvc.perform(post("/api/v1/reservations/bookings/CONF-101/check-in/complete")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -230,9 +230,9 @@ class ReservationCheckInWorkflowControllerTest {
                 .signedAt(LocalDateTime.of(2026, 7, 22, 9, 0))
                 .build();
 
-        when(workflowService.getSignature(10L)).thenReturn(response);
+        when(workflowService.getSignature("CONF-101")).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/reservations/bookings/10/check-in/signature"))
+        mockMvc.perform(get("/api/v1/reservations/bookings/CONF-101/check-in/signature"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.contentType").value("image/png"));

@@ -398,7 +398,7 @@ public class GuestListingController {
                 .salutation(booking.getSalutation())
                 .firstName(names[0])
                 .lastName(names[1])
-                .roomNo(roomSnapshot == null ? null : roomSnapshot.roomNo())
+                .roomNo(resolveRoomNo(booking, roomSnapshot))
                 .reservationType(booking.getReservationType())
                 .city(booking.getCity())
                 .rateCode(booking.getRateCode())
@@ -451,6 +451,13 @@ public class GuestListingController {
         int adults = adultCount == null ? 0 : Math.max(0, adultCount);
         int children = childCount == null ? 0 : Math.max(0, childCount);
         return adults + children;
+    }
+
+    private String resolveRoomNo(ReservationBookingRecord booking, RoomStatusSnapshot roomSnapshot) {
+        if (roomSnapshot != null && StringUtils.hasText(roomSnapshot.roomNo())) {
+            return roomSnapshot.roomNo();
+        }
+        return booking.getAssignedRoomNo();
     }
 
     private String resolveStayStatus(LocalDate businessDate, LocalDate checkInDate, LocalDate checkOutDate, String listingType) {

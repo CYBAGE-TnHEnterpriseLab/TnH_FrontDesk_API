@@ -38,6 +38,7 @@ public class ReservationBookingResponseDto {
     String reservationType;
     String roomType;
     String assignedRoomNo;
+    Integer floor;
     String rateCode;
     Integer numberOfRooms;
     BigDecimal rate;

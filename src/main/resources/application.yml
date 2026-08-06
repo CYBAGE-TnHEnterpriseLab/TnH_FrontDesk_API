@@ -41,9 +41,9 @@ property-wizard-service:
 rate-management:
   baseUrl: http://localhost:8087
   serviceAuthToken: ${PMS_RATE_MANAGEMENT_SERVICE_TOKEN:}
-  listRatePlansPath: /api/rate-plans/property/{propertyId}
-  availablePlansPath: /api/rate-plans/property/{propertyId}/available
-  calculatedPricePath: /api/rate-plans/property/{propertyId}/{ratePlanId}/calculated-price
+  listRatePlansPath: /api/rate-plans/get-all-rate-plans/property/{propertyId}
+  availablePlansPath: /api/rate-plans/available/property/{propertyId}
+  calculatedPricePath: /api/rate-plans/final-price/property/{propertyId}/{id}/calculated-price
   connectTimeoutMs: 3000
   readTimeoutMs: 6000
   retryMaxAttempts: 2

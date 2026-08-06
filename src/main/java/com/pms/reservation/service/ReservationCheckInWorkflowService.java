@@ -14,26 +14,26 @@ import com.pms.reservation.dto.CheckInWorkflowResponseDto;
 
 public interface ReservationCheckInWorkflowService {
 
-    CheckInWorkflowResponseDto getWorkflow(Long bookingId);
+    CheckInWorkflowResponseDto getWorkflow(String confirmationNumber);
 
-    CheckInWorkflowResponseDto updateGuestDetails(Long bookingId, CheckInGuestUpdateRequestDto request, String actor);
+    CheckInWorkflowResponseDto updateGuestDetails(String confirmationNumber, CheckInGuestUpdateRequestDto request, String actor);
 
-    CheckInWorkflowResponseDto updateRoomStay(Long bookingId, CheckInRoomStayUpdateRequestDto request, String actor);
+    CheckInWorkflowResponseDto updateRoomStay(String confirmationNumber, CheckInRoomStayUpdateRequestDto request, String actor);
 
-    CheckInWorkflowResponseDto saveSignature(Long bookingId, CheckInSignatureRequestDto request, String actor);
+    CheckInWorkflowResponseDto saveSignature(String confirmationNumber, CheckInSignatureRequestDto request, String actor);
 
-    CheckInPaymentValidationResponseDto validatePayment(Long bookingId, String actor);
+    CheckInPaymentValidationResponseDto validatePayment(String confirmationNumber, String actor);
 
-    CheckInCompletionResponseDto completeCheckIn(Long bookingId, CheckInCompleteRequestDto request);
+    CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, CheckInCompleteRequestDto request);
 
-    CheckInSignatureResponseDto getSignature(Long bookingId);
+    CheckInSignatureResponseDto getSignature(String confirmationNumber);
 
-    CheckInStepProgressResponseDto getStepProgress(Long bookingId);
+    CheckInStepProgressResponseDto getStepProgress(String confirmationNumber);
 
-    CheckInAuditHistoryResponseDto getAuditHistory(Long bookingId);
+    CheckInAuditHistoryResponseDto getAuditHistory(String confirmationNumber);
 
         CheckInAuditPageResponseDto getAuditHistoryPage(
-            Long bookingId,
+            String confirmationNumber,
             String eventType,
             java.time.LocalDate fromDate,
             java.time.LocalDate toDate,

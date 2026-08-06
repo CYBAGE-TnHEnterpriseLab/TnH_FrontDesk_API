@@ -65,8 +65,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional(readOnly = true)
-    public CheckInWorkflowResponseDto getWorkflow(Long bookingId) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInWorkflowResponseDto getWorkflow(String confirmationNumber) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         ReservationCheckInSignatureRecord signature = signatureRepository.findByBookingId(bookingId).orElse(null);
         return toWorkflowResponse(booking, workflow, signature);
@@ -74,8 +75,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
         @Override
         @Transactional(readOnly = true)
-        public CheckInStepProgressResponseDto getStepProgress(Long bookingId) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+        public CheckInStepProgressResponseDto getStepProgress(String confirmationNumber) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         ReservationCheckInSignatureRecord signature = signatureRepository.findByBookingId(bookingId).orElse(null);
 
@@ -99,8 +101,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
         @Override
         @Transactional(readOnly = true)
-        public CheckInAuditHistoryResponseDto getAuditHistory(Long bookingId) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+        public CheckInAuditHistoryResponseDto getAuditHistory(String confirmationNumber) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         List<ReservationCheckInAuditRecord> records = auditRepository.findByBookingIdOrderByCreatedAtAsc(bookingId);
 
         List<CheckInAuditEventDto> events = records.stream()
@@ -125,7 +128,7 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
     @Override
     @Transactional(readOnly = true)
     public CheckInAuditPageResponseDto getAuditHistoryPage(
-            Long bookingId,
+            String confirmationNumber,
             String eventType,
             LocalDate fromDate,
             LocalDate toDate,
@@ -133,7 +136,8 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
             int size,
             String sortDir
     ) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
 
         int resolvedPage = Math.max(page, 0);
         int resolvedSize = Math.max(1, Math.min(size, 200));
@@ -213,8 +217,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional
-    public CheckInWorkflowResponseDto updateGuestDetails(Long bookingId, CheckInGuestUpdateRequestDto request, String actor) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInWorkflowResponseDto updateGuestDetails(String confirmationNumber, CheckInGuestUpdateRequestDto request, String actor) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         ensureStepAllowed(workflow, CheckInStep.GUEST_DETAILS);
 
@@ -253,8 +258,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional
-    public CheckInWorkflowResponseDto updateRoomStay(Long bookingId, CheckInRoomStayUpdateRequestDto request, String actor) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInWorkflowResponseDto updateRoomStay(String confirmationNumber, CheckInRoomStayUpdateRequestDto request, String actor) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         ensureStepAllowed(workflow, CheckInStep.ROOM_STAY);
 
@@ -300,8 +306,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional
-    public CheckInWorkflowResponseDto saveSignature(Long bookingId, CheckInSignatureRequestDto request, String actor) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInWorkflowResponseDto saveSignature(String confirmationNumber, CheckInSignatureRequestDto request, String actor) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         ensureStepAllowed(workflow, CheckInStep.SIGNATURE);
 
@@ -335,8 +342,8 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional
-    public CheckInPaymentValidationResponseDto validatePayment(Long bookingId, String actor) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInPaymentValidationResponseDto validatePayment(String confirmationNumber, String actor) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         ensureStepAllowed(workflow, CheckInStep.PAYMENT_VALIDATION);
 
@@ -364,8 +371,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional
-    public CheckInCompletionResponseDto completeCheckIn(Long bookingId, CheckInCompleteRequestDto request) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, CheckInCompleteRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInWorkflowRecord workflow = getOrCreateWorkflow(booking);
         String targetStatus = resolveTargetStatus(request.getTargetStatus());
 
@@ -450,8 +458,9 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
 
     @Override
     @Transactional(readOnly = true)
-    public CheckInSignatureResponseDto getSignature(Long bookingId) {
-        ReservationBookingRecord booking = getBookingOrThrow(bookingId);
+    public CheckInSignatureResponseDto getSignature(String confirmationNumber) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        Long bookingId = booking.getId();
         ReservationCheckInSignatureRecord signature = signatureRepository.findByBookingId(bookingId)
                 .orElseThrow(() -> new BadRequestException("Signature not found for booking"));
 
@@ -464,8 +473,8 @@ public class ReservationCheckInWorkflowServiceImpl implements com.pms.reservatio
                 .build();
     }
 
-    private ReservationBookingRecord getBookingOrThrow(Long bookingId) {
-        return reservationBookingRepository.findById(bookingId)
+    private ReservationBookingRecord getBookingOrThrow(String confirmationNumber) {
+        return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
                 .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
     }
 
