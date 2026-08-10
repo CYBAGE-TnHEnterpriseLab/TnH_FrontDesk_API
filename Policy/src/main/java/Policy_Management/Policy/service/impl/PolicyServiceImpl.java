@@ -196,9 +196,6 @@ public class PolicyServiceImpl implements PolicyService {
             if (dto.getCreatedBy() == null || dto.getCreatedBy().isBlank()) {
                 errors.put("createdBy", "Created by is required for published policies");
             }
-            if (dto.getPropertyId() == null) {
-                errors.put("propertyId", "Property id is required for published policies");
-            }
             if (!errors.isEmpty()) {
                 throw new PolicyValidationException(errors);
             }
@@ -206,7 +203,7 @@ public class PolicyServiceImpl implements PolicyService {
     }
 
     private void enrichPropertyDetails(PolicyDto dto) {
-        if (dto.getPropertyId() == null) {
+        if (dto.getPropertyId() == null || dto.getPropertyId().isBlank()) {
             return;
         }
         PropertyDto property = propertyClient.getPropertyById(dto.getPropertyId());

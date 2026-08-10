@@ -61,9 +61,9 @@ public class Policy {
     @Column(name = "policy_count")
     private int policyCount;
 
-    @Column(name = "property_id")
+    @Column(name = "property_id", nullable = true)
     private String propertyId;
 
-    @Column(name = "property_code")
+    @Column(name = "property_code", nullable = true)
     private String propertyCode;
 }
