@@ -62,11 +62,8 @@ public class ReservationBookingRequestDto {
 
     @NotBlank(message = "phoneNumber is required")
         @JsonAlias({"phone", "contactNumber"})
-    @Pattern(regexp = "^[0-9+()\\-\\s]{7,20}$", message = "phoneNumber is invalid")
+        @Pattern(regexp = "^\\d{10}$", message = "phoneNumber must be exactly 10 digits")
     private String phoneNumber;
-
-    @Pattern(regexp = "^[0-9+()\\-\\s]{7,20}$", message = "mobileNumber is invalid")
-    private String mobileNumber;
 
     private String loyaltyNumber;
     private String company;
@@ -94,6 +91,11 @@ public class ReservationBookingRequestDto {
     @NotBlank(message = "roomType is required")
     private String roomType;
 
+        @JsonAlias({"roomNo", "roomNumber", "assignedRoomNo"})
+        private String assignedRoomNo;
+
+        private Integer floor;
+
     @NotBlank(message = "rateCode is required")
         @JsonAlias({"ratePlan", "ratePlanCode", "planCode"})
     private String rateCode;
@@ -114,21 +116,12 @@ public class ReservationBookingRequestDto {
             PaymentModes.NET_BANKING,
             PaymentModes.WALLET
     })
-    @NotBlank(message = "payment is required")
-    @Pattern(
-            regexp = PaymentModes.VALIDATION_PATTERN,
-            message = "payment must be one of CARD, CASH, UPI, NET_BANKING, WALLET"
-    )
     private String payment;
 
     @Schema(description = "Reservation payment type", allowableValues = {
             PaymentTypes.ADVANCE,
             PaymentTypes.FULL_PAYMENT
     })
-    @Pattern(
-            regexp = PaymentTypes.VALIDATION_PATTERN,
-            message = "paymentType must be one of ADVANCE, FULL_PAYMENT"
-    )
     private String paymentType;
 
     @JsonDeserialize(using = LenientLocalTimeDeserializer.class)

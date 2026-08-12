@@ -2,10 +2,7 @@ package com.pms.housekeeping.service;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
-import com.pms.housekeeping.dto.response.AssignableRoomResponse;
-import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
-import com.pms.housekeeping.dto.response.HousekeepingRoomsPageResponse;
-import com.pms.housekeeping.dto.response.HousekeepingStatusUpdateResponse;
+import com.pms.housekeeping.dto.response.*;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -17,9 +14,17 @@ public interface HousekeepingService {
 
     HousekeepingRoomsPageResponse rooms(HousekeepingRoomFilterRequest request);
 
+    HousekeepingCalendarResponse calendar(
+            UUID propertyId,
+            LocalDate fromDate,
+            LocalDate toDate,
+            UUID roomTypeId
+    );
+
     List<AssignableRoomResponse> assignableRooms(UUID propertyId, LocalDate businessDate, UUID roomTypeId, int limit);
 
     HousekeepingStatusUpdateResponse updateRoomStatus(String roomNumber, UpdateHousekeepingStatusRequest request);
+
 }
 
 

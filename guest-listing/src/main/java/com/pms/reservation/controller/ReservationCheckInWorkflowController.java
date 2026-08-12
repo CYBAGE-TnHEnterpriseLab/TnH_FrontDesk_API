@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/reservations/bookings/{bookingId}/check-in")
+@RequestMapping("/api/v1/reservations/bookings/{confirmationNumber}/check-in")
 @RequiredArgsConstructor
 @Tag(name = "Reservation Check-In Workflow", description = "Step-by-step check-in workflow APIs")
 public class ReservationCheckInWorkflowController {
@@ -39,29 +39,29 @@ public class ReservationCheckInWorkflowController {
 
     @GetMapping
     @Operation(summary = "Get check-in workflow state")
-    public ResponseEntity<ApiResponse<CheckInWorkflowResponseDto>> getWorkflow(@PathVariable Long bookingId) {
-        CheckInWorkflowResponseDto response = workflowService.getWorkflow(bookingId);
+    public ResponseEntity<ApiResponse<CheckInWorkflowResponseDto>> getWorkflow(@PathVariable String confirmationNumber) {
+        CheckInWorkflowResponseDto response = workflowService.getWorkflow(confirmationNumber);
         return ResponseEntity.ok(ApiResponse.success("Check-in workflow fetched successfully", response));
     }
 
     @GetMapping("/steps")
     @Operation(summary = "Get check-in step progress")
-    public ResponseEntity<ApiResponse<CheckInStepProgressResponseDto>> getStepProgress(@PathVariable Long bookingId) {
-        CheckInStepProgressResponseDto response = workflowService.getStepProgress(bookingId);
+    public ResponseEntity<ApiResponse<CheckInStepProgressResponseDto>> getStepProgress(@PathVariable String confirmationNumber) {
+        CheckInStepProgressResponseDto response = workflowService.getStepProgress(confirmationNumber);
         return ResponseEntity.ok(ApiResponse.success("Check-in step progress fetched successfully", response));
     }
 
     @GetMapping("/audit-history")
     @Operation(summary = "Get check-in audit history")
-    public ResponseEntity<ApiResponse<CheckInAuditHistoryResponseDto>> getAuditHistory(@PathVariable Long bookingId) {
-        CheckInAuditHistoryResponseDto response = workflowService.getAuditHistory(bookingId);
+    public ResponseEntity<ApiResponse<CheckInAuditHistoryResponseDto>> getAuditHistory(@PathVariable String confirmationNumber) {
+        CheckInAuditHistoryResponseDto response = workflowService.getAuditHistory(confirmationNumber);
         return ResponseEntity.ok(ApiResponse.success("Check-in audit history fetched successfully", response));
     }
 
     @GetMapping("/audit-history/page")
     @Operation(summary = "Get paginated check-in audit history with optional filters")
     public ResponseEntity<ApiResponse<CheckInAuditPageResponseDto>> getAuditHistoryPage(
-            @PathVariable Long bookingId,
+            @PathVariable String confirmationNumber,
             @org.springframework.web.bind.annotation.RequestParam(name = "eventType", required = false) String eventType,
             @org.springframework.web.bind.annotation.RequestParam(name = "fromDate", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -72,7 +72,7 @@ public class ReservationCheckInWorkflowController {
             @org.springframework.web.bind.annotation.RequestParam(name = "sortDir", defaultValue = "desc") String sortDir
     ) {
         CheckInAuditPageResponseDto response = workflowService.getAuditHistoryPage(
-                bookingId,
+                confirmationNumber,
                 eventType,
                 fromDate,
                 toDate,
@@ -86,60 +86,60 @@ public class ReservationCheckInWorkflowController {
     @PutMapping("/guest-details")
     @Operation(summary = "Update guest contact details")
     public ResponseEntity<ApiResponse<CheckInWorkflowResponseDto>> updateGuestDetails(
-            @PathVariable Long bookingId,
+            @PathVariable String confirmationNumber,
             @Valid @RequestBody CheckInGuestUpdateRequestDto request,
             @RequestHeader(name = "X-Actor", required = false) String actor
     ) {
-        CheckInWorkflowResponseDto response = workflowService.updateGuestDetails(bookingId, request, actor);
+        CheckInWorkflowResponseDto response = workflowService.updateGuestDetails(confirmationNumber, request, actor);
         return ResponseEntity.ok(ApiResponse.success("Guest details updated successfully", response));
     }
 
     @PutMapping("/room-stay")
     @Operation(summary = "Update room assignment and stay details")
     public ResponseEntity<ApiResponse<CheckInWorkflowResponseDto>> updateRoomStay(
-            @PathVariable Long bookingId,
+            @PathVariable String confirmationNumber,
             @Valid @RequestBody CheckInRoomStayUpdateRequestDto request,
             @RequestHeader(name = "X-Actor", required = false) String actor
     ) {
-        CheckInWorkflowResponseDto response = workflowService.updateRoomStay(bookingId, request, actor);
+        CheckInWorkflowResponseDto response = workflowService.updateRoomStay(confirmationNumber, request, actor);
         return ResponseEntity.ok(ApiResponse.success("Room and stay details updated successfully", response));
     }
 
     @PutMapping("/signature")
     @Operation(summary = "Capture guest digital signature")
     public ResponseEntity<ApiResponse<CheckInWorkflowResponseDto>> saveSignature(
-            @PathVariable Long bookingId,
+            @PathVariable String confirmationNumber,
             @Valid @RequestBody CheckInSignatureRequestDto request,
             @RequestHeader(name = "X-Actor", required = false) String actor
     ) {
-        CheckInWorkflowResponseDto response = workflowService.saveSignature(bookingId, request, actor);
+        CheckInWorkflowResponseDto response = workflowService.saveSignature(confirmationNumber, request, actor);
         return ResponseEntity.ok(ApiResponse.success("Signature captured successfully", response));
     }
 
     @PostMapping("/payment-validation")
     @Operation(summary = "Validate payment requirements before check-in")
     public ResponseEntity<ApiResponse<CheckInPaymentValidationResponseDto>> validatePayment(
-            @PathVariable Long bookingId,
+            @PathVariable String confirmationNumber,
             @RequestHeader(name = "X-Actor", required = false) String actor
     ) {
-        CheckInPaymentValidationResponseDto response = workflowService.validatePayment(bookingId, actor);
+        CheckInPaymentValidationResponseDto response = workflowService.validatePayment(confirmationNumber, actor);
         return ResponseEntity.ok(ApiResponse.success("Payment validation completed", response));
     }
 
     @PostMapping("/complete")
     @Operation(summary = "Complete check-in")
     public ResponseEntity<ApiResponse<CheckInCompletionResponseDto>> completeCheckIn(
-            @PathVariable Long bookingId,
+            @PathVariable String confirmationNumber,
             @Valid @RequestBody CheckInCompleteRequestDto request
     ) {
-        CheckInCompletionResponseDto response = workflowService.completeCheckIn(bookingId, request);
+        CheckInCompletionResponseDto response = workflowService.completeCheckIn(confirmationNumber, request);
         return ResponseEntity.ok(ApiResponse.success("Check-in completed successfully", response));
     }
 
     @GetMapping("/signature")
     @Operation(summary = "Get stored signature")
-    public ResponseEntity<ApiResponse<CheckInSignatureResponseDto>> getSignature(@PathVariable Long bookingId) {
-        CheckInSignatureResponseDto response = workflowService.getSignature(bookingId);
+    public ResponseEntity<ApiResponse<CheckInSignatureResponseDto>> getSignature(@PathVariable String confirmationNumber) {
+        CheckInSignatureResponseDto response = workflowService.getSignature(confirmationNumber);
         return ResponseEntity.ok(ApiResponse.success("Signature fetched successfully", response));
     }
 }

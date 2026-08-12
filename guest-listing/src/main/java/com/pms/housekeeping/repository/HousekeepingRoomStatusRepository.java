@@ -23,6 +23,12 @@ public interface HousekeepingRoomStatusRepository extends JpaRepository<Housekee
             Collection<String> confirmationNumbers
     );
 
+    List<HousekeepingRoomStatusRecord> findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(
+            String propertyId,
+            LocalDate fromDate,
+            LocalDate toDate
+    );
+
     @Query("""
             select h.confirmationNumber
             from HousekeepingRoomStatusRecord h

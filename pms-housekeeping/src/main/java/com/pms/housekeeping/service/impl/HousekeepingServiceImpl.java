@@ -3,12 +3,7 @@ package com.pms.housekeeping.service.impl;
 import com.pms.housekeeping.common.exception.HousekeepingNotFoundException;
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
-import com.pms.housekeeping.dto.response.AssignableRoomResponse;
-import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
-import com.pms.housekeeping.dto.response.HousekeepingFiltersResponse;
-import com.pms.housekeeping.dto.response.HousekeepingRoomRowResponse;
-import com.pms.housekeeping.dto.response.HousekeepingRoomsPageResponse;
-import com.pms.housekeeping.dto.response.HousekeepingStatusUpdateResponse;
+import com.pms.housekeeping.dto.response.*;
 import com.pms.housekeeping.entity.CleaningStatus;
 import com.pms.housekeeping.entity.FrontOfficeStatus;
 import com.pms.housekeeping.entity.HousekeepingRoomDayStatus;
@@ -39,7 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
 
 @Service
 public class HousekeepingServiceImpl implements HousekeepingService {
@@ -48,17 +45,19 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     private final HousekeepingRoomDayStatusRepository dayStatusRepository;
     private final HousekeepingRoomDayStatusHistoryRepository historyRepository;
     private final RoomMasterProjectionRepository roomMasterProjectionRepository;
+    private final HousekeepingRoomDayStatusRepository housekeepingRoomDayStatusRepository;
     private final CurrentUserProvider currentUserProvider;
 
     public HousekeepingServiceImpl(
             HousekeepingRoomDayStatusRepository dayStatusRepository,
             HousekeepingRoomDayStatusHistoryRepository historyRepository,
-            RoomMasterProjectionRepository roomMasterProjectionRepository,
+            RoomMasterProjectionRepository roomMasterProjectionRepository, HousekeepingRoomDayStatusRepository housekeepingRoomDayStatusRepository,
             CurrentUserProvider currentUserProvider
     ) {
         this.dayStatusRepository = dayStatusRepository;
         this.historyRepository = historyRepository;
         this.roomMasterProjectionRepository = roomMasterProjectionRepository;
+        this.housekeepingRoomDayStatusRepository = housekeepingRoomDayStatusRepository;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -152,6 +151,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 roomPage.getSize(),
                 roomPage.getTotalElements(),
                 roomPage.getTotalPages(),
+//                request.fromDate(),
+//                request.toDate(),
                 buildFilters(request.propertyId(), request.businessDate()),
                 rooms
         );
@@ -196,6 +197,193 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
 
         return Sort.by(direction, entityField);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public HousekeepingCalendarResponse calendar(
+            UUID propertyId,
+            LocalDate fromDate,
+            LocalDate toDate,
+            UUID roomTypeId
+    ) {
+
+        if (fromDate.isAfter(toDate)) {
+            throw new IllegalArgumentException(
+                    "fromDate must be before or equal to toDate"
+            );
+        }
+
+        List<HousekeepingRoomDayStatus> records =
+                housekeepingRoomDayStatusRepository.findCalendarData(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypeId
+                );
+
+        List<CalendarDateResponse> dates =
+                buildCalendarDates(fromDate, toDate);
+
+        List<CalendarRoomTypeResponse> roomTypes =
+                buildRoomTypes(records, fromDate, toDate);
+
+        return new HousekeepingCalendarResponse(
+                propertyId,
+                fromDate,
+                toDate,
+                dates,
+                roomTypes
+        );
+    }
+
+    private List<CalendarDateResponse> buildCalendarDates(
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+
+        return fromDate
+                .datesUntil(toDate.plusDays(1))
+                .map(date -> new CalendarDateResponse(
+                        date,
+                        date.getDayOfWeek().name(),
+                        date.getDayOfMonth()
+                ))
+                .toList();
+    }
+
+    private List<CalendarRoomTypeResponse> buildRoomTypes(
+            List<HousekeepingRoomDayStatus> records,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+
+        Map<UUID, List<HousekeepingRoomDayStatus>> byRoomType =
+                records.stream()
+                        .collect(Collectors.groupingBy(
+                                HousekeepingRoomDayStatus::getRoomTypeId,
+                                LinkedHashMap::new,
+                                Collectors.toList()
+                        ));
+
+        return byRoomType.values()
+                .stream()
+                .map(roomTypeRecords -> {
+
+                    HousekeepingRoomDayStatus first =
+                            roomTypeRecords.get(0);
+
+                    Map<String, List<HousekeepingRoomDayStatus>> byRoom =
+                            roomTypeRecords.stream()
+                                    .collect(Collectors.groupingBy(
+                                            HousekeepingRoomDayStatus::getRoomNumber,
+                                            LinkedHashMap::new,
+                                            Collectors.toList()
+                                    ));
+
+                    List<CalendarRoomResponse> rooms =
+                            byRoom.values()
+                                    .stream()
+                                    .map(roomRecords -> {
+
+                                        HousekeepingRoomDayStatus firstRoom =
+                                                roomRecords.get(0);
+
+                                        List<CalendarRoomDayResponse> days =
+                                                buildRoomDays(
+                                                        roomRecords,
+                                                        fromDate,
+                                                        toDate
+                                                );
+
+                                        return new CalendarRoomResponse(
+                                                firstRoom.getRoomNumber(),
+                                                firstRoom.getFloor(),
+                                                days
+                                        );
+                                    })
+                                    .toList();
+
+                    return new CalendarRoomTypeResponse(
+                            first.getRoomTypeId(),
+                            first.getRoomTypeName(),
+                            rooms
+                    );
+                })
+                .toList();
+    }
+
+    private List<CalendarRoomDayResponse> buildRoomDays(
+            List<HousekeepingRoomDayStatus> roomRecords,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+
+        Map<LocalDate, HousekeepingRoomDayStatus> byDate =
+                roomRecords.stream()
+                        .collect(Collectors.toMap(
+                                HousekeepingRoomDayStatus::getBusinessDate,
+                                Function.identity(),
+                                (existing, replacement) -> existing
+                        ));
+
+        return fromDate
+                .datesUntil(toDate.plusDays(1))
+                .map(date -> {
+
+                    HousekeepingRoomDayStatus record =
+                            byDate.get(date);
+
+                    if (record == null) {
+                        return new CalendarRoomDayResponse(
+                                date,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                        );
+                    }
+
+                    return new CalendarRoomDayResponse(
+                            date,
+                            record.getCleaningStatus() != null
+                                    ? record.getCleaningStatus().name()
+                                    : null,
+
+                            record.getFrontOfficeStatus() != null
+                                    ? record.getFrontOfficeStatus().name()
+                                    : null,
+
+                            record.getReservationStatus() != null
+                                    ? record.getReservationStatus().name()
+                                    : null,
+
+                            record.getGuestDisplayName(),
+
+                            record.getArrivalDate(),
+
+                            record.getDepartureDate(),
+
+                            record.getAttendantName(),
+
+                            record.getPriority() != null
+                                    ? record.getPriority().name()
+                                    : null,
+
+                            record.isSellable(),
+
+                            record.getAssignedReservationId() != null
+                                    ? record.getAssignedReservationId().toString()
+                                    : null
+                    );
+                })
+                .toList();
     }
 
     @Override

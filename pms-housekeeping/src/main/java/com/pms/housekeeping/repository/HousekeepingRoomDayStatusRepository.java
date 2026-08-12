@@ -75,4 +75,24 @@ order by h.roomTypeName
     List<String> findDistinctAttendants(
             @Param("propertyId") UUID propertyId,
             @Param("businessDate") LocalDate businessDate);
+
+
+    //Calender data query
+    @Query("""
+        SELECT r
+        FROM HousekeepingRoomDayStatus r
+        WHERE r.propertyId = :propertyId
+          AND r.businessDate BETWEEN :fromDate AND :toDate
+          AND (
+                :roomTypeId IS NULL
+                OR r.roomTypeId = :roomTypeId
+          )
+        ORDER BY r.roomTypeName, r.roomNumber, r.businessDate
+        """)
+    List<HousekeepingRoomDayStatus> findCalendarData(
+            @Param("propertyId") UUID propertyId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            @Param("roomTypeId") UUID roomTypeId
+    );
 }

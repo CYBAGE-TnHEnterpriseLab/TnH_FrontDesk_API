@@ -97,12 +97,12 @@ class ReservationCheckInWorkflowServiceImplTest {
 
     @Test
     void getWorkflowShouldCreateDefaultStateWhenAbsent() {
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.empty());
         when(workflowRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.empty());
 
-        CheckInWorkflowResponseDto response = service.getWorkflow(10L);
+        CheckInWorkflowResponseDto response = service.getWorkflow("CONF-101");
 
         assertThat(response.getCurrentStep()).isEqualTo("GUEST_DETAILS");
         assertThat(response.getProgressPercent()).isEqualTo(0);
@@ -112,7 +112,7 @@ class ReservationCheckInWorkflowServiceImplTest {
     void updateGuestDetailsShouldCompleteStepAndMoveToRoomStay() {
         ReservationCheckInWorkflowRecord workflow = workflow("GUEST_DETAILS");
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
         when(workflowRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.empty());
@@ -126,7 +126,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         request.setCountry("India");
         request.setZipCode("400001");
 
-        CheckInWorkflowResponseDto response = service.updateGuestDetails(10L, request, "agent1");
+        CheckInWorkflowResponseDto response = service.updateGuestDetails("CONF-101", request, "agent1");
 
         assertThat(response.getCurrentStep()).isEqualTo("ROOM_STAY");
         assertThat(response.getCompletedSteps()).isEqualTo(1);
@@ -136,14 +136,14 @@ class ReservationCheckInWorkflowServiceImplTest {
     @Test
     void updateRoomStayShouldRejectWhenStepOutOfOrder() {
         ReservationCheckInWorkflowRecord workflow = workflow("GUEST_DETAILS");
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
 
         CheckInRoomStayUpdateRequestDto request = new CheckInRoomStayUpdateRequestDto();
         request.setRoomType("Suite");
         request.setRoomNo("501");
 
-        assertThatThrownBy(() -> service.updateRoomStay(10L, request, "agent1"))
+        assertThatThrownBy(() -> service.updateRoomStay("CONF-101", request, "agent1"))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Cannot execute step ROOM_STAY");
 
@@ -158,10 +158,10 @@ class ReservationCheckInWorkflowServiceImplTest {
         workflow.setRoomStayCompletedAt(LocalDateTime.now());
         workflow.setSignatureCompletedAt(LocalDateTime.now());
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
 
-        assertThatThrownBy(() -> service.validatePayment(10L, "agent1"))
+        assertThatThrownBy(() -> service.validatePayment("CONF-101", "agent1"))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessage("Check-in blocked: outstanding guest balance must be settled before check-in");
     }
@@ -183,7 +183,7 @@ class ReservationCheckInWorkflowServiceImplTest {
                 .signedAt(LocalDateTime.now())
                 .build();
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
         when(workflowRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.of(signature));
@@ -193,7 +193,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         request.setActor("frontdesk.user");
         request.setBusinessDate(LocalDate.of(2026, 7, 22));
 
-        var response = service.completeCheckIn(10L, request);
+        var response = service.completeCheckIn("CONF-101", request);
 
         assertThat(response.getReservationStatus()).isEqualTo("CHECKED_IN");
         verify(reservationBookingRepository).save(any(ReservationBookingRecord.class));
@@ -217,7 +217,7 @@ class ReservationCheckInWorkflowServiceImplTest {
                 .signedAt(LocalDateTime.now())
                 .build();
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
         when(workflowRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.of(signature));
@@ -228,7 +228,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         request.setBusinessDate(LocalDate.of(2026, 7, 22));
         request.setTargetStatus("ARRIVED");
 
-        var response = service.completeCheckIn(10L, request);
+        var response = service.completeCheckIn("CONF-101", request);
 
         assertThat(response.getReservationStatus()).isEqualTo("ARRIVED");
         verify(reservationBookingRepository).save(any(ReservationBookingRecord.class));
@@ -239,7 +239,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         ReservationCheckInWorkflowRecord workflow = workflow("ROOM_STAY");
         workflow.setGuestDetailsCompletedAt(LocalDateTime.now());
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
         when(workflowRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.empty());
@@ -255,7 +255,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         request.setRoomType("Suite");
         request.setRoomNo("701");
 
-        CheckInWorkflowResponseDto response = service.updateRoomStay(10L, request, "agent1");
+        CheckInWorkflowResponseDto response = service.updateRoomStay("CONF-101", request, "agent1");
 
         assertThat(response.getCurrentStep()).isEqualTo("SIGNATURE");
         verify(propertyInventoryPort).validateInventory("PROP001", "Suite", 1);
@@ -268,11 +268,11 @@ class ReservationCheckInWorkflowServiceImplTest {
         workflow.setRoomStayCompletedAt(LocalDateTime.now());
         workflow.setSignatureCompletedAt(LocalDateTime.now());
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
         when(workflowRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        CheckInPaymentValidationResponseDto response = service.validatePayment(10L, "agent1");
+        CheckInPaymentValidationResponseDto response = service.validatePayment("CONF-101", "agent1");
 
         assertThat(response.isPassed()).isTrue();
         assertThat(workflow.getCurrentStep()).isEqualTo("COMPLETE_CHECKIN");
@@ -286,14 +286,14 @@ class ReservationCheckInWorkflowServiceImplTest {
         booking.setCheckInCompletedAt(LocalDateTime.of(2026, 7, 22, 10, 0));
         booking.setCheckInCompletedBy("frontdesk.user");
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
 
         CheckInCompleteRequestDto request = new CheckInCompleteRequestDto();
         request.setActor("frontdesk.user");
         request.setBusinessDate(LocalDate.of(2026, 7, 22));
 
-        var response = service.completeCheckIn(10L, request);
+        var response = service.completeCheckIn("CONF-101", request);
 
         assertThat(response.getReservationStatus()).isEqualTo("CHECKED_IN");
         verify(housekeepingRoomStatusService, never()).markOccupied(any());
@@ -307,7 +307,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         booking.setCheckInCompletedAt(LocalDateTime.of(2026, 7, 22, 10, 0));
         booking.setCheckInCompletedBy("frontdesk.user");
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
 
         CheckInCompleteRequestDto request = new CheckInCompleteRequestDto();
@@ -315,7 +315,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         request.setBusinessDate(LocalDate.of(2026, 7, 22));
         request.setTargetStatus("CHECKED_IN");
 
-        var response = service.completeCheckIn(10L, request);
+        var response = service.completeCheckIn("CONF-101", request);
 
         assertThat(response.getReservationStatus()).isEqualTo("CHECKED_IN");
         verify(reservationBookingRepository).save(any(ReservationBookingRecord.class));
@@ -327,11 +327,11 @@ class ReservationCheckInWorkflowServiceImplTest {
         ReservationCheckInWorkflowRecord workflow = workflow("ROOM_STAY");
         workflow.setGuestDetailsCompletedAt(LocalDateTime.now());
 
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(workflowRepository.findByBookingId(10L)).thenReturn(Optional.of(workflow));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.empty());
 
-        CheckInStepProgressResponseDto response = service.getStepProgress(10L);
+        CheckInStepProgressResponseDto response = service.getStepProgress("CONF-101");
 
         assertThat(response.getCurrentStep()).isEqualTo("ROOM_STAY");
         assertThat(response.getCompletedSteps()).isEqualTo(1);
@@ -341,7 +341,7 @@ class ReservationCheckInWorkflowServiceImplTest {
 
     @Test
     void getAuditHistoryShouldReturnOrderedEvents() {
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
         when(auditRepository.findByBookingIdOrderByCreatedAtAsc(10L)).thenReturn(List.of(
                 ReservationCheckInAuditRecord.builder()
                         .bookingId(10L)
@@ -365,7 +365,7 @@ class ReservationCheckInWorkflowServiceImplTest {
                         .build()
         ));
 
-        var response = service.getAuditHistory(10L);
+        var response = service.getAuditHistory("CONF-101");
 
         assertThat(response.getTotalEvents()).isEqualTo(2);
         assertThat(response.getEvents()).hasSize(2);
@@ -375,7 +375,7 @@ class ReservationCheckInWorkflowServiceImplTest {
 
         @Test
         void getAuditHistoryPageShouldApplyEventAndDateFilters() {
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
 
         ReservationCheckInAuditRecord record = ReservationCheckInAuditRecord.builder()
             .bookingId(10L)
@@ -403,7 +403,7 @@ class ReservationCheckInWorkflowServiceImplTest {
         )).thenReturn(page);
 
         var response = service.getAuditHistoryPage(
-            10L,
+            "CONF-101",
             "SIGNATURE_CAPTURED",
             LocalDate.of(2026, 7, 20),
             LocalDate.of(2026, 7, 22),
@@ -422,10 +422,10 @@ class ReservationCheckInWorkflowServiceImplTest {
 
         @Test
         void getAuditHistoryPageShouldRejectInvalidDateRange() {
-        when(reservationBookingRepository.findById(10L)).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> service.getAuditHistoryPage(
-            10L,
+            "CONF-101",
             null,
             LocalDate.of(2026, 7, 23),
             LocalDate.of(2026, 7, 22),

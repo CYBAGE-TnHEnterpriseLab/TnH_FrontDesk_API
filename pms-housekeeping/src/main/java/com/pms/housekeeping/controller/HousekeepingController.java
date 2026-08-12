@@ -2,10 +2,7 @@ package com.pms.housekeeping.controller;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
-import com.pms.housekeeping.dto.response.AssignableRoomResponse;
-import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
-import com.pms.housekeeping.dto.response.HousekeepingRoomsPageResponse;
-import com.pms.housekeeping.dto.response.HousekeepingStatusUpdateResponse;
+import com.pms.housekeeping.dto.response.*;
 import com.pms.housekeeping.entity.CleaningStatus;
 import com.pms.housekeeping.entity.FrontOfficeStatus;
 import com.pms.housekeeping.entity.ReservationStatus;
@@ -48,6 +45,30 @@ public class HousekeepingController {
     public HousekeepingRoomsPageResponse rooms(@Valid @ModelAttribute HousekeepingRoomFilterRequest request
     ) {
         return housekeepingService.rooms(request);
+    }
+
+    @GetMapping("/rooms/calendar")
+    @Operation(summary = "Get housekeeping rooms for calendar view")
+    public HousekeepingCalendarResponse calendar(
+            @RequestParam @NotNull UUID propertyId,
+
+            @RequestParam @NotNull
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fromDate,
+
+            @RequestParam @NotNull
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate toDate,
+
+            @RequestParam(required = false)
+            UUID roomTypeId
+    ) {
+        return housekeepingService.calendar(
+                propertyId,
+                fromDate,
+                toDate,
+                roomTypeId
+        );
     }
 
     @GetMapping("/assignable-rooms")

@@ -41,32 +41,13 @@ property-wizard-service:
 rate-management:
   baseUrl: http://localhost:8087
   serviceAuthToken: ${PMS_RATE_MANAGEMENT_SERVICE_TOKEN:}
-  listRatePlansPath: /api/rate-plans/property/{propertyId}
-  availablePlansPath: /api/rate-plans/property/{propertyId}/available
-  calculatedPricePath: /api/rate-plans/property/{propertyId}/{ratePlanId}/calculated-price
+  listRatePlansPath: /api/rate-plans/get-all-rate-plans/property/{propertyId}
+  availablePlansPath: /api/rate-plans/available/property/{propertyId}
+  calculatedPricePath: /api/rate-plans/final-price/property/{propertyId}/{id}/calculated-price
   connectTimeoutMs: 3000
   readTimeoutMs: 6000
   retryMaxAttempts: 2
   retryBackoffMs: 100
-
-dashboard:
-  timeout-ms: 2500
-  housekeeping:
-    base-url: http://localhost:8086
-    primary-path: /api/v1/housekeeping/dashboard
-    secondary-path: /api/v1/housekeeping/rooms
-  inventory:
-    base-url: http://localhost:8085
-    primary-path: /api/v1/inventory/daily
-  property:
-    base-url: http://localhost:8082
-    primary-path: /api/rooms/properties/{propertyId}/room-outlet-types
-  rate:
-    base-url: http://localhost:8087
-    primary-path: /api/rate-plans/property/{propertyId}
-  reservation:
-    base-url: http://localhost:${server.port}
-    primary-path: /api/v1/guest-listing/list
 
 arrivals:
   search:

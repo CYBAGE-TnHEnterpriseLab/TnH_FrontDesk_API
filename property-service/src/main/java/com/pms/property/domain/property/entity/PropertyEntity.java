@@ -5,8 +5,13 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -50,6 +55,12 @@ public class PropertyEntity {
     @Column(name = "zip_code", nullable = false)
     private String zipCode;
 
+    @Column(precision = 9, scale = 6)
+    private BigDecimal latitude;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal longitude;
+
     @Column(nullable = false)
     private String website;
 
@@ -79,6 +90,12 @@ public class PropertyEntity {
 
     @Column(name = "created_by", nullable = false)
     private String createdBy;
+
+//    @Column(name = "latitude", precision = 10, scale = 7)
+//    private BigDecimal latitude;
+//
+//    @Column(name = "longitude", precision = 10, scale = 7)
+//    private BigDecimal longitude;
 
 
     @PrePersist

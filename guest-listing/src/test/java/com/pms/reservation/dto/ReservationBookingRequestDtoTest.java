@@ -102,4 +102,37 @@ class ReservationBookingRequestDtoTest {
         ReservationBookingRequestDto dto = objectMapper.readValue(payload, ReservationBookingRequestDto.class);
         assertThat(dto.getGuestName()).isEqualTo("Explicit Guest");
     }
+
+  @Test
+  void shouldDeserializeRoomAssignmentAliases() throws Exception {
+    String payload = """
+        {
+          "guestName": "Alex Johnson",
+          "paymentType": "FULL_PAYMENT",
+          "guestBalance": 1800,
+          "eta": "11:00:00",
+          "checkOutTime": "11:00:00",
+          "propertyId": "PROP001",
+          "phoneNumber": "9090912345",
+          "arrivalDate": "2026-07-15",
+          "departureDate": "2026-07-16",
+          "adultCount": 1,
+          "childCount": 0,
+          "roomType": "DLX",
+          "roomNo": "502",
+          "floor": 5,
+          "rateCode": "BARR",
+          "numberOfRooms": 1,
+          "rate": 1800,
+          "payment": "CARD",
+          "dnm": false,
+          "discount": 0
+        }
+        """;
+
+    ReservationBookingRequestDto dto = objectMapper.readValue(payload, ReservationBookingRequestDto.class);
+
+    assertThat(dto.getAssignedRoomNo()).isEqualTo("502");
+    assertThat(dto.getFloor()).isEqualTo(5);
+  }
 }

@@ -17,6 +17,7 @@ import com.pms.property.domain.room.entity.PropertyAreaEntity;
 import com.pms.property.domain.room.entity.RoomOutletTypeEntity;
 import com.pms.property.domain.tax.entity.TaxRuleEntity;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +50,9 @@ public class PublishMapper {
             property.setState(firstText(propertyNode, "state"));
             property.setCountry(firstText(propertyNode, "country"));
             property.setZipCode(firstText(propertyNode, "zipCode", "postalCode", "zipPostalCode"));
+            //new
+            property.setLatitude(firstBigDecimal(propertyNode, "latitude"));
+            property.setLongitude(firstBigDecimal(propertyNode, "longitude"));
             property.setWebsite(firstText(propertyNode, "website"));
             property.setContactName(firstText(propertyNode, "contactName", "primaryContactName"));
             property.setContactNumber(firstText(propertyNode, "contactNumber", "phoneNumber", "phone"));
@@ -190,6 +194,30 @@ public class PublishMapper {
             }
         }
         return "";
+    }
+
+    private BigDecimal firstBigDecimal(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.path(field);
+
+            if (!value.isMissingNode() && !value.isNull()) {
+                if (value.isNumber()) {
+                    return value.decimalValue();
+                }
+
+                String text = value.asText().trim();
+
+                if (!text.isBlank()) {
+                    try {
+                        return new BigDecimal(text);
+                    } catch (NumberFormatException ignored) {
+                        return null;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private String resolveAddress(JsonNode propertyNode) {

@@ -66,6 +66,8 @@ class GuestListingControllerTest {
                 .childCount(1)
                 .reservationType("GTD")
                 .roomType("Deluxe King")
+                .assignedRoomNo("305")
+                .floor(3)
                 .rateCode("BAR")
                 .numberOfRooms(1)
                 .rate(new BigDecimal("5000.00"))
@@ -110,7 +112,8 @@ class GuestListingControllerTest {
                 .andExpect(jsonPath("$.data.content[0].confirmationNumber").value("CNF458721"))
                 .andExpect(jsonPath("$.data.content[0].guests").value(3))
                 .andExpect(jsonPath("$.data.content[0].roomNo").value("301"))
-                .andExpect(jsonPath("$.data.content[0].roomStatus").value("OCCUPIED"));
+                .andExpect(jsonPath("$.data.content[0].roomStatus").value("OCCUPIED"))
+                .andExpect(jsonPath("$.data.content[0].floor").value(3));
 
         verify(reservationBookingRepository).findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class));
         verify(housekeepingRoomStatusRepository).findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
@@ -118,6 +121,64 @@ class GuestListingControllerTest {
                 any(),
                 anyCollection()
         );
+    }
+
+    @Test
+    void getGuestListingShouldUseAssignedRoomNoWhenHousekeepingRoomNotAvailable() throws Exception {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(2L)
+                .propertyId("PROP001")
+                .confirmationNumber("CNF458722")
+                .reservationStatus("CONFIRMED")
+                .salutation("Ms")
+                .vipTag(false)
+                .guestName("Jane Doe")
+                .phoneNumber("1234567890")
+                .mobileNumber("1234567890")
+                .arrivalDate(LocalDate.of(2026, 6, 1))
+                .departureDate(LocalDate.of(2026, 6, 2))
+                .adultCount(1)
+                .childCount(0)
+                .reservationType("GTD")
+                .roomType("Deluxe King")
+                .assignedRoomNo("410")
+                .floor(4)
+                .rateCode("BAR")
+                .numberOfRooms(1)
+                .rate(new BigDecimal("5000.00"))
+                .totalRate(new BigDecimal("5000.00"))
+                .payment("CARD")
+                .eta(java.time.LocalTime.of(14, 0))
+                .checkOutTime(java.time.LocalTime.of(11, 0))
+                .dnm(false)
+                .noPost(false)
+                .guestBalance(new BigDecimal("0.00"))
+                .discount(new BigDecimal("0.00"))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<ReservationBookingRecord> page = new PageImpl<>(
+                java.util.List.of(booking),
+                PageRequest.of(0, 20),
+                1
+        );
+        when(reservationBookingRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
+                any(),
+                any(),
+                anyCollection()
+        )).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/guest-listing/list")
+                        .param("propertyId", "PROP001")
+                        .param("businessDate", "2026-06-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].confirmationNumber").value("CNF458722"))
+                .andExpect(jsonPath("$.data.content[0].roomNo").value("410"))
+                .andExpect(jsonPath("$.data.content[0].floor").value(4));
     }
 
     @Test

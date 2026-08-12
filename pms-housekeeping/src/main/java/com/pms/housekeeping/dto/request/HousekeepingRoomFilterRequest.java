@@ -22,6 +22,9 @@ public record HousekeepingRoomFilterRequest(
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         LocalDate businessDate,
 
+//        LocalDate fromDate,
+//        LocalDate toDate,
+
         String search,
 
         List<CleaningStatus> cleaningStatus,

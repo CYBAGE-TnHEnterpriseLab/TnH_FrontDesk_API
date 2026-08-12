@@ -5,6 +5,7 @@ import com.pms.reservation.constant.PaymentModes;
 import com.pms.reservation.constant.PaymentTypes;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
+import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.service.ReservationBookingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +45,32 @@ public class ReservationController {
         ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Reservation confirmed successfully", response));
+    }
+
+        @GetMapping("/bookings/{confirmationNumber}")
+        @Operation(summary = "Get reservation details",
+                        description = "Returns detailed reservation payload for reservation view UI using confirmation number")
+        public ResponseEntity<ApiResponse<ReservationViewResponseDto>> getBookingDetails(@PathVariable String confirmationNumber) {
+                ReservationViewResponseDto response = reservationBookingService.getBookingDetails(confirmationNumber);
+                return ResponseEntity.ok(ApiResponse.success("Reservation fetched successfully", response));
+        }
+
+        @PatchMapping("/bookings/{confirmationNumber}")
+    @Operation(summary = "Edit reservation booking",
+            description = "Updates an existing reservation booking by confirmation number")
+    public ResponseEntity<ApiResponse<ReservationViewResponseDto>> updateBooking(
+            @PathVariable String confirmationNumber,
+            @Valid @RequestBody ReservationBookingRequestDto request) {
+        ReservationViewResponseDto response = reservationBookingService.updateBooking(confirmationNumber, request);
+        return ResponseEntity.ok(ApiResponse.success("Reservation updated successfully", response));
+    }
+
+    @GetMapping("/bookings")
+    @Operation(summary = "Get all reservation bookings",
+            description = "Returns all created reservation bookings ordered by latest first")
+    public ResponseEntity<ApiResponse<List<ReservationBookingResponseDto>>> getBookings() {
+        List<ReservationBookingResponseDto> response = reservationBookingService.getBookings();
+        return ResponseEntity.ok(ApiResponse.success("Reservations fetched successfully", response));
     }
 
     @GetMapping("/payment-types")

@@ -11,14 +11,18 @@ import static org.mockito.Mockito.when;
 
 import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.guestlisting.exception.ExternalServiceException;
+import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
+import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
+import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
+import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
@@ -27,7 +31,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -43,6 +49,9 @@ class ReservationBookingServiceImplTest {
 
     @Mock
     private ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
+
+        @Mock
+        private HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
 
     @Mock
     private PropertyInventoryPort propertyInventoryPort;
@@ -140,7 +149,16 @@ class ReservationBookingServiceImplTest {
                 .propertyId(request.getPropertyId())
                 .roomType(request.getRoomType())
                 .numberOfRooms(request.getNumberOfRooms())
+                .arrivalDate(request.getArrivalDate())
+                .departureDate(request.getDepartureDate())
+                .rate(request.getRate())
                 .build();
+
+        PropertyTaxRuleResponseDto taxRule = new PropertyTaxRuleResponseDto();
+        taxRule.setRoomType("Deluxe King");
+        taxRule.setTaxPercentage(new BigDecimal("10"));
+        taxRule.setActive(true);
+        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of(taxRule));
 
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(100L)
@@ -180,12 +198,14 @@ class ReservationBookingServiceImplTest {
         verify(propertyInventoryPort).validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1));
         verify(propertyInventoryPort).deductInventory(any());
         verify(propertyInventoryPort).syncInventory(any());
+        verify(propertyInventoryPort).fetchTaxRules(eq("PROP001"));
 
         ArgumentCaptor<ReservationBookingRecord> recordCaptor = ArgumentCaptor.forClass(ReservationBookingRecord.class);
         verify(reservationBookingRepository).save(recordCaptor.capture());
         ReservationBookingRecord persistedRecord = recordCaptor.getValue();
         assertThat(persistedRecord.getInventoryDeductedAt()).isNotNull();
         assertThat(persistedRecord.getInventorySyncedAt()).isNotNull();
+        assertThat(persistedRecord.getTotalRate()).isEqualByComparingTo("18700.00");
     }
 
     @Test
@@ -210,7 +230,6 @@ class ReservationBookingServiceImplTest {
                 request.setCity(null);
                 request.setCountry(null);
                 request.setZipCode(null);
-                request.setMobileNumber(null);
                 request.setReservationType(null);
                 request.setNoPost(null);
                 request.setPaymentType(null);
@@ -269,7 +288,6 @@ class ReservationBookingServiceImplTest {
                 assertThat(normalized.getCity()).isEqualTo("UNKNOWN");
                 assertThat(normalized.getCountry()).isEqualTo("UNKNOWN");
                 assertThat(normalized.getZipCode()).isEqualTo("000000");
-                assertThat(normalized.getMobileNumber()).isEqualTo("+91-9876543210");
                 assertThat(normalized.getReservationType()).isEqualTo("GTD");
                 assertThat(normalized.getPaymentType()).isEqualTo("FULL_PAYMENT");
                 assertThat(normalized.getNoPost()).isFalse();
@@ -426,6 +444,19 @@ class ReservationBookingServiceImplTest {
         verify(reservationBookingRepository, never()).save(any());
         verify(paymentProcessingService, never()).processPayment(any(), any(), any());
     }
+
+        @Test
+        void createBookingShouldRejectWhenPhoneNumberIsNotTenDigits() {
+                ReservationBookingRequestDto request = validRequest();
+                request.setPhoneNumber("3338)1(+47");
+
+                assertThatThrownBy(() -> reservationBookingService.createBooking(request))
+                                .isInstanceOf(BadRequestException.class)
+                                .hasMessage("phoneNumber must be exactly 10 digits");
+
+                verify(reservationBookingRepository, never()).save(any());
+                verify(paymentProcessingService, never()).processPayment(any(), any(), any());
+        }
 
         @Test
         void createBookingShouldRejectWhenOfficialEmailMissing() {
@@ -668,6 +699,262 @@ class ReservationBookingServiceImplTest {
         verify(reservationPaymentTransactionRepository, never()).save(any());
     }
 
+    @Test
+    void getBookingsShouldReturnMappedReservationsWithPaymentTransactionDetails() {
+        ReservationBookingRecord latestBooking = ReservationBookingRecord.builder()
+                .id(200L)
+                .confirmationNumber("1234567899")
+                .build();
+        ReservationBookingRecord olderBooking = ReservationBookingRecord.builder()
+                .id(199L)
+                .confirmationNumber("1234567898")
+                .build();
+
+        ReservationPaymentTransactionRecord latestBookingTxn = ReservationPaymentTransactionRecord.builder()
+                .bookingId(200L)
+                .transactionReference("PAY-900")
+                .build();
+
+        ReservationBookingResponseDto latestResponse = ReservationBookingResponseDto.builder()
+                .bookingId(200L)
+                .confirmationNumber("1234567899")
+                .build();
+        ReservationBookingResponseDto olderResponse = ReservationBookingResponseDto.builder()
+                .bookingId(199L)
+                .confirmationNumber("1234567898")
+                .build();
+
+        when(reservationBookingRepository.findAllByOrderByCreatedAtDesc())
+                .thenReturn(List.of(latestBooking, olderBooking));
+        when(reservationPaymentTransactionRepository.findByBookingIdIn(List.of(200L, 199L)))
+                .thenReturn(List.of(latestBookingTxn));
+        when(reservationBookingMapper.toResponse(latestBooking, latestBookingTxn)).thenReturn(latestResponse);
+        when(reservationBookingMapper.toResponse(olderBooking, null)).thenReturn(olderResponse);
+
+        List<ReservationBookingResponseDto> response = reservationBookingService.getBookings();
+
+        assertThat(response).containsExactly(latestResponse, olderResponse);
+        verify(reservationPaymentTransactionRepository).findByBookingIdIn(List.of(200L, 199L));
+    }
+
+    @Test
+    void getBookingsShouldReturnEmptyWhenNoReservationsExist() {
+        when(reservationBookingRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+
+        List<ReservationBookingResponseDto> response = reservationBookingService.getBookings();
+
+        assertThat(response).isEmpty();
+        verify(reservationPaymentTransactionRepository, never()).findByBookingIdIn(any());
+    }
+
+    @Test
+    void getBookingDetailsShouldReturnStructuredViewPayload() {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(410L)
+                .confirmationNumber("10256CNF569")
+                .reservationStatus("CONFIRMED")
+                .createdAt(LocalDateTime.of(2026, 6, 12, 10, 45))
+                .propertyId("demo-property")
+                .salutation("Mr")
+                .guestName("Sachin Shah")
+                .phoneNumber("+91 89562314785")
+                .personalEmail("sachin@gmail.com")
+                .officialEmail("sachin.office@gmail.com")
+                .loyaltyNumber("3600")
+                .arrivalDate(LocalDate.of(2026, 6, 23))
+                .departureDate(LocalDate.of(2026, 6, 25))
+                .numberOfRooms(2)
+                .adultCount(1)
+                .childCount(2)
+                .eta(LocalTime.of(11, 40))
+                .checkOutTime(LocalTime.of(21, 0))
+                .assignedRoomNo("101")
+                .roomType("King")
+                .floor(1)
+                .guestGroup("CYB-CYBAGE")
+                .company("CYBAGE")
+                .source("WALK IN")
+                .reservationType("WALK IN")
+                .rateCode("CYBAGE")
+                .rate(new BigDecimal("1400"))
+                .totalRate(new BigDecimal("1568"))
+                .guestBalance(new BigDecimal("-1800"))
+                .discount(new BigDecimal("2"))
+                .specialRequests("AC, TV, Wifi, Extra Bed")
+                .alertsMessages("Breakfast, Internet")
+                .build();
+
+        ReservationPaymentTransactionRecord latestTxn = ReservationPaymentTransactionRecord.builder()
+                .bookingId(410L)
+                .transactionReference("PAY-900")
+                .build();
+
+        ReservationBookingResponseDto mapped = ReservationBookingResponseDto.builder()
+                .guestNames(List.of("Sachin Shah", "Pradip Agarwal", "Mohan Agarwal"))
+                .build();
+
+        HousekeepingRoomStatusRecord housekeepingStatus = HousekeepingRoomStatusRecord.builder()
+                .roomStatus("Inspected")
+                .build();
+
+        when(reservationBookingRepository.findByConfirmationNumber("10256CNF569")).thenReturn(Optional.of(booking));
+        when(reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(410L))
+                .thenReturn(Optional.of(latestTxn));
+        when(reservationBookingMapper.toResponse(booking, latestTxn)).thenReturn(mapped);
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumber(
+                "demo-property",
+                LocalDate.of(2026, 6, 23),
+                "10256CNF569"
+        )).thenReturn(Optional.of(housekeepingStatus));
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
+
+        ReservationViewResponseDto response = reservationBookingService.getBookingDetails("10256CNF569");
+
+        assertThat(response.getReservationId()).isEqualTo("10256CNF569");
+        assertThat(response.getConfirmationNumber()).isEqualTo("10256CNF569");
+        assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(response.getCreatedAt()).isEqualTo(LocalDateTime.of(2026, 6, 12, 10, 45).atOffset(ZoneOffset.UTC));
+        assertThat(response.getGuest().getFirstName()).isEqualTo("Sachin");
+        assertThat(response.getGuest().getLastName()).isEqualTo("Shah");
+        assertThat(response.getAdditionalGuests()).hasSize(2);
+        assertThat(response.getAdditionalGuests().get(0).getName()).isEqualTo("Pradip Agarwal");
+        assertThat(response.getStay().getNights()).isEqualTo(2);
+        assertThat(response.getStay().getCheckInTime()).isEqualTo("11:40");
+        assertThat(response.getRoom().getRoomStatus()).isEqualTo("Inspected");
+        assertThat(response.getPricing().getCurrency()).isEqualTo("INR");
+        assertThat(response.getPricing().getTaxAmount()).isEqualByComparingTo("0");
+        assertThat(response.getComments().getGuestRequests()).containsExactly("AC", "TV", "Wifi", "Extra Bed");
+        assertThat(response.getActions().getCanEdit()).isTrue();
+        assertThat(response.getActions().getCanCheckIn()).isTrue();
+        assertThat(response.getActions().getCanCheckOut()).isFalse();
+        assertThat(response.getActions().getCanCancel()).isFalse();
+    }
+
+    @Test
+    void getBookingDetailsShouldFailWhenBookingDoesNotExist() {
+                when(reservationBookingRepository.findByConfirmationNumber("MISSING-CNF")).thenReturn(Optional.empty());
+
+                assertThatThrownBy(() -> reservationBookingService.getBookingDetails("MISSING-CNF"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Reservation booking not found");
+
+        verify(reservationBookingMapper, never()).toResponse(any(), any());
+    }
+
+    @Test
+    void updateBookingShouldPersistUpdatedDetailsAndPreserveSystemManagedFields() {
+        ReservationBookingRequestDto request = validRequest();
+        request.setCity("Mumbai");
+                request.setPayment("UPI");
+                request.setPaymentType("ADVANCE");
+
+        ReservationBookingRecord existing = ReservationBookingRecord.builder()
+                .id(300L)
+                .confirmationNumber("1234567000")
+                .reservationStatus("CONFIRMED")
+                .payment("CARD")
+                .paymentType("FULL_PAYMENT")
+                .assignedRoomNo("1203")
+                .floor(12)
+                .checkInCompletedBy("frontdesk.agent")
+                .checkInBusinessDate(LocalDate.of(2026, 7, 21))
+                .checkInCompletedAt(LocalDateTime.of(2026, 7, 21, 14, 10))
+                .inventoryDeductedAt(LocalDateTime.of(2026, 7, 18, 10, 0))
+                .inventorySyncedAt(LocalDateTime.of(2026, 7, 18, 10, 1))
+                .createdAt(LocalDateTime.of(2026, 7, 18, 9, 0))
+                .build();
+
+        ReservationBookingRecord mapped = ReservationBookingRecord.builder()
+                .propertyId("PROP001")
+                .roomType("Deluxe King")
+                .rate(new BigDecimal("8500"))
+                .numberOfRooms(1)
+                .arrivalDate(LocalDate.of(2026, 7, 20))
+                .departureDate(LocalDate.of(2026, 7, 22))
+                .city("Mumbai")
+                .build();
+
+        ReservationBookingRecord saved = ReservationBookingRecord.builder()
+                .id(300L)
+                .propertyId("PROP001")
+                .confirmationNumber("1234567000")
+                .reservationStatus("CONFIRMED")
+                .city("Mumbai")
+                .createdAt(LocalDateTime.of(2026, 7, 18, 9, 0))
+                .build();
+
+        ReservationPaymentTransactionRecord latestTxn = ReservationPaymentTransactionRecord.builder()
+                .bookingId(300L)
+                .transactionReference("PAY-UPDATE-1")
+                .build();
+
+        ReservationBookingResponseDto mappedResponse = ReservationBookingResponseDto.builder()
+                .guestNames(List.of("Alex Johnson"))
+                .build();
+
+        PropertyTaxRuleResponseDto taxRule = new PropertyTaxRuleResponseDto();
+        taxRule.setRoomType("Deluxe King");
+        taxRule.setTaxPercentage(new BigDecimal("10"));
+        taxRule.setActive(true);
+
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                .thenReturn(validationResponse(true, true, 5));
+        when(reservationBookingRepository.findByConfirmationNumber("1234567000")).thenReturn(Optional.of(existing));
+        when(reservationBookingMapper.toEntity(request)).thenReturn(mapped);
+        when(reservationBookingRepository.save(any(ReservationBookingRecord.class))).thenReturn(saved);
+        when(reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(300L))
+                .thenReturn(Optional.of(latestTxn));
+        when(reservationBookingMapper.toResponse(saved, latestTxn)).thenReturn(mappedResponse);
+        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of(taxRule));
+
+        ReservationViewResponseDto response = reservationBookingService.updateBooking("1234567000", request);
+
+        assertThat(response.getConfirmationNumber()).isEqualTo("1234567000");
+        assertThat(response.getPropertyId()).isEqualTo("PROP001");
+        assertThat(response.getStatus()).isEqualTo("CONFIRMED");
+
+        ArgumentCaptor<ReservationBookingRecord> savedCaptor = ArgumentCaptor.forClass(ReservationBookingRecord.class);
+        verify(reservationBookingRepository).save(savedCaptor.capture());
+        ReservationBookingRecord persisted = savedCaptor.getValue();
+        assertThat(persisted.getId()).isEqualTo(300L);
+        assertThat(persisted.getConfirmationNumber()).isEqualTo("1234567000");
+        assertThat(persisted.getReservationStatus()).isEqualTo("CONFIRMED");
+        assertThat(persisted.getAssignedRoomNo()).isEqualTo("1203");
+        assertThat(persisted.getFloor()).isEqualTo(12);
+        assertThat(persisted.getCheckInCompletedBy()).isEqualTo("frontdesk.agent");
+        assertThat(persisted.getCreatedAt()).isEqualTo(LocalDateTime.of(2026, 7, 18, 9, 0));
+        assertThat(persisted.getTotalRate()).isEqualByComparingTo("18700.00");
+                assertThat(persisted.getPayment()).isEqualTo("CARD");
+                assertThat(persisted.getPaymentType()).isEqualTo("FULL_PAYMENT");
+    }
+
+    @Test
+    void updateBookingShouldFailWhenBookingDoesNotExist() {
+        ReservationBookingRequestDto request = validRequest();
+                when(reservationBookingRepository.findByConfirmationNumber("MISSING-CNF")).thenReturn(Optional.empty());
+
+                assertThatThrownBy(() -> reservationBookingService.updateBooking("MISSING-CNF", request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Reservation booking not found");
+
+        verify(reservationBookingRepository, never()).save(any());
+        verify(reservationPaymentTransactionRepository, never()).findTopByBookingIdOrderByCreatedAtDesc(any());
+    }
+
+        @Test
+        void updateBookingShouldRejectWhenPhoneNumberIsNotTenDigits() {
+                ReservationBookingRequestDto request = validRequest();
+                request.setPhoneNumber("+91-9876543210");
+
+                assertThatThrownBy(() -> reservationBookingService.updateBooking("1234567000", request))
+                                .isInstanceOf(BadRequestException.class)
+                                .hasMessage("phoneNumber must be exactly 10 digits");
+
+                verify(reservationBookingRepository, never()).findByConfirmationNumber(any());
+                verify(reservationBookingRepository, never()).save(any());
+        }
+
     private PropertyInventoryValidationResponse validationResponse(
             boolean propertyExists,
             boolean roomTypeAvailable,
@@ -701,8 +988,7 @@ class ReservationBookingServiceImplTest {
         request.setCity("Pune");
         request.setCountry("India");
         request.setZipCode("411001");
-        request.setPhoneNumber("+91-9876543210");
-        request.setMobileNumber("+91-9876543210");
+        request.setPhoneNumber("9876543210");
         request.setLoyaltyNumber("LOY1234");
         request.setCompany("Contoso");
         request.setGuestGroup("CORP");

@@ -31,6 +31,9 @@ class ReservationBookingMapperTest {
         assertThat(entity.getGuestNamesEncoded()).isNotBlank();
         assertThat(entity.getTotalRate()).isEqualByComparingTo("10000.00");
         assertThat(entity.getPaymentType()).isEqualTo("FULL_PAYMENT");
+        assertThat(entity.getMobileNumber()).isEqualTo("9876543210");
+        assertThat(entity.getAssignedRoomNo()).isEqualTo("1203");
+        assertThat(entity.getFloor()).isEqualTo(12);
         assertThat(entity.getCreatedAt()).isNotNull();
     }
 
@@ -74,14 +77,16 @@ class ReservationBookingMapperTest {
                 .city("Pune")
                 .country("India")
                 .zipCode("411001")
-                .phoneNumber("+91-9876543210")
-                .mobileNumber("+91-9876543210")
+                .phoneNumber("9876543210")
+                .mobileNumber("9876543210")
                 .arrivalDate(LocalDate.of(2026, 6, 20))
                 .departureDate(LocalDate.of(2026, 6, 22))
                 .adultCount(2)
                 .childCount(1)
                 .reservationType("GTD")
                 .roomType("Deluxe King")
+                .assignedRoomNo("1203")
+                .floor(12)
                 .rateCode("BAR001")
                 .numberOfRooms(2)
                 .rate(new BigDecimal("2500.00"))
@@ -113,6 +118,8 @@ class ReservationBookingMapperTest {
         assertThat(response.getPaymentTransactionReference()).isEqualTo("PAY-777");
         assertThat(response.getPaymentProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(response.getPaymentType()).isEqualTo("FULL_PAYMENT");
+        assertThat(response.getAssignedRoomNo()).isEqualTo("1203");
+        assertThat(response.getFloor()).isEqualTo(12);
     }
 
     private ReservationBookingRequestDto validRequest() {
@@ -127,8 +134,7 @@ class ReservationBookingMapperTest {
         request.setCity("Pune");
         request.setCountry("India");
         request.setZipCode("411001");
-        request.setPhoneNumber("+91-9876543210");
-        request.setMobileNumber("+91-9876543210");
+        request.setPhoneNumber("9876543210");
         request.setLoyaltyNumber("LOY1234");
         request.setCompany("Contoso");
         request.setGuestGroup("CORP");
@@ -140,6 +146,8 @@ class ReservationBookingMapperTest {
         request.setChildCount(1);
         request.setReservationType("GTD");
         request.setRoomType("Deluxe King");
+        request.setAssignedRoomNo("1203");
+        request.setFloor(12);
         request.setRateCode("BAR001");
         request.setNumberOfRooms(1);
         request.setRate(new BigDecimal("8500.00"));
