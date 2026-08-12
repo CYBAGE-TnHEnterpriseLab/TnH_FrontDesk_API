@@ -12,6 +12,8 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 
@@ -86,4 +88,10 @@ public class RatePlan {
     @CollectionTable(name = "rate_plan_room_type", joinColumns = @JoinColumn(name = "rate_plan_id"))
     @Column(name = "room_type_id", nullable = false)
     private Set<Long> applicableRoomTypeIds = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "rate_plan_policy", joinColumns = @JoinColumn(name = "rate_plan_id"))
+    @OrderColumn(name = "policy_index")
+    @Column(name = "policy_id")
+    private List<String> policyId = new ArrayList<>(); // New field for policy IDs
 }

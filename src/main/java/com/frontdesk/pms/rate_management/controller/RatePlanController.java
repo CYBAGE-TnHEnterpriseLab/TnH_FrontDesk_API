@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 
+
 @RestController
 @RequestMapping("/api/rate-plans")
 public class RatePlanController {
@@ -82,5 +83,19 @@ public class RatePlanController {
                                                                        @PathVariable Long id,
                                                                        @RequestParam Long roomTypeId) {
         return ResponseEntity.ok(ratePlanService.calculatePriceFromMasterBar(propertyId, id, roomTypeId));
+    }
+
+    @PatchMapping("/map/policy-to-rate-plan/property/{propertyId}/{ratePlanId}")
+    public ResponseEntity<RatePlanResponseDTO> mapPolicyToRatePlan(@PathVariable String propertyId,
+                                                                    @PathVariable Long ratePlanId,
+                                                                    @RequestParam List<String> policyId) {
+        return ResponseEntity.ok(ratePlanService.mapPolicyToRatePlan(propertyId, ratePlanId, policyId));
+    }
+
+    @PatchMapping("/unmap/policy-from-rate-plan/property/{propertyId}/{ratePlanId}")
+    public ResponseEntity<RatePlanResponseDTO> unmapPolicyToRatePlan(@PathVariable String propertyId,
+                                                                    @PathVariable Long ratePlanId,
+                                                                    @RequestParam List<String> policyId) {
+        return ResponseEntity.ok(ratePlanService.unmapPolicyToRatePlan(propertyId, ratePlanId, policyId));
     }
 }
