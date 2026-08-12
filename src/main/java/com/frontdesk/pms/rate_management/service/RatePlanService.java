@@ -88,6 +88,7 @@ public class RatePlanService {
         existing.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy()));
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
+        existing.setPolicyId(requestDTO.getPolicyId()); // Update the policy ID in the entity
 
         if (existing.getStatus() == RatePlanStatus.ACTIVE) {
             validateNoOverlapForActivePlan(
