@@ -20,9 +20,6 @@ public record FolioChargePostRequest(
         @NotNull(message = "amount is required")
         @DecimalMin(value = "0.01", message = "amount must be greater than zero")
         BigDecimal amount,
-        @NotNull(message = "tax is required")
-        @DecimalMin(value = "0.00", message = "tax cannot be negative")
-        BigDecimal tax,
         @JsonFormat(pattern = "yyyy-MM-dd")
         LocalDate postingDate,
         String userId

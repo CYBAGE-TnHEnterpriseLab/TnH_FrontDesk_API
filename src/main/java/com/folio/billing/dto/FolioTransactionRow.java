@@ -3,6 +3,7 @@ package com.folio.billing.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record FolioTransactionRow(
         LocalDate date,
@@ -16,6 +17,10 @@ public record FolioTransactionRow(
         String userId,
         LocalDateTime postedAt,
         String originalReferenceNumber,
-        String adjustmentReason
+        String adjustmentReason,
+        List<TaxDetail> taxDetails
 ) {
+    public BigDecimal totalAmount() {
+        return (charges == null ? BigDecimal.ZERO : charges).add(tax == null ? BigDecimal.ZERO : tax);
+    }
 }

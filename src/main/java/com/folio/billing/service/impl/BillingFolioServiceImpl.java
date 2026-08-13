@@ -1,7 +1,7 @@
 package com.folio.billing.service.impl;
 
-import com.folio.billing.client.BillingDataClient;
 import com.folio.billing.client.ReservationServiceClient;
+import com.folio.billing.client.PropertyTaxRuleClient;
 import com.folio.billing.dto.BillingDetailsResponse;
 import com.folio.billing.dto.BillingTotals;
 import com.folio.billing.dto.ChargeAdjustmentType;
@@ -25,8 +25,14 @@ import com.folio.billing.dto.GuestDetail;
 import com.folio.billing.dto.PaymentAllocationHistoryEntry;
 import com.folio.billing.dto.PaymentAllocationTargetRequest;
 import com.folio.billing.dto.ReservationSummary;
+import com.folio.billing.dto.PropertyTaxRule;
+import com.folio.billing.dto.TaxDetail;
+import com.folio.billing.entity.FolioTaxSnapshot;
+import com.folio.billing.repository.FolioTaxSnapshotRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.folio.billing.service.BillingFolioService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -41,6 +47,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,7 +64,9 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     private static final String DOCUMENT_CONTENT_TYPE = "text/html;charset=UTF-8";
 
     private final ReservationServiceClient reservationServiceClient;
-    private final BillingDataClient billingDataClient;
+    private final PropertyTaxRuleClient propertyTaxRuleClient;
+    private final FolioTaxSnapshotRepository taxSnapshotRepository;
+    private final ObjectMapper objectMapper;
     private final ConcurrentMap<String, FolioState> foliosByConfirmationNo = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<FolioTransactionRow>> postedTransactionsByConfirmationNo = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<PaymentAllocationHistoryEntry>> allocationHistoryByConfirmationNo = new ConcurrentHashMap<>();
@@ -70,10 +80,14 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
     public BillingFolioServiceImpl(
             ReservationServiceClient reservationServiceClient,
-            BillingDataClient billingDataClient
+            PropertyTaxRuleClient propertyTaxRuleClient,
+            FolioTaxSnapshotRepository taxSnapshotRepository,
+            ObjectMapper objectMapper
     ) {
         this.reservationServiceClient = reservationServiceClient;
-        this.billingDataClient = billingDataClient;
+        this.propertyTaxRuleClient = propertyTaxRuleClient;
+        this.taxSnapshotRepository = taxSnapshotRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -180,10 +194,11 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         }
 
         BigDecimal amount = scaleMoney(safeAmount(request.amount()));
-        BigDecimal tax = scaleMoney(safeAmount(request.tax()));
-        validateChargeAmounts(amount, tax);
+        validateChargeAmounts(amount, BigDecimal.ZERO);
 
         String category = firstNonBlank(request.category(), "ANCILLARY");
+        List<TaxDetail> taxDetails = calculateTaxes(amount, category, request.postingDate() != null ? request.postingDate() : LocalDate.now());
+        BigDecimal tax = totalTax(taxDetails);
         String description = firstNonBlank(request.description(), category + " charge");
         LocalDate postingDate = request.postingDate() != null ? request.postingDate() : LocalDate.now();
         LocalDateTime postedAt = LocalDateTime.now();
@@ -202,7 +217,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 userId,
                 postedAt,
                 null,
-                null
+                null,
+                taxDetails
         );
 
         appendPostedTransaction(confirmationNo, chargeTransaction);
@@ -226,6 +242,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 description,
                 amount,
                 tax,
+                taxDetails,
+                scaleMoney(amount.add(tax)),
                 postingDate,
                 balanceSnapshot.totalCharges(),
                 balanceSnapshot.totalPayment(),
@@ -254,8 +272,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         }
 
         BigDecimal amount = scaleMoney(safeAmount(request.amount()));
-        BigDecimal tax = scaleMoney(safeAmount(request.tax()));
-        validateChargeAmounts(amount, tax);
+        validateChargeAmounts(amount, BigDecimal.ZERO);
 
         List<FolioTransactionRow> existingTransactions = getMergedTransactions(confirmationNo, null);
 
@@ -271,12 +288,18 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             throw badRequest("only charge transactions can be adjusted");
         }
 
+        List<TaxDetail> taxDetails = calculateAdjustmentTaxes(amount, originalTransaction);
+        BigDecimal tax = totalTax(taxDetails);
+
         BigDecimal signedAmount = request.adjustmentType() == ChargeAdjustmentType.DECREASE
                 ? amount.negate()
                 : amount;
         BigDecimal signedTax = request.adjustmentType() == ChargeAdjustmentType.DECREASE
                 ? tax.negate()
                 : tax;
+        List<TaxDetail> signedTaxDetails = request.adjustmentType() == ChargeAdjustmentType.DECREASE
+                ? taxDetails.stream().map(detail -> new TaxDetail(detail.taxName(), detail.rate(), detail.amount().negate())).toList()
+                : taxDetails;
 
         BigDecimal currentNetChargeForReference = calculateCurrentNetChargeForReference(
                 originalReferenceNumber,
@@ -307,7 +330,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 userId,
                 postedAt,
                 originalReferenceNumber,
-                request.reason().trim()
+                request.reason().trim(),
+                signedTaxDetails
         );
 
         appendPostedTransaction(confirmationNo, adjustmentTransaction);
@@ -332,6 +356,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 request.reason().trim(),
                 amount,
                 tax,
+                signedTaxDetails,
+                scaleMoney(signedAmount.add(signedTax)),
                 postingDate,
                 postedAt,
                 userId,
@@ -435,7 +461,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                     userId,
                     allocatedAt,
                     paymentReference,
-                    note
+                    note,
+                    List.of()
             );
 
             appendPostedTransaction(confirmationNo, paymentTransaction);
@@ -688,15 +715,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             return totalsFromTransactions(transactions);
         }
 
-        BillingTotals totals = billingDataClient.getTotals(normalizedConfirmationNo);
-        if (totals == null) {
-            return ZERO_TOTALS;
-        }
-
-        return new BillingTotals(
-                safeAmount(totals.totalCharges()),
-                safeAmount(totals.totalPayment())
-        );
+        return ZERO_TOTALS;
     }
 
     private BillingTotals totalsFromTransactions(List<FolioTransactionRow> transactions) {
@@ -755,6 +774,50 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         return safeAmount(charges).add(safeAmount(tax));
     }
 
+    private List<TaxDetail> calculateTaxes(BigDecimal amount, String category, LocalDate postingDate) {
+        if ("ROOM".equalsIgnoreCase(defaultString(category).trim())) {
+            return List.of();
+        }
+
+        String propertyId = resolvePropertyId();
+        return propertyTaxRuleClient.getTaxRules(propertyId).stream()
+                .filter(rule -> rule.active() && "ACTIVE".equalsIgnoreCase(rule.status()))
+                .filter(rule -> "ADD_ON".equalsIgnoreCase(rule.applicableOn()))
+                .filter(rule -> rule.effectiveDate() == null || !rule.effectiveDate().isAfter(postingDate))
+                .sorted(Comparator.comparing(rule -> Optional.ofNullable(rule.priority()).orElse(Integer.MAX_VALUE)))
+                .map(rule -> toTaxDetail(amount, rule))
+                .toList();
+    }
+
+    private TaxDetail toTaxDetail(BigDecimal amount, PropertyTaxRule rule) {
+        if (!"PERCENTAGE".equalsIgnoreCase(rule.type())) {
+            throw badRequest("Unsupported tax rule type: " + rule.type());
+        }
+        if (!"EXCLUSIVE".equalsIgnoreCase(rule.inclExcl())) {
+            throw badRequest("Only EXCLUSIVE tax rules are supported for charge posting");
+        }
+        BigDecimal rate = safeAmount(rule.rate());
+        BigDecimal taxAmount = scaleMoney(amount.multiply(rate).divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP));
+        return new TaxDetail(firstNonBlank(rule.taxName(), "Tax"), rate, taxAmount);
+    }
+
+    private List<TaxDetail> calculateAdjustmentTaxes(BigDecimal amount, FolioTransactionRow originalTransaction) {
+        return Optional.ofNullable(originalTransaction.taxDetails()).orElse(List.of()).stream()
+                .map(detail -> new TaxDetail(detail.taxName(), detail.rate(),
+                        scaleMoney(amount.multiply(safeAmount(detail.rate())).divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP))))
+                .toList();
+    }
+
+    private BigDecimal totalTax(List<TaxDetail> taxDetails) {
+        return scaleMoney(taxDetails.stream().map(TaxDetail::amount).map(BillingFolioServiceImpl::safeAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    private String resolvePropertyId() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        return attributes == null ? "" : defaultString(attributes.getRequest().getHeader("X-Property-Id")).trim();
+    }
+
     private List<FolioTransactionRow> getMergedTransactions(String confirmationNo, List<FolioTransactionRow> knownBaseTransactions) {
         if (!hasText(confirmationNo)) {
             return List.of();
@@ -762,9 +825,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
         String normalizedConfirmationNo = normalize(confirmationNo);
 
-        List<FolioTransactionRow> baseTransactions = knownBaseTransactions == null
-                ? Optional.ofNullable(billingDataClient.getTransactions(normalizedConfirmationNo)).orElse(List.of())
-                : knownBaseTransactions;
+        List<FolioTransactionRow> baseTransactions = knownBaseTransactions == null ? List.of() : knownBaseTransactions;
 
         List<FolioTransactionRow> postedTransactions = postedTransactionsByConfirmationNo
                 .getOrDefault(normalizedConfirmationNo, List.of());
@@ -791,6 +852,19 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             mergedTransactions.add(transaction);
             return List.copyOf(mergedTransactions);
         });
+        persistTaxSnapshot(normalizedConfirmationNo, transaction);
+    }
+
+    private void persistTaxSnapshot(String confirmationNo, FolioTransactionRow transaction) {
+        try {
+            taxSnapshotRepository.save(new FolioTaxSnapshot(
+                    confirmationNo,
+                    transaction.referenceNumber(),
+                    objectMapper.writeValueAsString(Optional.ofNullable(transaction.taxDetails()).orElse(List.of()))
+            ));
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Unable to persist folio tax details", ex);
+        }
     }
 
     private void appendAllocationHistory(String confirmationNo, PaymentAllocationHistoryEntry historyEntry) {
@@ -995,6 +1069,28 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                         .append("<td>").append(escapeHtml(transaction.userId())).append("</td>")
                         .append("<td>").append(escapeHtml(formatDateTime(transaction.postedAt()))).append("</td>")
                         .append("</tr>");
+            }
+        }
+
+        html.append("</tbody></table>")
+                .append("<h2>Tax Breakdown</h2>")
+                .append("<table><thead><tr><th>Tax Type</th><th>Rate</th><th>Amount</th></tr></thead><tbody>");
+
+        Map<String, TaxDetail> taxTotals = new LinkedHashMap<>();
+        for (FolioTransactionRow transaction : transactions) {
+            for (TaxDetail detail : Optional.ofNullable(transaction.taxDetails()).orElse(List.of())) {
+                TaxDetail current = taxTotals.get(detail.taxName());
+                taxTotals.put(detail.taxName(), new TaxDetail(detail.taxName(), detail.rate(),
+                        safeAmount(current == null ? BigDecimal.ZERO : current.amount()).add(safeAmount(detail.amount()))));
+            }
+        }
+        if (taxTotals.isEmpty()) {
+            html.append("<tr><td colspan=\"3\">No tax applied.</td></tr>");
+        } else {
+            for (TaxDetail detail : taxTotals.values()) {
+                html.append("<tr><td>").append(escapeHtml(detail.taxName())).append("</td><td class=\"num\">")
+                        .append(escapeHtml(detail.rate() == null ? "0" : detail.rate().stripTrailingZeros().toPlainString())).append("%</td><td class=\"num\">")
+                        .append(formatMoney(detail.amount())).append("</td></tr>");
             }
         }
 

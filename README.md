@@ -21,7 +21,7 @@ Path: /api/v1/billingFolio/getFolioBilling
 Query parameters (optional):
 - roomNumber
 - guestName
-- actnerCrop
+- company
 - confirmationNumber
 - checkInDate (ISO date: yyyy-MM-dd)
 - checkOutDate (ISO date: yyyy-MM-dd)
@@ -109,7 +109,7 @@ Request body:
 - category (required, for example ROOM, MINIBAR, LAUNDRY, PARKING)
 - description (required)
 - amount (required, must be > 0)
-- tax (required, must be >= 0)
+- Tax is calculated automatically from active Property Service tax rules for the request's `X-Property-Id`.
 - postingDate (optional, defaults to current date)
 - userId (optional)
 
@@ -121,6 +121,7 @@ Response fields:
 - description
 - amount
 - tax
+- taxDetails (one entry per applied property tax rule: taxName, rate, amount)
 - postingDate
 - totalCharges
 - totalPayment
@@ -135,7 +136,7 @@ Request body:
 - originalReferenceNumber (required, the transaction being adjusted)
 - adjustmentType (required, INCREASE or DECREASE)
 - amount (required, must be > 0)
-- tax (required, must be >= 0)
+- Tax is recalculated from the tax snapshot applied to the original charge.
 - reason (required)
 - userId (optional)
 
@@ -148,6 +149,7 @@ Response fields:
 - reason
 - amount
 - tax
+- taxDetails (one entry per applied property tax rule: taxName, rate, amount)
 - postingDate
 - postedAt
 - userId
@@ -243,6 +245,7 @@ Response fields:
 Behavior:
 - Generated document includes guest details and reservation details.
 - Generated document includes transaction rows with charge, tax, and payment details.
+- Generated document includes a tax breakdown grouped by tax type.
 - Generated document totals are calculated from the latest folio transactions.
 - latestBalance in response reflects current folio balance at generation time.
 
@@ -283,17 +286,11 @@ Response: list of document audit entries containing:
 
 ## Integration points
 
-The service is intentionally wired through interfaces so you can replace mock clients with real downstream service calls:
-- ReservationServiceClient
-- BillingDataClient
-
-Current mock implementations:
-- MockReservationServiceClient
-- MockBillingDataClient
+The service uses live Reservation Service and Property Service integrations.
 
 Note:
 - There is no separate billing-ledger microservice in this requirement.
-- Totals and transactions are served by the local billing data adapter.
+- Totals and transactions are created from charges, adjustments, and payments posted through this service.
 - Folio records are auto-created/maintained in service memory when reservation data is fetched.
 - Room and ancillary charges can be posted to folio using addCharge API.
 - Posted charges can be increased or decreased using adjustCharge API.
@@ -301,6 +298,8 @@ Note:
 - Adjustment audit includes userId, postedAt timestamp, adjustment reference, and originalReferenceNumber link.
 - Payments/credits from folio transactions automatically update folio payment totals and outstanding balance.
 - New charges update folio balance immediately after posting.
+- `ROOM` charges are not taxed by ADD_ON rules. All other charge categories use active `ADD_ON`, `PERCENTAGE`, `EXCLUSIVE` rules from Property Service for the request's `X-Property-Id`.
+- `X-Property-Id` is required when posting a non-ROOM charge so the applicable property tax rules can be resolved.
 - Charge adjustments update folio balance immediately after posting.
 - Payment allocation supports one or multiple folios with partial allocation support.
 - Over-allocation is blocked both at payment-level and folio-level.
@@ -308,9 +307,7 @@ Note:
 - Folio invoice/receipt generation is supported and uses latest folio financial snapshot.
 - Generated documents can be downloaded or opened for printing.
 - Generated document audit history is maintained in service memory and exposed via documentAuditHistory API.
-- Reservation data source is selected by `integration.reservation-service.enabled`:
-  - `true` = live calls to reservation service (`integration.reservation-service.base-url`)
-  - `false` = in-memory mock reservation data
+- Reservation data is retrieved from the live reservation service (`integration.reservation-service.base-url`).
 - Live guest-listing calls use propertyId in this order:
   - `X-Property-Id` request header (preferred)
   - `integration.reservation-service.property-id` config (fallback)

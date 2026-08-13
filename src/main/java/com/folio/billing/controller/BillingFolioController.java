@@ -48,7 +48,7 @@ public class BillingFolioController {
     public ResponseEntity<List<FolioBillingRow>> getFolioBilling(
             @RequestParam(required = false) String roomNumber,
             @RequestParam(required = false) String guestName,
-            @RequestParam(required = false) String actnerCrop,
+            @RequestParam(required = false) String company,
             @RequestParam(required = false) String confirmationNumber,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkInDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOutDate
@@ -56,7 +56,7 @@ public class BillingFolioController {
         FolioBillingFilter filter = new FolioBillingFilter(
                 roomNumber,
                 guestName,
-                actnerCrop,
+                company,
                 confirmationNumber,
                 checkInDate,
                 checkOutDate

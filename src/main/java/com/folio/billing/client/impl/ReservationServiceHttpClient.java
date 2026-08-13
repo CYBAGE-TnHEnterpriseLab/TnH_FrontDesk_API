@@ -10,7 +10,6 @@ import com.folio.billing.dto.GuestDetail;
 import com.folio.billing.dto.ReservationSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -28,7 +27,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Component
-@ConditionalOnProperty(prefix = "integration.reservation-service", name = "enabled", havingValue = "true")
 public class ReservationServiceHttpClient implements ReservationServiceClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ReservationServiceHttpClient.class);
@@ -58,7 +56,7 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         List<JsonNode> rows = fetchGuestListingRows(
                 businessDate,
                 search,
-                filter.actnerCrop()
+                filter.company()
         );
 
         return rows.stream()

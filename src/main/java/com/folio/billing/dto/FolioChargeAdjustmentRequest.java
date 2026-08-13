@@ -16,9 +16,6 @@ public record FolioChargeAdjustmentRequest(
         @NotNull(message = "amount is required")
         @DecimalMin(value = "0.01", message = "amount must be greater than zero")
         BigDecimal amount,
-        @NotNull(message = "tax is required")
-        @DecimalMin(value = "0.00", message = "tax cannot be negative")
-        BigDecimal tax,
         @NotBlank(message = "reason is required")
         String reason,
         String userId
