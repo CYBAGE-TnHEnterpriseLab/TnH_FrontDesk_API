@@ -1,94 +1,81 @@
 package com.pms.inventory.common.exception;
 
+import com.pms.inventory.common.response.ApiResponse;
+
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<ErrorResponse> handleValidation(
-			MethodArgumentNotValidException ex,
-			HttpServletRequest request
-	) {
-		String message = ex.getBindingResult().getFieldErrors().stream()
-				.map(FieldError::getDefaultMessage)
-				.collect(Collectors.joining(", "));
-		return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message, request);
-	}
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(NotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(ex.getMessage()));
+    }
 
-	@ExceptionHandler(ConstraintViolationException.class)
-	public ResponseEntity<ErrorResponse> handleConstraintViolation(
-			ConstraintViolationException ex,
-			HttpServletRequest request
-	) {
-		return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), request);
-	}
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.fail(ex.getMessage()));
+    }
 
-	@ExceptionHandler(InventoryNotFoundException.class)
-	public ResponseEntity<ErrorResponse> handleNotFound(
-			InventoryNotFoundException ex,
-			HttpServletRequest request
-	) {
-		return build(HttpStatus.NOT_FOUND, "INVENTORY_NOT_FOUND", ex.getMessage(), request);
-	}
+    @ExceptionHandler(PropertyDeletionException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePropertyDeletion(
+            PropertyDeletionException ex
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.fail(ex.getMessage()));
+    }
 
-	@ExceptionHandler(InsufficientInventoryException.class)
-	public ResponseEntity<ErrorResponse> handleInsufficient(
-			InsufficientInventoryException ex,
-			HttpServletRequest request
-	) {
-		return build(HttpStatus.CONFLICT, "INSUFFICIENT_INVENTORY", ex.getMessage(), request);
-	}
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(ValidationException ex) {
+        Map<String, String> data = Map.of(
+            "code", ex.getCode(),
+            "fieldPath", ex.getFieldPath()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ApiResponse<>(false, data, ex.getMessage()));
+    }
 
-	@ExceptionHandler(OptimisticLockingFailureException.class)
-	public ResponseEntity<ErrorResponse> handleOptimisticLocking(
-			OptimisticLockingFailureException ex,
-			HttpServletRequest request
-	) {
-		return build(HttpStatus.CONFLICT, "INVENTORY_CONFLICT", "Inventory was modified concurrently. Retry the request.", request);
-	}
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+            .findFirst()
+            .map(err -> err.getField() + " " + err.getDefaultMessage())
+            .orElse("Validation failed");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.fail(message));
+    }
 
-	@ExceptionHandler(InventoryException.class)
-	public ResponseEntity<ErrorResponse> handleInventory(
-			InventoryException ex,
-			HttpServletRequest request
-	) {
-		return build(HttpStatus.CONFLICT, "INVENTORY_ERROR", ex.getMessage(), request);
-	}
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(ApiResponse.fail("Unexpected error"));
+    }
 
-	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ErrorResponse> handleGeneric(
-			Exception ex,
-			HttpServletRequest request
-	) {
-		return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR", "Unexpected error occurred", request);
-	}
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLocking(
+            OptimisticLockingFailureException ex,
+            HttpServletRequest request) {
 
-	private ResponseEntity<ErrorResponse> build(
-			HttpStatus status,
-			String error,
-			String message,
-			HttpServletRequest request
-	) {
-		ErrorResponse response = new ErrorResponse(
-				Instant.now(),
-				status.value(),
-				error,
-				message,
-				request.getRequestURI()
-		);
-		return ResponseEntity.status(status).body(response);
-	}
+        ErrorResponse response = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.CONFLICT.value(),
+                "INVENTORY_CONFLICT",
+                "Optimistic locking conflict",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(response);
+    }
 }
 

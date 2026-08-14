@@ -3,6 +3,7 @@ package com.pms.inventory.inventory.service;
 import com.pms.inventory.common.exception.InsufficientInventoryException;
 import com.pms.inventory.common.exception.InventoryNotFoundException;
 import com.pms.inventory.inventory.dto.response.DailyInventoryResponse;
+import com.pms.inventory.inventory.dto.response.PropertyDeletionCheckResponse;
 import com.pms.inventory.inventory.entity.RoomTypeInventoryDaily;
 import com.pms.inventory.inventory.mapper.DailyInventoryMapper;
 import com.pms.inventory.inventory.repository.RoomTypeInventoryDailyRepository;
@@ -115,6 +116,28 @@ public class InventoryService {
             map.put(row.getBusinessDate(), row);
         }
         return map;
+    }
+
+    public PropertyDeletionCheckResponse hasAnyActiveReservations(
+            UUID propertyId,
+            LocalDate businessDate,
+            Integer reservedCount
+    ) {
+
+        boolean hasActiveReservations =
+                dailyRepository.existsByPropertyIdAndBusinessDateGreaterThanEqualAndReservedCountGreaterThan(
+                        propertyId,
+                        businessDate,
+                        reservedCount
+                );
+
+        boolean canDelete = !hasActiveReservations;
+
+        return new PropertyDeletionCheckResponse(
+                propertyId,
+                canDelete,
+                hasActiveReservations
+        );
     }
 }
 

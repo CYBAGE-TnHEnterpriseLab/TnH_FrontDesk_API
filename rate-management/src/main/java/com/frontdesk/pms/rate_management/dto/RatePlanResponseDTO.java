@@ -7,6 +7,7 @@ import com.frontdesk.pms.rate_management.enums.RatePlanType;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,4 +30,5 @@ public class RatePlanResponseDTO {
     private Double manualAmount;
     private Map<String, Double> manualPricingByOccupancy;
     private Long parentRatePlanId;
+    private List<String> policyId; // New field for policy ID
 }

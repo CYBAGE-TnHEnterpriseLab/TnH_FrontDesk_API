@@ -12,6 +12,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(PropertyDeletionException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePropertyDeletion(
+            PropertyDeletionException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.fail(ex.getMessage()));
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(NotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.fail(ex.getMessage()));
@@ -44,12 +53,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(ApiResponse.fail("Unexpected error"));
+            .body(ApiResponse.fail(ex.getMessage()));
     }
 
     @ExceptionHandler(InventorySyncException.class)
     public ResponseEntity<ApiResponse<Void>> handleInventorySync(InventorySyncException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiResponse.fail(ex.getMessage()));
     }
+
 }
 

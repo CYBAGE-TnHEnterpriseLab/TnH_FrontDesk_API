@@ -1,10 +1,6 @@
-package com.pms.property.common.response;
+package com.pms.inventory.common.response;
 
-public record ApiResponse<T>(
-        boolean success,
-        T data,
-        String message
-) {
+public record ApiResponse<T>(boolean success, T data, String message) {
 
     public static <T> ApiResponse<T> ok(T data, String message) {
         return new ApiResponse<>(true, data, message);
@@ -14,3 +10,4 @@ public record ApiResponse<T>(
         return new ApiResponse<>(false, null, message);
     }
 }
+

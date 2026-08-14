@@ -1,7 +1,9 @@
-package com.pms.property.domain.property.service;
+package com.pms.property.domain.property.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
+import com.pms.property.common.exception.PropertyDeletionException;
+import com.pms.property.domain.config.InventoryClient;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
@@ -12,6 +14,7 @@ import com.pms.property.domain.property.dto.PropertyResponse;
 import com.pms.property.domain.property.entity.PropertyEntity;
 import com.pms.property.domain.property.mapper.PropertyMapper;
 import com.pms.property.domain.property.repository.PropertyRepository;
+import com.pms.property.domain.property.service.PropertyService;
 import com.pms.property.domain.room.entity.PropertyAreaEntity;
 import com.pms.property.domain.room.entity.RoomOutletTypeEntity;
 import com.pms.property.domain.room.repository.FloorConfigurationRepository;
@@ -24,6 +27,8 @@ import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.repository.PropertyDraftRepository;
 import com.pms.property.draft.service.DraftService;
 import com.pms.property.upload.service.LocalImageStorageService;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -48,24 +53,26 @@ public class PropertyServiceImpl implements PropertyService {
     private final PropertyDraftRepository propertyDraftRepository;
     private final LocalImageStorageService localImageStorageService;
     private final DraftService draftService;
+    private final InventoryClient inventoryClient;
 
     public PropertyServiceImpl(
-        PropertyRepository propertyRepository,
-        PropertyOverviewRepository propertyOverviewRepository,
-        GuestServiceAmenityRepository guestServiceAmenityRepository,
-        NearbyLocationAccessibilityRepository nearbyLocationAccessibilityRepository,
-        PropertyAreaRepository propertyAreaRepository,
-        RoomOutletTypeRepository roomOutletTypeRepository,
-        FloorConfigurationRepository floorConfigurationRepository,
-        FloorPropertyAreaRepository floorPropertyAreaRepository,
-        InventoryRoomRepository inventoryRoomRepository,
-        ChartOfAccountRepository chartOfAccountRepository,
-        RevenueMappingRepository revenueMappingRepository,
-        PaymentMethodRepository paymentMethodRepository,
-        TaxRuleRepository taxRuleRepository,
-        PropertyDraftRepository propertyDraftRepository,
-        LocalImageStorageService localImageStorageService,
-        DraftService draftService
+            PropertyRepository propertyRepository,
+            PropertyOverviewRepository propertyOverviewRepository,
+            GuestServiceAmenityRepository guestServiceAmenityRepository,
+            NearbyLocationAccessibilityRepository nearbyLocationAccessibilityRepository,
+            PropertyAreaRepository propertyAreaRepository,
+            RoomOutletTypeRepository roomOutletTypeRepository,
+            FloorConfigurationRepository floorConfigurationRepository,
+            FloorPropertyAreaRepository floorPropertyAreaRepository,
+            InventoryRoomRepository inventoryRoomRepository,
+            ChartOfAccountRepository chartOfAccountRepository,
+            RevenueMappingRepository revenueMappingRepository,
+            PaymentMethodRepository paymentMethodRepository,
+            TaxRuleRepository taxRuleRepository,
+            PropertyDraftRepository propertyDraftRepository,
+            LocalImageStorageService localImageStorageService,
+            DraftService draftService,
+            InventoryClient inventoryClient
     ) {
         this.propertyRepository = propertyRepository;
         this.propertyOverviewRepository = propertyOverviewRepository;
@@ -83,6 +90,7 @@ public class PropertyServiceImpl implements PropertyService {
         this.propertyDraftRepository = propertyDraftRepository;
         this.localImageStorageService = localImageStorageService;
         this.draftService = draftService;
+        this.inventoryClient = inventoryClient;
     }
 
     @Override
@@ -109,6 +117,23 @@ public class PropertyServiceImpl implements PropertyService {
             .orElseThrow(() -> new NotFoundException("Property not found: " + propertyId));
         if (!actor.equals(property.getCreatedBy())) {
             throw new BadRequestException("Property does not belong to the current user");
+        }
+
+        LocalDate businessDate = LocalDate.now();
+        // Check for active reservations before deleting anything
+        boolean hasActiveReservations =
+                inventoryClient.hasActiveReservations(
+                        propertyId,
+                        businessDate
+                );
+
+
+        System.out.println("hasActiveReservations = " + hasActiveReservations);
+
+        if (hasActiveReservations) {
+            throw new PropertyDeletionException(
+                    "Property deletion cannot be done as property has active reservations for upcoming days"
+            );
         }
 
         cleanupDraftImages(propertyId);

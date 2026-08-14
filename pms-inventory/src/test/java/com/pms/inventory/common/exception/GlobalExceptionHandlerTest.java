@@ -19,10 +19,11 @@ class GlobalExceptionHandlerTest {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getRequestURI()).thenReturn("/api/v1/inventory/reservations");
 
-        ResponseEntity<ErrorResponse> response = handler.handleOptimisticLocking(
-                new OptimisticLockingFailureException("conflict"),
-                request
-        );
+        ResponseEntity<ErrorResponse> response =
+                handler.handleOptimisticLocking(
+                        new OptimisticLockingFailureException("conflict"),
+                        request
+                );
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("INVENTORY_CONFLICT", response.getBody().error());

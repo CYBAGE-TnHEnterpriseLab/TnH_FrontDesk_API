@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pms.property.common.exception.BadRequestException;
+import com.pms.property.domain.config.InventoryClient;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
@@ -51,8 +52,9 @@ class PropertyServiceTest {
         PropertyDraftRepository propertyDraftRepository = mock(PropertyDraftRepository.class);
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
         DraftService draftService = mock(DraftService.class);
+        InventoryClient inventoryClient = mock(InventoryClient.class);
 
-        PropertyService service = new PropertyServiceImpl(
+        PropertyService service = new com.pms.property.domain.property.service.serviceImpl.PropertyServiceImpl(
             propertyRepository,
             propertyOverviewRepository,
             guestServiceAmenityRepository,
@@ -68,7 +70,8 @@ class PropertyServiceTest {
             taxRuleRepository,
             propertyDraftRepository,
             localImageStorageService,
-            draftService
+            draftService,
+            inventoryClient
         );
 
         PropertyEntity property = new PropertyEntity();
@@ -129,8 +132,9 @@ class PropertyServiceTest {
         PropertyDraftRepository propertyDraftRepository = mock(PropertyDraftRepository.class);
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
         DraftService draftService = mock(DraftService.class);
+        InventoryClient inventoryClient = mock(InventoryClient.class);
 
-        PropertyService service = new PropertyServiceImpl(
+        PropertyService service = new com.pms.property.domain.property.service.serviceImpl.PropertyServiceImpl(
             propertyRepository,
             propertyOverviewRepository,
             guestServiceAmenityRepository,
@@ -146,7 +150,7 @@ class PropertyServiceTest {
             taxRuleRepository,
             propertyDraftRepository,
             localImageStorageService,
-            draftService
+            draftService,inventoryClient
         );
 
         PropertyEntity property = new PropertyEntity();

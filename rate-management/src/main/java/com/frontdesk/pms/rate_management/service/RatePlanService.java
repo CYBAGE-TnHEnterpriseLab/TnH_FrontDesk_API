@@ -16,6 +16,8 @@ import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.RatePlanRepository;
 import lombok.RequiredArgsConstructor;
+
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,6 +88,7 @@ public class RatePlanService {
         existing.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy()));
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
+        existing.setPolicyId(requestDTO.getPolicyId()); // Update the policy ID in the entity
 
         if (existing.getStatus() == RatePlanStatus.ACTIVE) {
             validateNoOverlapForActivePlan(
@@ -255,6 +258,7 @@ public class RatePlanService {
         entity.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(dto.getManualPricingByOccupancy()));
         entity.setParentRatePlanId(dto.getParentRatePlanId());
         entity.setApplicableRoomTypeIds(new HashSet<>(dto.getApplicableRoomTypeIds()));
+        entity.setPolicyId(dto.getPolicyId()); // Set the policy ID in the entity
         return entity;
     }
 
@@ -277,6 +281,7 @@ public class RatePlanService {
         dto.setManualAmount(entity.getManualAmount());
         dto.setManualPricingByOccupancy(copyManualPricingByOccupancy(entity.getManualPricingByOccupancy()));
         dto.setParentRatePlanId(entity.getParentRatePlanId());
+        dto.setPolicyId(entity.getPolicyId()); // Set the policy ID in the response DTO
         return dto;
     }
 
@@ -561,5 +566,57 @@ public class RatePlanService {
                 .map(RoomDTO::getId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+    }
+
+    public RatePlanResponseDTO mapPolicyToRatePlan(String propertyId, Long ratePlanId, List<String> policyId) {
+        // TODO Auto-generated method stub
+        if(propertyId == null || propertyId.isBlank()) {
+            throw new IllegalArgumentException("propertyId is required in path");
+        }
+        if(ratePlanId == null) {
+            throw new IllegalArgumentException("ratePlanId is required in path");
+        }
+        if(policyId == null || policyId.isEmpty()) {
+            throw new IllegalArgumentException("policyId is required in path");
+        }
+        
+        RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(ratePlanId, propertyId)
+                .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
+            
+        for(String policy : policyId) {
+            if(!ratePlan.getPolicyId().contains(policy)) {
+                ratePlan.getPolicyId().add(policy);
+            } else {
+                throw new InvalidRatePlanException("Policy ID " + policy + " is already mapped to the rate plan");
+            }
+        }
+
+        return toResponseDTO(ratePlan);
+    }
+
+    public RatePlanResponseDTO unmapPolicyToRatePlan(String propertyId, Long ratePlanId, List<String> policyId) {
+        if (propertyId == null || propertyId.isBlank()) {
+            throw new IllegalArgumentException("propertyId is required in path");
+        }
+        if (ratePlanId == null) {
+            throw new IllegalArgumentException("ratePlanId is required in path");
+        }
+        if (policyId == null || policyId.isEmpty()) {
+            throw new IllegalArgumentException("policyId is required in request");
+        }
+
+        RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(ratePlanId, propertyId)
+                .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
+
+        for(String policy : policyId) {
+            if(ratePlan.getPolicyId().contains(policy)) {
+                ratePlan.getPolicyId().remove(policy);
+            } else {
+                throw new InvalidRatePlanException("Policy ID " + policy + " is not mapped to the rate plan");
+            }       
+        }
+        ratePlanRepository.save(ratePlan);
+
+        return toResponseDTO(ratePlan);
     }
 }

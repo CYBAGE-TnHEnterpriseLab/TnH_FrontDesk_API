@@ -20,13 +20,25 @@ spring:
         default_schema: public
         hbm2ddl.create_namespaces: true
 
+       
+   
+
 services:
   property-wizard:
     base-url: ${property.wizard.base-url}
     endpoints:
 
       property-by-id: /api/property/getPublishedProperty/{propertyId}
-      room-types-by-property: /api/rooms/properties/{propertyId}/room-outlet-types
+      room-types-by-property: /api/rooms/properties/{propertyId}/room-outlet-types  
+
+  #policy-management:
+   #  base-url: ${policy.management.base-url}
+    # endpoints:
+     #  map-policy-to-rate-plan: /api/v1/policies/getPolicyByServiceType
+
+  #policy:
+   # management:
+    #  base-url: http://localhost:8089         
 
 property:
   wizard:

@@ -1,5 +1,6 @@
 package com.pms.inventory.inventory.repository;
 
+import com.pms.inventory.inventory.dto.response.PropertyDeletionCheckResponse;
 import com.pms.inventory.inventory.entity.RoomTypeInventoryDaily;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -41,6 +42,12 @@ public interface RoomTypeInventoryDailyRepository extends JpaRepository<RoomType
 			@Param("roomTypeId") UUID roomTypeId,
 			@Param("fromDate") LocalDate fromDate,
 			@Param("toDate") LocalDate toDate
+	);
+
+	boolean existsByPropertyIdAndBusinessDateGreaterThanEqualAndReservedCountGreaterThan(
+			UUID propertyId,
+			LocalDate businessDate,
+			Integer reservedCount
 	);
 }
 
