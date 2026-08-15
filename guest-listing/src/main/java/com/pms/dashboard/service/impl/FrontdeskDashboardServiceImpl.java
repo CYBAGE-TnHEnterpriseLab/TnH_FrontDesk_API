@@ -3,7 +3,6 @@ package com.pms.dashboard.service.impl;
 import com.pms.dashboard.client.HousekeepingDashboardClient;
 import com.pms.dashboard.client.InventoryDashboardClient;
 import com.pms.dashboard.client.PropertyDashboardClient;
-import com.pms.dashboard.client.RateDashboardClient;
 import com.pms.dashboard.client.ReservationDashboardClient;
 import com.pms.dashboard.config.DashboardProperties;
 import com.pms.dashboard.dto.response.FrontdeskDashboardResponse;
@@ -20,6 +19,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+
+import com.pms.reservation.repository.DailyRevenueProjection;
+import com.pms.reservation.repository.ReservationBookingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,24 +36,23 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
     private final HousekeepingDashboardClient housekeepingClient;
     private final InventoryDashboardClient inventoryClient;
     private final PropertyDashboardClient propertyClient;
-    private final RateDashboardClient rateClient;
     private final ReservationDashboardClient reservationClient;
     private final DashboardProperties properties;
+    private final ReservationBookingRepository reservationBookingRepository;
 
     public FrontdeskDashboardServiceImpl(
             HousekeepingDashboardClient housekeepingClient,
             InventoryDashboardClient inventoryClient,
             PropertyDashboardClient propertyClient,
-            RateDashboardClient rateClient,
             ReservationDashboardClient reservationClient,
-            DashboardProperties properties
+            DashboardProperties properties, ReservationBookingRepository reservationBookingRepository
     ) {
         this.housekeepingClient = housekeepingClient;
         this.inventoryClient = inventoryClient;
         this.propertyClient = propertyClient;
-        this.rateClient = rateClient;
         this.reservationClient = reservationClient;
         this.properties = properties;
+        this.reservationBookingRepository = reservationBookingRepository;
     }
 
     @Override
@@ -86,13 +87,6 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                 timeout
         ).cache();
 
-        Mono<SourceResult<List<DashboardModels.RatePlanData>>> ratePlans = wrap(
-                "ratePlans",
-                rateClient.fetchRatePlans(propertyId),
-                List.of(),
-                timeout
-        );
-
         Mono<SourceResult<DashboardModels.ReservationFlowData>> reservationFlow = wrap(
                 "reservationFlow",
                 reservationClient.fetchFlow(propertyId, businessDate),
@@ -123,7 +117,6 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                 housekeepingRoomsToday,
                 housekeepingRoomsTomorrow,
                 propertyRoomTypes,
-                ratePlans,
                 reservationFlow,
                 roomTypeOverview
         ).map(tuple -> {
@@ -131,9 +124,8 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             SourceResult<List<DashboardModels.HousekeepingRoomData>> hkToday = tuple.getT2();
             SourceResult<List<DashboardModels.HousekeepingRoomData>> hkTomorrow = tuple.getT3();
             SourceResult<List<DashboardModels.PropertyRoomTypeData>> roomTypes = tuple.getT4();
-            SourceResult<List<DashboardModels.RatePlanData>> rate = tuple.getT5();
-            SourceResult<DashboardModels.ReservationFlowData> reservation = tuple.getT6();
-            SourceResult<List<FrontdeskDashboardResponse.RoomTypeOverview>> roomOverview = tuple.getT7();
+            SourceResult<DashboardModels.ReservationFlowData> reservation = tuple.getT5();
+            SourceResult<List<FrontdeskDashboardResponse.RoomTypeOverview>> roomOverview = tuple.getT6();
 
             List<FrontdeskDashboardResponse.RoomTypeOverview> resolvedRoomOverview = roomOverview.payload();
             if (isZeroedRoomOverview(resolvedRoomOverview)) {
@@ -170,7 +162,6 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             sources.put("housekeepingRoomsTomorrow", hkTomorrow.status());
             sources.put("propertyRoomTypes", roomTypes.status());
             sources.put("inventory", roomOverview.status());
-            sources.put("ratePlans", rate.status());
             sources.put("reservationFlow", reservation.status());
 
             return new FrontdeskDashboardResponse(
@@ -178,7 +169,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                     businessDate,
                     new FrontdeskDashboardResponse.Kpis(availableTonight, occupiedTonight, occupancyPercent),
                     new FrontdeskDashboardResponse.ComplimentaryHouseUse(arrivals, arrivals, stayovers, stayovers, departures, departures),
-                    summarizeRevenue(rate.payload()),
+                    summarizeRevenue(propertyId,businessDate),
                     inventoryMetrics,
                     housekeepingStatus,
                     resolvedRoomOverview,
@@ -316,23 +307,62 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
         return new FrontdeskDashboardResponse.TomorrowStatus(required, notRequired, completed);
     }
 
-    private FrontdeskDashboardResponse.RevenueMetrics summarizeRevenue(List<DashboardModels.RatePlanData> ratePlans) {
-        if (ratePlans == null || ratePlans.isEmpty()) {
-            return new FrontdeskDashboardResponse.RevenueMetrics(BigDecimal.ZERO, BigDecimal.ZERO, 0, 0);
+    private FrontdeskDashboardResponse.RevenueMetrics summarizeRevenue(
+            UUID propertyId,
+            LocalDate businessDate) {
+
+        DailyRevenueProjection revenue =
+                reservationBookingRepository
+                        .findDailyRevenue(
+                                propertyId.toString(),
+                                businessDate
+                        )
+                        .orElse(null);
+
+        if (revenue == null) {
+            return new FrontdeskDashboardResponse.RevenueMetrics(
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    0,
+                    0
+            );
         }
-        BigDecimal roomRevenue = BigDecimal.ZERO;
-        long group = 0;
-        for (DashboardModels.RatePlanData ratePlan : ratePlans) {
-            if (ratePlan.manualAmount() != null) {
-                roomRevenue = roomRevenue.add(ratePlan.manualAmount());
-            }
-            if (containsAny(ratePlan.name(), "GROUP")) {
-                group++;
-            }
-        }
-        long individual = Math.max(ratePlans.size() - group, 0);
-        BigDecimal average = roomRevenue.divide(BigDecimal.valueOf(ratePlans.size()), 2, RoundingMode.HALF_UP);
-        return new FrontdeskDashboardResponse.RevenueMetrics(roomRevenue, average, individual, group);
+
+        BigDecimal roomRevenue =
+                revenue.getRoomRevenue() != null
+                        ? revenue.getRoomRevenue()
+                        : BigDecimal.ZERO;
+
+        long roomsSold =
+                revenue.getRoomsSold() != null
+                        ? revenue.getRoomsSold()
+                        : 0L;
+
+        long individualBookings =
+                revenue.getIndividualBookings() != null
+                        ? revenue.getIndividualBookings()
+                        : 0L;
+
+        long groupBookings =
+                revenue.getGroupBookings() != null
+                        ? revenue.getGroupBookings()
+                        : 0L;
+
+        BigDecimal averageRoomRevenue =
+                roomsSold > 0
+                        ? roomRevenue.divide(
+                        BigDecimal.valueOf(roomsSold),
+                        2,
+                        RoundingMode.HALF_UP
+                )
+                        : BigDecimal.ZERO;
+
+        return new FrontdeskDashboardResponse.RevenueMetrics(
+                roomRevenue,
+                averageRoomRevenue,
+                individualBookings,
+                groupBookings
+        );
     }
 
     private FrontdeskDashboardResponse.DailyGuestActivity summarizeGuestActivity(long arrivals, long departures, long stayovers, long occupiedTonight) {
