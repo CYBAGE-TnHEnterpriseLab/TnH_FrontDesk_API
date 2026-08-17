@@ -7,7 +7,6 @@ import lombok.Value;
 @Value
 @Builder
 public class CheckInCompletionResponseDto {
-    Long bookingId;
     String confirmationNumber;
     String reservationStatus;
     LocalDateTime checkInCompletedAt;

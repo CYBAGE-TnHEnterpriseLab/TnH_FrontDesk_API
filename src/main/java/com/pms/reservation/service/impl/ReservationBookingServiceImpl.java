@@ -135,6 +135,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         ReservationBookingRecord existing = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
             .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
 
+        if (STATUS_CHECKED_OUT.equalsIgnoreCase(existing.getReservationStatus())) {
+            throw new BadRequestException("Checked-out reservations cannot be changed. Cancel the same-day check-out to re-check in the guest first");
+        }
+
         request.setPayment(existing.getPayment());
         request.setPaymentType(existing.getPaymentType());
 

@@ -168,6 +168,13 @@ public class ReservationBookingRecord {
 
     private LocalDate checkInBusinessDate;
 
+    private LocalDateTime checkOutCompletedAt;
+
+    @Column(length = 160)
+    private String checkOutCompletedBy;
+
+    private LocalDate checkOutBusinessDate;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 }
