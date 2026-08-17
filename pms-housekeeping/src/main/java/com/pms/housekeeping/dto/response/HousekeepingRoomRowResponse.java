@@ -21,7 +21,7 @@ public record HousekeepingRoomRowResponse(
         LocalDateTime lastCleanedAt,
         HousekeepingPriority priority,
         boolean sellable,
-        UUID assignedReservationId,
+        String confirmationId,
         String featuresCsv
 ) {
 }

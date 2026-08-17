@@ -15,7 +15,7 @@ public record HousekeepingStatusUpdateResponse(
         String reservationStatus,
         String attendantName,
         HousekeepingPriority priority,
-        UUID assignedReservationId,
+        String confirmationId,
         boolean sellable,
         LocalDateTime updatedAt,
         LocalDateTime lastCleanedAt

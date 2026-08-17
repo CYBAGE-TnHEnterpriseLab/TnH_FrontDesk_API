@@ -378,8 +378,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
                             record.isSellable(),
 
-                            record.getAssignedReservationId() != null
-                                    ? record.getAssignedReservationId().toString()
+                            record.getConfirmationId() != null
+                                    ? record.getConfirmationId().toString()
                                     : null
                     );
                 })
@@ -462,16 +462,16 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         applyFrontOfficeStatusChange(row, request, now, loggedInUser);
         applyReservationStatusChange(row, request, now, loggedInUser);
 
-        if (request.assignedReservationId() != null || row.getAssignedReservationId() != null) {
-            UUID oldValue = row.getAssignedReservationId();
-            UUID newValue = request.assignedReservationId();
+        if (request.confirmationId() != null || row.getConfirmationId() != null) {
+            String oldValue = row.getConfirmationId();
+            String newValue = request.confirmationId();
             if (!Objects.equals(oldValue, newValue)) {
                 log.info("HousekeepingService::updateRoomStatus - Assigned reservation changing from {} to {}",
                         oldValue,
                         newValue);
 
-                row.setAssignedReservationId(newValue);
-                saveHistory(row, "assignedReservationId", toStringValue(oldValue), toStringValue(newValue), request, now, loggedInUser);
+                row.setConfirmationId(newValue);
+                saveHistory(row, "assignedReservationId", oldValue, newValue, request, now, loggedInUser);
             }
         }
 
@@ -527,7 +527,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 saved.getReservationStatus().name(),
                 saved.getAttendantName(),
                 saved.getPriority(),
-                saved.getAssignedReservationId(),
+                saved.getConfirmationId(),
                 saved.isSellable(),
                 saved.getUpdatedAt(),
                 saved.getLastCleanedAt()
@@ -639,7 +639,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 room.getLastCleanedAt(),
                 room.getPriority(),
                 room.isSellable(),
-                room.getAssignedReservationId(),
+                room.getConfirmationId(),
                 room.getFeaturesCsv()
         );
     }
@@ -648,7 +648,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         boolean cleanEnough = status.getCleaningStatus() == CleaningStatus.CLEAN
                 || status.getCleaningStatus() == CleaningStatus.INSPECTED;
         boolean vacant = status.getFrontOfficeStatus() == FrontOfficeStatus.VACANT;
-        boolean noAssignment = status.getAssignedReservationId() == null;
+        boolean noAssignment = status.getConfirmationId() == null;
         boolean notOut = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
                 && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
         return cleanEnough && vacant && noAssignment && notOut;

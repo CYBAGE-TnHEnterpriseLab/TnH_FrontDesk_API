@@ -95,8 +95,8 @@ public class HousekeepingRoomDayStatus {
     @Column(name = "reservation_status", nullable = false, length = 30)
     private ReservationStatus reservationStatus;
 
-    @Column(name = "assigned_reservation_id")
-    private UUID assignedReservationId;
+    @Column(name = "confirmation_id", length = 50)
+    private String confirmationId;
 
     @Column(name = "guest_display_name", length = 200)
     private String guestDisplayName;

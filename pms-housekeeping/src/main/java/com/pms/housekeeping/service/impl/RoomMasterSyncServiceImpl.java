@@ -144,7 +144,7 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
         boolean clean = status.getCleaningStatus() == CleaningStatus.CLEAN
                 || status.getCleaningStatus() == CleaningStatus.INSPECTED;
         boolean vacant = status.getFrontOfficeStatus() == FrontOfficeStatus.VACANT;
-        boolean unassigned = status.getAssignedReservationId() == null;
+        boolean unassigned = status.getConfirmationId() == null;
         boolean available = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
                 && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
 

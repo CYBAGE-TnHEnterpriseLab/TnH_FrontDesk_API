@@ -17,7 +17,7 @@ public record UpdateHousekeepingStatusRequest(
         CleaningStatus cleaningStatus,
         FrontOfficeStatus frontOfficeStatus,
         ReservationStatus reservationStatus,
-        UUID assignedReservationId,
+        String confirmationId,
         String attendantName,
         HousekeepingPriority priority,
         String guestDisplayName,
