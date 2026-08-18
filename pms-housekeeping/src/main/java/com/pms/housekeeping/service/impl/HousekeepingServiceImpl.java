@@ -394,7 +394,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         int safeLimit = Math.min(Math.max(limit, 1), 200);
         List<HousekeepingRoomDayStatus> rows = dayStatusRepository
-                .findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndAssignedReservationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
+                .findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
                         propertyId,
                         businessDate,
                         roomTypeId,

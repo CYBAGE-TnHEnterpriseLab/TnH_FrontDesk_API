@@ -30,7 +30,7 @@ public interface HousekeepingRoomDayStatusRepository
             LocalDate businessDate,
             String roomNumber);
 
-    List<HousekeepingRoomDayStatus> findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndAssignedReservationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
+    List<HousekeepingRoomDayStatus> findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
             UUID propertyId,
             LocalDate businessDate,
             UUID roomTypeId,
