@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import static com.pms.dashboard.constants.DashboardConstants.*;
 
 @Component
 public class HousekeepingDashboardClient extends DashboardWebClientSupport {
@@ -40,12 +41,12 @@ public class HousekeepingDashboardClient extends DashboardWebClientSupport {
                 uri -> uri.path(config.getSecondaryPath())
                         .queryParam("propertyId", propertyId)
                         .queryParam("businessDate", businessDate)
-                        .queryParam("page", 0)
-                        .queryParam("size", 200)
-                        .queryParam("sortBy", "roomNumber")
-                        .queryParam("sortDir", "asc")
+                        .queryParam("page", DEFAULT_PAGE)
+                        .queryParam("size", DEFAULT_PAGE_SIZE)
+                        .queryParam("sortBy", SORT_BY_ROOM_NUMBER)
+                        .queryParam("sortDir", SORT_ASC)
                         .build(),
-                "housekeeping.rooms"
+                HOUSEKEEPING_ROOMS_SOURCE
         ).map(this::toRooms);
     }
 
@@ -71,7 +72,7 @@ public class HousekeepingDashboardClient extends DashboardWebClientSupport {
     private List<DashboardModels.HousekeepingRoomData> toRooms(JsonNode rootNode) {
         JsonNode roomsNode = rootNode == null ? null : rootNode.path("rooms");
         if (roomsNode == null || !roomsNode.isArray()) {
-            throw new ExternalServiceException("housekeeping.rooms response does not contain rooms array");
+            throw new ExternalServiceException(HOUSEKEEPING_ROOMS_RESPONSE_ERROR);
         }
         List<DashboardModels.HousekeepingRoomData> result = new ArrayList<>();
         for (JsonNode item : roomsNode) {
