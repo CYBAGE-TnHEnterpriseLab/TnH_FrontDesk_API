@@ -38,6 +38,7 @@ public class ReservationAvailabilityMapper {
                 : inventory.getOccupancy();
 
         return RoomAvailabilityPricingDto.builder()
+                .roomTypeId(quote.getRoomTypeId())
                 .roomType(roomType)
                 .ratePlan(quote.getRatePlan())
                 .rateCode(quote.getRateCode())
@@ -48,6 +49,30 @@ public class ReservationAvailabilityMapper {
                 .taxAmount(quote.getTaxAmount())
                 .finalAmount(quote.getFinalAmount())
                 .build();
+    }
+
+    public RoomAvailabilityPricingDto toRoomAvailability(RatePlanPricingQuoteDto quote) {
+        String occupancy = quote.getOccupancy();
+
+        return RoomAvailabilityPricingDto.builder()
+                .roomType(resolveRoomTypeLabel(quote))
+                .roomTypeId(quote.getRoomTypeId())
+                .ratePlan(quote.getRatePlan())
+                .rateCode(quote.getRateCode())
+                .occupancy(normalizeOccupancyLabel(occupancy))
+                .mealPlan(quote.getMealPlan())
+                .availableRooms(null)
+                .baseRate(quote.getBaseRate())
+                .taxAmount(quote.getTaxAmount())
+                .finalAmount(quote.getFinalAmount())
+                .build();
+    }
+
+    private String resolveRoomTypeLabel(RatePlanPricingQuoteDto quote) {
+        if (StringUtils.hasText(quote.getRoomType())) {
+            return quote.getRoomType();
+        }
+        return quote.getRoomTypeId() == null ? null : "Room Type " + quote.getRoomTypeId();
     }
 
         private String normalizeOccupancyLabel(String occupancy) {

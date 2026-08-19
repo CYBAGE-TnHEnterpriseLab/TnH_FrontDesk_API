@@ -113,6 +113,9 @@ public class ReservationBookingRecord {
     @Column(length = 20)
     private String assignedRoomNo;
 
+    @Column(length = 4000)
+    private String assignedRoomNosEncoded;
+
     private Integer floor;
 
     @Column(nullable = false, length = 40)

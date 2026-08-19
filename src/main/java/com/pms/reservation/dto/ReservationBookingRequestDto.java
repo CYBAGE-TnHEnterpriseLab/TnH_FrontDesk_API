@@ -94,7 +94,21 @@ public class ReservationBookingRequestDto {
         @JsonAlias({"roomNo", "roomNumber", "assignedRoomNo"})
         private String assignedRoomNo;
 
-        private Integer floor;
+    private Integer floor;
+
+    /** One entry per booked room. Required when numberOfRooms is greater than one. */
+    private List<RoomAssignmentDto> roomAssignments;
+
+    @Getter
+    @Setter
+    public static class RoomAssignmentDto {
+        @NotBlank(message = "roomAssignments.roomNumber is required")
+        private String roomNumber;
+        @NotBlank(message = "roomAssignments.roomTypeId is required")
+        private String roomTypeId;
+        private String roomType;
+        private String floor;
+    }
 
     @NotBlank(message = "rateCode is required")
         @JsonAlias({"ratePlan", "ratePlanCode", "planCode"})

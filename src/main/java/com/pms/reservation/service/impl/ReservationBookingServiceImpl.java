@@ -14,6 +14,9 @@ import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
@@ -67,6 +70,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
     private final PaymentProcessingService paymentProcessingService;
+    private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -80,12 +85,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateAndNormalizePaymentType(request);
         String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
-        LocalDateTime inventoryDeductedAt = null;
-        LocalDateTime inventorySyncedAt = null;
-
-        if (propertyWizardServiceProperties.isEnabled()) {
-            validatePropertyAndInventory(request);
-        }
+        validateRoomAssignments(request);
 
         BigDecimal payableAmount = calculatePayableAmount(request);
         PaymentProcessingResult paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
@@ -96,28 +96,12 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             throw new BadRequestException("payment processing failed: " + failureReason);
         }
 
-        if (propertyWizardServiceProperties.isEnabled()) {
-            try {
-                propertyInventoryPort.deductInventory(buildInventoryDeductionRequest(request, confirmationNumber));
-                inventoryDeductedAt = LocalDateTime.now();
-
-                propertyInventoryPort.syncInventory(buildInventorySyncRequest(request, confirmationNumber));
-                inventorySyncedAt = LocalDateTime.now();
-            } catch (ExternalServiceException ex) {
-                if (!propertyWizardServiceProperties.isFailOpenOnWriteError()) {
-                    throw ex;
-                }
-            }
-        }
-
         ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
         applyPropertyTaxOnBooking(entity);
         entity.setConfirmationNumber(confirmationNumber);
         entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
-        entity.setInventoryDeductedAt(inventoryDeductedAt);
-        entity.setInventorySyncedAt(inventorySyncedAt);
-
         ReservationBookingRecord saved = reservationBookingRepository.save(entity);
+        markRoomsAssigned(request, confirmationNumber);
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
             .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction);
@@ -146,11 +130,14 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             validatePropertyAndInventory(request);
         }
 
+        validateRoomAssignments(request);
+
         ReservationBookingRecord updated = reservationBookingMapper.toEntity(request);
         preserveSystemFields(existing, updated);
         applyPropertyTaxOnBooking(updated);
 
         ReservationBookingRecord saved = reservationBookingRepository.save(updated);
+        markRoomsAssigned(request, confirmationNumber);
         Optional<ReservationPaymentTransactionRecord> latestTransaction =
             reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(existing.getId());
         return buildReservationViewResponse(saved, latestTransaction.orElse(null));
@@ -582,6 +569,13 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             request.setGuestNames(List.of(request.getGuestName().trim()));
         }
 
+        if ((request.getRoomAssignments() == null || request.getRoomAssignments().isEmpty()) && StringUtils.hasText(request.getAssignedRoomNo())) {
+            ReservationBookingRequestDto.RoomAssignmentDto assignment = new ReservationBookingRequestDto.RoomAssignmentDto();
+            assignment.setRoomNumber(request.getAssignedRoomNo()); assignment.setRoomType(request.getRoomType()); assignment.setRoomTypeId(request.getRoomType());
+            request.setRoomAssignments(List.of(assignment));
+        }
+        if (request.getRoomAssignments() != null && !request.getRoomAssignments().isEmpty()) request.setAssignedRoomNo(request.getRoomAssignments().get(0).getRoomNumber());
+
         if (request.getGuestNames() != null && request.getNumberOfRooms() != null && request.getNumberOfRooms() > 1) {
             List<String> normalizedGuestNames = new ArrayList<>(request.getGuestNames());
             while (normalizedGuestNames.size() < request.getNumberOfRooms()) {
@@ -750,6 +744,44 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         if (hasBlankGuestName) {
             throw new BadRequestException("guestNames must not contain blank values");
         }
+        if (request.getRoomAssignments() != null
+                && !request.getRoomAssignments().isEmpty()
+                && request.getRoomAssignments().size() != request.getNumberOfRooms()) {
+            throw new BadRequestException("roomAssignments count must match numberOfRooms when rooms are assigned");
+        }
+    }
+
+    private void validateRoomAssignments(ReservationBookingRequestDto request) {
+        if (request.getRoomAssignments() == null || request.getRoomAssignments().isEmpty()) {
+            return;
+        }
+        LocalDate lastNight = request.getDepartureDate().minusDays(1);
+        for (ReservationBookingRequestDto.RoomAssignmentDto assignment : request.getRoomAssignments()) {
+            JsonNode calendar = housekeepingRoomCalendarClient.fetchCalendar(request.getPropertyId(), request.getArrivalDate(), lastNight, assignment.getRoomTypeId());
+            JsonNode room = findCalendarRoom(calendar, assignment.getRoomNumber());
+            if (room == null) throw new BadRequestException("Assigned room was not found: " + assignment.getRoomNumber());
+            for (JsonNode day : room.path("days")) if (!day.path("sellable").asBoolean(false) || !"NOT_RESERVED".equalsIgnoreCase(day.path("reservationStatus").asText())) throw new BadRequestException("Assigned room is unavailable on " + day.path("date").asText());
+        }
+    }
+    private JsonNode findCalendarRoom(JsonNode calendar, String roomNumber) { for (JsonNode type : calendar.path("roomTypes")) for (JsonNode room : type.path("rooms")) if (roomNumber.equalsIgnoreCase(room.path("roomNumber").asText())) return room; return null; }
+    private void markRoomsAssigned(ReservationBookingRequestDto request, String confirmationNumber) {
+        if (request.getRoomAssignments() == null || request.getRoomAssignments().isEmpty()) {
+            return;
+        }
+        for (ReservationBookingRequestDto.RoomAssignmentDto assignment : request.getRoomAssignments())
+            for (LocalDate date = request.getArrivalDate(); date.isBefore(request.getDepartureDate()); date = date.plusDays(1)) {
+                com.fasterxml.jackson.databind.node.ObjectNode body = objectMapper.createObjectNode();
+                body.put("propertyId", request.getPropertyId());
+                body.put("businessDate", date.toString());
+                body.put("confirmationNumber", confirmationNumber);
+                body.put("frontOfficeStatus", "OCCUPIED");
+                body.put("reservationStatus", "ARRIVAL");
+                body.put("guestDisplayName", request.getGuestName());
+                body.put("arrivalDate", request.getArrivalDate().toString());
+                body.put("departureDate", request.getDepartureDate().toString());
+                body.put("sourceModule", "RESERVATION");
+                housekeepingRoomCalendarClient.markAssigned(assignment.getRoomNumber(), body);
+            }
     }
 
     private void validateRequiredContactFields(ReservationBookingRequestDto request) {

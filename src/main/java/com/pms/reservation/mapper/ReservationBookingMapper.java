@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +46,7 @@ public class ReservationBookingMapper {
                 .reservationType(request.getReservationType())
                 .roomType(request.getRoomType())
                 .assignedRoomNo(request.getAssignedRoomNo())
+                .assignedRoomNosEncoded(encodeRoomNumbers(request.getRoomAssignments()))
                 .floor(request.getFloor())
                 .rateCode(request.getRateCode())
                 .numberOfRooms(request.getNumberOfRooms())
@@ -105,6 +107,7 @@ public class ReservationBookingMapper {
                 .reservationType(saved.getReservationType())
                 .roomType(saved.getRoomType())
                 .assignedRoomNo(saved.getAssignedRoomNo())
+                .assignedRoomNos(decodeRoomNumbers(saved.getAssignedRoomNosEncoded(), saved.getAssignedRoomNo()))
                 .floor(saved.getFloor())
                 .rateCode(saved.getRateCode())
                 .numberOfRooms(saved.getNumberOfRooms())
@@ -172,6 +175,19 @@ public class ReservationBookingMapper {
             }
         }
         return guestNames;
+    }
+
+    private String encodeRoomNumbers(List<ReservationBookingRequestDto.RoomAssignmentDto> assignments) {
+        if (assignments == null || assignments.isEmpty()) return "";
+        return assignments.stream().map(ReservationBookingRequestDto.RoomAssignmentDto::getRoomNumber)
+            .filter(StringUtils::hasText).map(String::trim).map(v -> Base64.getEncoder().encodeToString(v.getBytes()))
+            .collect(Collectors.joining("."));
+    }
+
+    private List<String> decodeRoomNumbers(String encoded, String fallback) {
+        if (!StringUtils.hasText(encoded)) return StringUtils.hasText(fallback) ? List.of(fallback) : List.of();
+        return Arrays.stream(encoded.split("\\\\.")).filter(StringUtils::hasText)
+            .map(v -> new String(Base64.getDecoder().decode(v))).toList();
     }
 
     private java.math.BigDecimal calculateTotalRate(

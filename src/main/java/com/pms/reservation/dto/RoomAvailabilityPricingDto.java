@@ -7,6 +7,7 @@ import lombok.Value;
 @Value
 @Builder
 public class RoomAvailabilityPricingDto {
+    Long roomTypeId;
     String roomType;
     String ratePlan;
     String rateCode;

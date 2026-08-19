@@ -47,10 +47,6 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
     public ReservationAvailabilityResponseDto getAvailability(ReservationAvailabilityRequestDto request) {
         validateDates(request.getArrivalDate(), request.getDepartureDate());
 
-        if (!propertyWizardServiceProperties.isEnabled()) {
-            throw new BadRequestException("Live inventory is unavailable because Property Wizard integration is disabled");
-        }
-
         List<PropertyTaxRuleResponseDto> taxRules = safeFetchTaxRules(request.getPropertyId());
 
         AvailabilityRangeResult primaryRange = fetchAvailabilityForRange(
@@ -100,59 +96,19 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             LocalDate departureDate,
             List<PropertyTaxRuleResponseDto> taxRules
         ) {
-        List<PropertyRoomInventoryDto> inventory = propertyInventoryPort.fetchLiveInventory(
-            request.getPropertyId(),
-            arrivalDate,
-            departureDate,
-            null
-        );
-        if (inventory == null) {
-            inventory = List.of();
-        }
-
-        inventory = enrichInventoryWithRoomTypeIds(request.getPropertyId(), inventory);
-
-            List<RatePlanPricingQuoteDto> rateQuotes = fetchRateQuotesWithRoomTypeFallback(
+        List<RatePlanPricingQuoteDto> rateQuotes = fetchRateQuotesWithRoomTypeFallback(
                 request,
                 arrivalDate,
                 departureDate,
-                inventory
+                List.of()
             );
-
-        Map<Long, PropertyRoomInventoryDto> inventoryByRoomTypeId = new LinkedHashMap<>();
-        Map<String, PropertyRoomInventoryDto> inventoryByRoomType = new LinkedHashMap<>();
-        for (PropertyRoomInventoryDto item : inventory) {
-            if (item.getRoomTypeId() != null) {
-                inventoryByRoomTypeId.putIfAbsent(item.getRoomTypeId(), item);
-            }
-            if (StringUtils.hasText(item.getRoomType())) {
-                inventoryByRoomType.putIfAbsent(normalize(item.getRoomType()), item);
-            }
-        }
-
-        List<PropertyRoomInventoryDto> finalInventory = inventory;
+        enrichRateQuoteRoomTypeNames(request.getPropertyId(), rateQuotes);
 
         List<RoomAvailabilityPricingDto> joinedByRoomType = rateQuotes.stream()
-            .map(item -> {
-                PropertyRoomInventoryDto matchedInventory = findMatchedInventory(
-                    item,
-                    inventoryByRoomTypeId,
-                    inventoryByRoomType,
-                    finalInventory
-                );
-                if (matchedInventory == null) {
-                    return null;
-                }
-                return reservationAvailabilityMapper.toRoomAvailability(item, matchedInventory);
-            })
-            .filter(java.util.Objects::nonNull)
+            .map(reservationAvailabilityMapper::toRoomAvailability)
             .toList();
 
-        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType.stream()
-            .filter(item -> item.getAvailableRooms() != null
-                && request.getNumberOfRooms() != null
-                && item.getAvailableRooms() >= request.getNumberOfRooms())
-            .toList();
+        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType;
 
         List<RoomAvailabilityPricingDto> afterRateCodeFilter = applyRateCodeFilter(
             request.getRateCode(),
@@ -173,7 +129,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             request,
             arrivalDate,
             departureDate,
-            inventory,
+            List.of(),
             rateQuotes,
             joinedByRoomType,
             afterRequestedRoomCount,
@@ -182,6 +138,44 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
         return new AvailabilityRangeResult(finalAvailability, rateQuotes);
         }
+
+    private void enrichRateQuoteRoomTypeNames(String propertyId, List<RatePlanPricingQuoteDto> quotes) {
+        if (quotes == null || quotes.isEmpty()) {
+            return;
+        }
+
+        try {
+            List<PropertyRoomOutletTypeDto> roomTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+            if (roomTypes == null) {
+                return;
+            }
+
+            Map<Long, String> namesById = roomTypes.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(item -> item.getId() != null
+                    && (StringUtils.hasText(item.getRoomName()) || StringUtils.hasText(item.getRoomCode())))
+                .collect(java.util.stream.Collectors.toMap(
+                    PropertyRoomOutletTypeDto::getId,
+                    item -> StringUtils.hasText(item.getRoomName()) ? item.getRoomName() : item.getRoomCode(),
+                    (left, right) -> left,
+                    LinkedHashMap::new
+                ));
+
+            for (RatePlanPricingQuoteDto quote : quotes) {
+                if (quote != null && quote.getRoomTypeId() != null) {
+                    String roomTypeName = namesById.get(quote.getRoomTypeId());
+                    if (StringUtils.hasText(roomTypeName)
+                        && (!StringUtils.hasText(quote.getRoomType())
+                            || quote.getRoomType().matches("(?i)room\\s*type\\s*\\d+"))) {
+                        quote.setRoomType(roomTypeName);
+                    }
+                }
+            }
+        } catch (ExternalServiceException ex) {
+            log.warn("Room type names unavailable for propertyId={}; retaining rate-management room type labels. reason={}",
+                propertyId, ex.getMessage());
+        }
+    }
 
     private List<String> extractAvailableRateCodes(List<RatePlanPricingQuoteDto> rateQuotes) {
         if (rateQuotes == null || rateQuotes.isEmpty()) {

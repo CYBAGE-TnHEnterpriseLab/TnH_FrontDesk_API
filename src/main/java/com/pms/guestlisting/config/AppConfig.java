@@ -1,6 +1,7 @@
 package com.pms.guestlisting.config;
 
 import com.pms.reservation.config.PropertyWizardServiceProperties;
+import com.pms.reservation.config.HousekeepingServiceProperties;
 import com.pms.reservation.config.RateManagementServiceProperties;
 import com.pms.reservation.integration.RateManagementAuthInterceptor;
 import com.pms.security.config.JwtSecurityProperties;
@@ -20,6 +21,7 @@ import org.springframework.web.client.RestTemplate;
 @EnableConfigurationProperties({
     ReservationServiceProperties.class,
     PropertyWizardServiceProperties.class,
+    HousekeepingServiceProperties.class,
     RateManagementServiceProperties.class,
     JwtSecurityProperties.class
 })

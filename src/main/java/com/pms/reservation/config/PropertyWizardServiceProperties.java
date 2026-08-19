@@ -16,23 +16,18 @@ public class PropertyWizardServiceProperties {
     private boolean failOpenOnValidationError = false;
     private boolean failOpenOnWriteError = false;
 
+    // Legacy fields retained only so the existing client can be removed in a later migration.
+    // Reservation workflows no longer configure or call these room-inventory operations.
+    private String inventoryValidationPath;
+    private String inventoryAvailabilityPath;
+    private String roomOutletTypesPath;
+    private String inventoryDeductionPath;
+    private String inventorySyncPath;
+
     @NotBlank(message = "property-wizard-service.base-url is required")
     private String baseUrl;
-
-    @NotBlank(message = "property-wizard-service.inventory-validation-path is required")
-    private String inventoryValidationPath;
-
-    @NotBlank(message = "property-wizard-service.inventory-availability-path is required")
-    private String inventoryAvailabilityPath;
-
-    private String roomOutletTypesPath;
 
     @NotBlank(message = "property-wizard-service.tax-rules-path is required")
     private String taxRulesPath;
 
-    @NotBlank(message = "property-wizard-service.inventory-deduction-path is required")
-    private String inventoryDeductionPath;
-
-    @NotBlank(message = "property-wizard-service.inventory-sync-path is required")
-    private String inventorySyncPath;
 }
