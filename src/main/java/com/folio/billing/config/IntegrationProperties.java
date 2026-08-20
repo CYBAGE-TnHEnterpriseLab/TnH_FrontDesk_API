@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 public class IntegrationProperties {
 
     private ServiceConfig reservationService = new ServiceConfig();
-    private PropertyServiceConfig propertyService = new PropertyServiceConfig();
 
     public ServiceConfig getReservationService() {
         return reservationService;
@@ -17,9 +16,6 @@ public class IntegrationProperties {
     public void setReservationService(ServiceConfig reservationService) {
         this.reservationService = reservationService;
     }
-
-    public PropertyServiceConfig getPropertyService() { return propertyService; }
-    public void setPropertyService(PropertyServiceConfig propertyService) { this.propertyService = propertyService; }
 
     public static class ServiceConfig {
 
@@ -52,12 +48,4 @@ public class IntegrationProperties {
         }
     }
 
-    public static class PropertyServiceConfig {
-        private String baseUrl;
-        private String taxRulesPath = "/api/taxes/properties/{propertyId}/rules";
-        public String getBaseUrl() { return baseUrl; }
-        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
-        public String getTaxRulesPath() { return taxRulesPath; }
-        public void setTaxRulesPath(String taxRulesPath) { this.taxRulesPath = taxRulesPath; }
-    }
 }

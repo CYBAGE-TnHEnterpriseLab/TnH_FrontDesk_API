@@ -14,6 +14,7 @@ public record FolioBillingRow(
         int nights,
         String houseKeeping,
         String roomType,
-        String confirmationNo
+        String confirmationNumber
 ) {
 }
+

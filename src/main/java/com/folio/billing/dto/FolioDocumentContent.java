@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 public record FolioDocumentContent(
         String documentId,
-        String confirmationNo,
+        String confirmationNumber,
         FolioDocumentType documentType,
         String fileName,
         String contentType,
@@ -13,3 +13,4 @@ public record FolioDocumentContent(
         String generatedBy
 ) {
 }
+

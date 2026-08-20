@@ -12,9 +12,12 @@ public interface ReservationServiceClient {
 
     List<FolioBillingRow> searchFolioBilling(FolioBillingFilter filter);
 
-    Optional<ReservationSummary> getReservationSummary(String confirmationNo, String roomNo, String guestName);
+    Optional<ReservationSummary> getReservationSummary(String confirmationNumber, String roomNo, String guestName);
 
-    List<GuestDetail> getGuestDetails(String confirmationNo);
+    List<GuestDetail> getGuestDetails(String confirmationNumber);
 
-    Optional<String> findDefaultConfirmationNo();
+    Optional<String> findDefaultConfirmationNumber();
+
+    Optional<String> resolvePropertyId(String confirmationNumber);
 }
+

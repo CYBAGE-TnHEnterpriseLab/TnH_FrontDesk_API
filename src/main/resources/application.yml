@@ -45,6 +45,3 @@ integration:
     base-url: http://localhost:8090
     # Prefer X-Property-Id request header; this is fallback from env/config.
     property-id: ${RESERVATION_PROPERTY_ID:}
-  property-service:
-    base-url: ${PROPERTY_SERVICE_BASE_URL:http://localhost:8082}
-    tax-rules-path: /api/taxes/properties/{propertyId}/rules

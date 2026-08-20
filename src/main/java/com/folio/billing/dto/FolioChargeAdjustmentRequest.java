@@ -7,8 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public record FolioChargeAdjustmentRequest(
-        @NotBlank(message = "confirmationNo is required")
-        String confirmationNo,
+        @NotBlank(message = "confirmationNumber is required")
+        String confirmationNumber,
         @NotBlank(message = "originalReferenceNumber is required")
         String originalReferenceNumber,
         @NotNull(message = "adjustmentType is required")
@@ -21,3 +21,4 @@ public record FolioChargeAdjustmentRequest(
         String userId
 ) {
 }
+

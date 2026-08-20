@@ -6,7 +6,7 @@ public record ReservationSummary(
         String guestName,
         String guest1,
         String guest2,
-        String confirmationNo,
+        String confirmationNumber,
         int adults,
         int children,
         String company,
@@ -22,3 +22,4 @@ public record ReservationSummary(
         String comments
 ) {
 }
+

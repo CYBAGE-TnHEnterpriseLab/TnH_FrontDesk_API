@@ -50,32 +50,48 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
 
     @Override
     public List<FolioBillingRow> searchFolioBilling(FolioBillingFilter filter) {
+        if (StringUtils.hasText(filter.confirmationNumber())) {
+            return getReservationSummary(filter.confirmationNumber(), filter.roomNumber(), filter.guestName())
+                    .map(summary -> List.of(toFolioBillingRow(summary)))
+                    .orElse(List.of());
+        }
+
         LocalDate businessDate = filter.checkInDate() != null ? filter.checkInDate() : LocalDate.now();
-        String search = firstNonBlank(filter.confirmationNumber(), filter.guestName(), filter.roomNumber());
+        String search = firstNonBlank(filter.guestName(), filter.roomNumber(), filter.company());
 
         List<JsonNode> rows = fetchGuestListingRows(
                 businessDate,
                 search,
-                filter.company()
+                filter.company(),
+                ""
         );
 
         return rows.stream()
                 .map(this::toFolioBillingRow)
                 .filter(row -> matches(filter.roomNumber(), row.room()))
                 .filter(row -> matches(filter.guestName(), row.guest()))
-                .filter(row -> matches(filter.confirmationNumber(), row.confirmationNo()))
+                .filter(row -> matches(filter.confirmationNumber(), row.confirmationNumber()))
                 .filter(row -> matchesDate(filter.checkInDate(), row.checkIn()))
                 .filter(row -> matchesDate(filter.checkOutDate(), row.checkOut()))
                 .toList();
     }
 
     @Override
-    public Optional<ReservationSummary> getReservationSummary(String confirmationNo, String roomNo, String guestName) {
-        String search = firstNonBlank(confirmationNo, guestName, roomNo);
-        List<JsonNode> rows = fetchGuestListingRows(LocalDate.now(), search, null);
+    public Optional<ReservationSummary> getReservationSummary(String confirmationNumber, String roomNo, String guestName) {
+        // A confirmation number can be resolved directly by the reservation service.
+        // This avoids requiring propertyId for the billing-details lookup.
+        if (StringUtils.hasText(confirmationNumber)) {
+            Optional<JsonNode> reservationDetails = fetchReservationDetailsByConfirmationNumber(confirmationNumber.trim());
+            if (reservationDetails.isPresent()) {
+                return Optional.of(toReservationSummary(reservationDetails.get(), reservationDetails.get()));
+            }
+        }
+
+        String search = firstNonBlank(confirmationNumber, guestName, roomNo);
+        List<JsonNode> rows = fetchGuestListingRows(LocalDate.now(), search, null, confirmationNumber);
 
         Optional<JsonNode> listingRow = rows.stream()
-                .filter(row -> matches(confirmationNo, text(row, "confirmationNumber")))
+                .filter(row -> matches(confirmationNumber, text(row, "confirmationNumber")))
                 .filter(row -> matches(roomNo, text(row, "roomNo")))
                 .filter(row -> matches(guestName, fullName(text(row, "firstName"), text(row, "lastName"))))
                 .findFirst();
@@ -90,15 +106,46 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         return Optional.of(toReservationSummary(guestListingRow, reservationDetails.orElse(null)));
     }
 
+    private Optional<JsonNode> fetchReservationDetailsByConfirmationNumber(String confirmationNumber) {
+        if (!StringUtils.hasText(confirmationNumber) || !isBaseUrlConfigured()) {
+            return Optional.empty();
+        }
+
+        try {
+            String payload = restClient.get()
+                    .uri("/api/v1/reservations/bookings/{confirmationNumber}", confirmationNumber)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .headers(this::addInboundAuthorizationHeader)
+                    .retrieve()
+                    .body(String.class);
+
+            if (!StringUtils.hasText(payload)) {
+                return Optional.empty();
+            }
+
+            JsonNode root = objectMapper.readTree(payload);
+            JsonNode data = root.path("data");
+            return Optional.of(!data.isMissingNode() && !data.isNull() ? data : root);
+        } catch (RestClientResponseException ex) {
+            LOGGER.warn("Reservation lookup by confirmation number failed with status {} for confirmationNumber {}",
+                    ex.getStatusCode().value(), confirmationNumber);
+            return Optional.empty();
+        } catch (Exception ex) {
+            LOGGER.warn("Reservation lookup by confirmation number failed for confirmationNumber {}: {}",
+                    confirmationNumber, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     @Override
-    public List<GuestDetail> getGuestDetails(String confirmationNo) {
-        if (!StringUtils.hasText(confirmationNo)) {
+    public List<GuestDetail> getGuestDetails(String confirmationNumber) {
+        if (!StringUtils.hasText(confirmationNumber)) {
             return List.of();
         }
 
-        List<JsonNode> rows = fetchGuestListingRows(LocalDate.now(), confirmationNo, null);
+        List<JsonNode> rows = fetchGuestListingRows(LocalDate.now(), confirmationNumber, null, confirmationNumber);
         Optional<JsonNode> listingRow = rows.stream()
-                .filter(row -> matches(confirmationNo, text(row, "confirmationNumber")))
+                .filter(row -> matches(confirmationNumber, text(row, "confirmationNumber")))
                 .findFirst();
 
         if (listingRow.isEmpty()) {
@@ -116,16 +163,16 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
     }
 
     @Override
-    public Optional<String> findDefaultConfirmationNo() {
-        return fetchGuestListingRows(LocalDate.now(), null, null).stream()
+    public Optional<String> findDefaultConfirmationNumber() {
+        return fetchGuestListingRows(LocalDate.now(), null, null, "").stream()
                 .map(row -> text(row, "confirmationNumber"))
                 .filter(StringUtils::hasText)
                 .findFirst();
     }
 
-    private List<JsonNode> fetchGuestListingRows(LocalDate businessDate, String search, String company) {
-        String propertyId = resolvePropertyId();
-        if (!isGuestListingConfigurationValid(propertyId)) {
+    private List<JsonNode> fetchGuestListingRows(LocalDate businessDate, String search, String company, String confirmationNumber) {
+        String propertyId = resolvePropertyId(confirmationNumber).orElse("");
+        if (!isBaseUrlConfigured()) {
             return List.of();
         }
 
@@ -133,12 +180,14 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
             String payload = restClient.get()
                     .uri(uriBuilder -> {
                         uriBuilder.path("/api/v1/guest-listing/list")
-                                .queryParam("propertyId", propertyId)
                                 .queryParam("businessDate", businessDate)
                                 .queryParam("view", "all")
                                 .queryParam("page", 0);
                         if (StringUtils.hasText(search)) {
                             uriBuilder.queryParam("search", search.trim());
+                        }
+                        if (StringUtils.hasText(propertyId)) {
+                            uriBuilder.queryParam("propertyId", propertyId);
                         }
                         if (StringUtils.hasText(company)) {
                             uriBuilder.queryParam("company", company.trim());
@@ -249,6 +298,36 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         );
     }
 
+    private FolioBillingRow toFolioBillingRow(ReservationSummary summary) {
+        if (summary == null) {
+            return new FolioBillingRow("", "", "", "", "", "", null, null, 0, "", "", "");
+        }
+
+        String guestName = firstNonBlank(summary.guestName(), "");
+        String firstName = "";
+        String lastName = "";
+        if (StringUtils.hasText(guestName)) {
+            String[] parts = guestName.trim().split("\\s+", 2);
+            firstName = parts[0];
+            lastName = parts.length > 1 ? parts[1] : "";
+        }
+
+        return new FolioBillingRow(
+                "",
+                lastName,
+                firstName,
+                summary.roomNo(),
+                guestName,
+                summary.reservationStatus(),
+                summary.checkInDate(),
+                summary.checkOutDate(),
+                summary.nights(),
+                "",
+                summary.roomType(),
+                summary.confirmationNumber()
+        );
+    }
+
     private ReservationSummary toReservationSummary(JsonNode guestListingRow, JsonNode reservationDetails) {
         JsonNode guest = reservationDetails != null ? reservationDetails.path("guest") : null;
         JsonNode stay = reservationDetails != null ? reservationDetails.path("stay") : null;
@@ -260,11 +339,6 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         String firstName = firstNonBlank(text(guest, "firstName"), text(guestListingRow, "firstName"));
         String lastName = firstNonBlank(text(guest, "lastName"), text(guestListingRow, "lastName"));
         String guestName = fullName(firstName, lastName);
-
-        String guest2 = "";
-        if (additionalGuests != null && additionalGuests.isArray() && !additionalGuests.isEmpty()) {
-            guest2 = text(additionalGuests.get(0), "name");
-        }
 
         LocalDate checkInDate = firstNonNullDate(
                 parseDate(text(stay, "checkInDate")),
@@ -282,8 +356,8 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
 
         return new ReservationSummary(
                 guestName,
-                guestName,
-                guest2,
+                "",
+                "",
                 firstNonBlank(text(reservationDetails, "confirmationNumber"), text(guestListingRow, "confirmationNumber")),
                 intValue(stay, "adults", 0),
                 intValue(stay, "children", 0),
@@ -358,9 +432,20 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         }
     }
 
-    private String resolvePropertyId() {
-        String headerPropertyId = resolveInboundHeader(PROPERTY_ID_HEADER);
-        return firstNonBlank(headerPropertyId, reservationServiceConfig.getPropertyId());
+    @Override
+    public Optional<String> resolvePropertyId(String confirmationNumber) {
+        if (StringUtils.hasText(confirmationNumber)) {
+            Optional<JsonNode> reservationDetails = fetchReservationDetailsByConfirmationNumber(confirmationNumber.trim());
+            if (reservationDetails.isPresent()) {
+                String resolvedPropertyId = text(reservationDetails.get(), "propertyId");
+                if (StringUtils.hasText(resolvedPropertyId)) {
+                    return Optional.of(resolvedPropertyId);
+                }
+            }
+        }
+
+        return Optional.ofNullable(firstNonBlank(reservationServiceConfig.getPropertyId()))
+                .filter(StringUtils::hasText);
     }
 
     private String resolveAuthorizationHeader() {
@@ -490,3 +575,4 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         return normalized;
     }
 }
+

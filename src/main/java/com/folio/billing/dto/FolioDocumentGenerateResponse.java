@@ -5,17 +5,17 @@ import java.time.LocalDateTime;
 
 public record FolioDocumentGenerateResponse(
         String documentId,
-        String confirmationNo,
+        String confirmationNumber,
         FolioDocumentType documentType,
         String fileName,
         String contentType,
         LocalDateTime generatedAt,
         String generatedBy,
         BigDecimal totalChargeAmount,
-        BigDecimal totalTaxAmount,
         BigDecimal totalPaymentAmount,
         BigDecimal latestBalance,
         String downloadPath,
         String printPath
 ) {
 }
+

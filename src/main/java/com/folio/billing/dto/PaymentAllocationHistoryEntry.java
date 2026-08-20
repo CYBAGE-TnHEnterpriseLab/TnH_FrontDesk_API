@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 public record PaymentAllocationHistoryEntry(
         String paymentReference,
-        String confirmationNo,
+        String confirmationNumber,
         BigDecimal paymentAmount,
         BigDecimal totalAllocatedAmount,
         BigDecimal allocatedAmount,
@@ -19,3 +19,4 @@ public record PaymentAllocationHistoryEntry(
         BigDecimal balanceAfterAllocation
 ) {
 }
+

@@ -2,15 +2,18 @@ package com.folio.billing.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public record BillingDetailsResponse(
         BigDecimal totalCharges,
         BigDecimal totalPayment,
         BigDecimal balance,
+        List<String> folios,
+        String activeFolioCode,
         String guestName,
         String primaryGuest,
         String secondaryGuest,
-        String confirmationNo,
+        String confirmationNumber,
         int adults,
         int children,
         String company,
@@ -26,3 +29,4 @@ public record BillingDetailsResponse(
         String comments
 ) {
 }
+

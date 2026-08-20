@@ -3,8 +3,11 @@ package com.folio.billing.controller;
 import com.folio.billing.dto.BillingDetailsResponse;
 import com.folio.billing.dto.FolioChargeAdjustmentRequest;
 import com.folio.billing.dto.FolioChargeAdjustmentResponse;
+import com.folio.billing.dto.FolioChargeOptionsResponse;
 import com.folio.billing.dto.FolioBillingFilter;
 import com.folio.billing.dto.FolioBillingRow;
+import com.folio.billing.dto.FolioCreateRequest;
+import com.folio.billing.dto.FolioCreateResponse;
 import com.folio.billing.dto.FolioChargePostRequest;
 import com.folio.billing.dto.FolioChargePostResponse;
 import com.folio.billing.dto.FolioDocumentAuditEntry;
@@ -13,6 +16,7 @@ import com.folio.billing.dto.FolioDocumentGenerateRequest;
 import com.folio.billing.dto.FolioDocumentGenerateResponse;
 import com.folio.billing.dto.FolioDocumentType;
 import com.folio.billing.dto.FolioDashboardResponse;
+import com.folio.billing.dto.FolioDetailsResponse;
 import com.folio.billing.dto.FolioPaymentAllocationRequest;
 import com.folio.billing.dto.FolioPaymentAllocationResponse;
 import com.folio.billing.dto.PaymentAllocationHistoryEntry;
@@ -20,7 +24,6 @@ import com.folio.billing.service.BillingFolioService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,7 +35,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/billingFolio")
@@ -65,20 +70,42 @@ public class BillingFolioController {
         return ResponseEntity.ok(billingFolioService.getFolioBilling(filter));
     }
 
+    @PostMapping("/addFolio")
+    public ResponseEntity<FolioCreateResponse> addFolio(
+            @Valid @RequestBody FolioCreateRequest request
+    ) {
+        return ResponseEntity.ok(billingFolioService.addFolio(request));
+    }
+
     @GetMapping("/getBillingDetails")
     public ResponseEntity<BillingDetailsResponse> getBillingDetails(
-            @RequestParam(required = false) String confirmationNo,
+            @RequestParam(name = "confirmationNumber", required = false) String confirmationNumber,
+                        @RequestParam(name = "confirmationNo", required = false) String confirmationNo,
             @RequestParam(required = false) String roomNo,
             @RequestParam(required = false) String guestName
     ) {
-        return ResponseEntity.ok(billingFolioService.getBillingDetails(confirmationNo, roomNo, guestName));
+                String resolvedConfirmationNumber = confirmationNumber != null && !confirmationNumber.isBlank()
+                                ? confirmationNumber
+                                : confirmationNo;
+                return ResponseEntity.ok(billingFolioService.getBillingDetails(resolvedConfirmationNumber, roomNo, guestName));
     }
 
     @GetMapping("/folioDashboard")
     public ResponseEntity<FolioDashboardResponse> getFolioDashboard(
-            @RequestParam(required = false) String confirmationNo
+            @RequestParam(required = false) String confirmationNumber
     ) {
-        return ResponseEntity.ok(billingFolioService.getFolioDashboard(confirmationNo));
+        return ResponseEntity.ok(billingFolioService.getFolioDashboard(confirmationNumber));
+    }
+
+    @GetMapping("/getFolioDetails")
+    public ResponseEntity<FolioDetailsResponse> getFolioDetails(
+                        @RequestParam(name = "confirmationNumber", required = false) String confirmationNumber,
+                        @RequestParam(name = "confirmationNo", required = false) String confirmationNo,
+            @RequestParam(required = false) String propertyId) {
+                String resolvedConfirmationNumber = confirmationNumber != null && !confirmationNumber.isBlank()
+                                ? confirmationNumber
+                                : confirmationNo;
+                return ResponseEntity.ok(billingFolioService.getFolioDetails(resolvedConfirmationNumber));
     }
 
     @PostMapping("/addCharge")
@@ -86,6 +113,32 @@ public class BillingFolioController {
             @Valid @RequestBody FolioChargePostRequest request
     ) {
         return ResponseEntity.ok(billingFolioService.addCharge(request));
+    }
+
+    @GetMapping("/chargeOptions")
+    public ResponseEntity<FolioChargeOptionsResponse> getChargeOptions() {
+        List<String> transactionTypes = List.of("Charges", "Payment", "Adjustment", "Refund");
+
+        Map<String, List<String>> categoriesByTransactionType = new LinkedHashMap<>();
+        categoriesByTransactionType.put("Charges", List.of(
+                "Accomodation",
+                "Housekeeping",
+                "Wellness",
+                "F&B",
+                "Transport",
+                "Miscellaneous"
+        ));
+        categoriesByTransactionType.put("Payment", List.of(
+                "UPI",
+                "Cash",
+                "Credit Card",
+                "Debit Card",
+                "Net Banking"
+        ));
+        categoriesByTransactionType.put("Adjustment", List.of("Discount"));
+        categoriesByTransactionType.put("Refund", List.of("Refund"));
+
+        return ResponseEntity.ok(new FolioChargeOptionsResponse(transactionTypes, categoriesByTransactionType));
     }
 
     @PostMapping("/adjustCharge")
@@ -104,11 +157,11 @@ public class BillingFolioController {
 
     @GetMapping("/paymentAllocationHistory")
     public ResponseEntity<List<PaymentAllocationHistoryEntry>> getPaymentAllocationHistory(
-            @RequestParam(required = false) String confirmationNo,
+            @RequestParam(required = false) String confirmationNumber,
             @RequestParam(required = false) String paymentReference
     ) {
         return ResponseEntity.ok(
-                billingFolioService.getPaymentAllocationHistory(confirmationNo, paymentReference)
+                billingFolioService.getPaymentAllocationHistory(confirmationNumber, paymentReference)
         );
     }
 
@@ -124,7 +177,6 @@ public class BillingFolioController {
         FolioDocumentContent document = billingFolioService.getFolioDocument(documentId);
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(document.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.fileName() + "\"")
                 .body(document.content().getBytes(StandardCharsets.UTF_8));
     }
@@ -134,18 +186,18 @@ public class BillingFolioController {
         FolioDocumentContent document = billingFolioService.getFolioDocument(documentId);
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(document.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + document.fileName() + "\"")
                 .body(document.content());
     }
 
     @GetMapping("/documentAuditHistory")
     public ResponseEntity<List<FolioDocumentAuditEntry>> getDocumentAuditHistory(
-            @RequestParam(required = false) String confirmationNo,
+            @RequestParam(required = false) String confirmationNumber,
             @RequestParam(required = false) FolioDocumentType documentType
     ) {
         return ResponseEntity.ok(
-                billingFolioService.getFolioDocumentAuditHistory(confirmationNo, documentType)
+                billingFolioService.getFolioDocumentAuditHistory(confirmationNumber, documentType)
         );
     }
 }
+

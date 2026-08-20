@@ -5,14 +5,14 @@ import java.time.LocalDateTime;
 
 public record FolioDocumentAuditEntry(
         String documentId,
-        String confirmationNo,
+        String confirmationNumber,
         FolioDocumentType documentType,
         String fileName,
         LocalDateTime generatedAt,
         String generatedBy,
         BigDecimal totalChargeAmount,
-        BigDecimal totalTaxAmount,
         BigDecimal totalPaymentAmount,
         BigDecimal latestBalance
 ) {
 }
+

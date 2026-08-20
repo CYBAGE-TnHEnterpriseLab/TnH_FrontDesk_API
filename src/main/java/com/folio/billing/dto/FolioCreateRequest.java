@@ -1,13 +1,14 @@
 package com.folio.billing.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
-public record FolioDocumentGenerateRequest(
+public record FolioCreateRequest(
+        @JsonAlias("confirmationNo")
         @NotBlank(message = "confirmationNumber is required")
         String confirmationNumber,
-        @NotNull(message = "documentType is required")
-        FolioDocumentType documentType,
+        String roomNo,
+        String guestName,
         String userId
 ) {
 }
