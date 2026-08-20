@@ -636,6 +636,7 @@ class RateManagementServiceClientTest {
 
                         if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
                             assertThat(url).containsPattern("occupancyType=1(\\+|%20| )Guest");
+                            assertThat(url).containsPattern("guestCount=1");
                                 return ResponseEntity.ok("""
                                         {
                                             "ratePlanId": 32,

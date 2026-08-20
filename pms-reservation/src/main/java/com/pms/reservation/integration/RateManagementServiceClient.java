@@ -65,6 +65,9 @@ public class RateManagementServiceClient implements RateManagementPort {
             Integer childCount
     ) {
         String occupancyType = buildOccupancyType(adultCount, childCount);
+        Integer guestCount = adultCount == null && childCount == null
+            ? null
+            : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
 
         List<RateManagementPlanDto> availablePlans = resolvePlansForBookingContext(
             propertyId,
@@ -101,7 +104,13 @@ public class RateManagementServiceClient implements RateManagementPort {
             }
 
             for (Long candidateRoomTypeId : candidateRoomTypeIds) {
-                BigDecimal resolvedFinalAmount = resolveFinalAmount(propertyId, plan, candidateRoomTypeId, occupancyType);
+                BigDecimal resolvedFinalAmount = resolveFinalAmount(
+                    propertyId,
+                    plan,
+                    candidateRoomTypeId,
+                    occupancyType,
+                    guestCount
+                );
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomTypeId(candidateRoomTypeId);
@@ -238,7 +247,8 @@ public class RateManagementServiceClient implements RateManagementPort {
             String propertyId,
             Long ratePlanId,
             Long roomTypeId,
-            String occupancyType
+            String occupancyType,
+            Integer guestCount
     ) {
         if (roomTypeId == null) {
             throw new ExternalServiceException("roomTypeId is required for calculated-price API");
@@ -252,6 +262,9 @@ public class RateManagementServiceClient implements RateManagementPort {
         if (StringUtils.hasText(normalizedOccupancyType)) {
             builder.queryParam("occupancyType", normalizedOccupancyType);
         }
+        if (guestCount != null) {
+            builder.queryParam("guestCount", guestCount);
+        }
 
         String url = builder
             .buildAndExpand(propertyId, ratePlanId)
@@ -262,6 +275,7 @@ public class RateManagementServiceClient implements RateManagementPort {
         context.put("ratePlanId", ratePlanId);
         context.put("roomTypeId", roomTypeId);
         context.put("occupancyType", normalizedOccupancyType);
+        context.put("guestCount", guestCount);
 
         String responseBody = executeGetWithRetry("calculated-price", url, context);
         return readObjectResponseBody(responseBody, RatePlanCalculatedPriceResponseDto.class, "calculated-price");
@@ -486,7 +500,8 @@ public class RateManagementServiceClient implements RateManagementPort {
             String propertyId,
             RateManagementPlanDto plan,
             Long roomTypeId,
-            String requestedOccupancyType
+            String requestedOccupancyType,
+            Integer guestCount
     ) {
         if (calculatedPriceEndpointUnavailable.get()) {
             return deriveFallbackFinalAmount(propertyId, plan, requestedOccupancyType);
@@ -497,7 +512,8 @@ public class RateManagementServiceClient implements RateManagementPort {
                 propertyId,
                 plan.getId(),
                 roomTypeId,
-                requestedOccupancyType
+                requestedOccupancyType,
+                guestCount
             );
             if (calculatedPrice != null && calculatedPrice.getFinalAmount() != null) {
                 return calculatedPrice.getFinalAmount();

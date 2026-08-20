@@ -159,10 +159,10 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -184,10 +184,10 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -209,10 +209,10 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -242,12 +242,12 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
         when(ratePlanRepository.findByIdAndPropertyId(11L, PROPERTY_ID)).thenReturn(Optional.of(childPlan));
         when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(barPlan));
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -257,6 +257,100 @@ class RatePlanServiceTest {
         assertEquals(2000.0, priceResponseDTO.getMasterBarAmount());
         assertEquals(1700.0, priceResponseDTO.getFinalAmount());
     }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldUseRequestedOccupancyForBarLookup() {
+        RatePlan plan = new RatePlan();
+        plan.setId(30L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        MasterRoomPricing pricingForOneGuest = new MasterRoomPricing();
+        pricingForOneGuest.setRoomTypeId(101L);
+        pricingForOneGuest.setOccupancyType("1_GUEST");
+        pricingForOneGuest.setPrice(1500.0);
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(30L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "1_GUEST"))
+            .thenReturn(Optional.of(pricingForOneGuest));
+
+        RatePlanPriceResponseDTO responseDTO =
+            ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 30L, 101L, "1 Guest");
+
+        assertEquals(1500.0, responseDTO.getMasterBarAmount());
+        assertEquals(1350.0, responseDTO.getFinalAmount());
+        }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldFallbackToRatePlanOccupancyWhenNoOverrideProvided() {
+        RatePlan plan = new RatePlan();
+        plan.setId(31L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        MasterRoomPricing pricingForTwoGuest = new MasterRoomPricing();
+        pricingForTwoGuest.setRoomTypeId(101L);
+        pricingForTwoGuest.setOccupancyType("2_GUEST");
+        pricingForTwoGuest.setPrice(2000.0);
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(31L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
+            .thenReturn(Optional.of(pricingForTwoGuest));
+
+        RatePlanPriceResponseDTO responseDTO =
+            ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 31L, 101L, null);
+
+        assertEquals(2000.0, responseDTO.getMasterBarAmount());
+        assertEquals(1800.0, responseDTO.getFinalAmount());
+        }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldUseRequestedOccupancyForManualPlanPricing() {
+        RatePlan plan = new RatePlan();
+        plan.setId(32L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.MANUAL);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+        plan.setManualAmount(2100.0);
+        plan.setManualPricingByOccupancy(Map.of("1 Guest", 1100.0, "2 Guest", 2100.0));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(32L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+
+        RatePlanPriceResponseDTO responseDTO =
+            ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 32L, 101L, "1 Guest");
+
+        assertEquals(1100.0, responseDTO.getFinalAmount());
+        }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldFailWhenRequestedOccupancyIsInvalid() {
+        RatePlan plan = new RatePlan();
+        plan.setId(33L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(33L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+
+        InvalidRatePlanException exception = assertThrows(
+            InvalidRatePlanException.class,
+            () -> ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 33L, 101L, "5 Guest"));
+
+        assertTrue(exception.getMessage().contains("Invalid occupancy type"));
+        }
 
     @Test
     void createRatePlan_shouldFailWhenMealOptionMissing() {
