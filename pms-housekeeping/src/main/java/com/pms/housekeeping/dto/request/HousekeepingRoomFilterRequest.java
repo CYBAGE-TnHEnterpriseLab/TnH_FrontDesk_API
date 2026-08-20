@@ -40,6 +40,7 @@ public record HousekeepingRoomFilterRequest(
         String attendant,
 
         HousekeepingPriority priority,
+//        Boolean vipOnly,
 
         @Min(0)
         Integer page,

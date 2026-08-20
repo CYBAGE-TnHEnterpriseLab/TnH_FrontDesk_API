@@ -16,11 +16,9 @@ import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
 import com.pms.housekeeping.security.CurrentUserProvider;
 import com.pms.housekeeping.service.HousekeepingService;
 import com.pms.housekeeping.specifications.HousekeepingRoomSpecification;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -30,43 +28,39 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
 
 @Service
+@RequiredArgsConstructor
 public class HousekeepingServiceImpl implements HousekeepingService {
 
-    private static final Logger log = LoggerFactory.getLogger(HousekeepingServiceImpl.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(HousekeepingServiceImpl.class);
+
     private final HousekeepingRoomDayStatusRepository dayStatusRepository;
     private final HousekeepingRoomDayStatusHistoryRepository historyRepository;
     private final RoomMasterProjectionRepository roomMasterProjectionRepository;
-    private final HousekeepingRoomDayStatusRepository housekeepingRoomDayStatusRepository;
     private final CurrentUserProvider currentUserProvider;
 
-    public HousekeepingServiceImpl(
-            HousekeepingRoomDayStatusRepository dayStatusRepository,
-            HousekeepingRoomDayStatusHistoryRepository historyRepository,
-            RoomMasterProjectionRepository roomMasterProjectionRepository, HousekeepingRoomDayStatusRepository housekeepingRoomDayStatusRepository,
-            CurrentUserProvider currentUserProvider
-    ) {
-        this.dayStatusRepository = dayStatusRepository;
-        this.historyRepository = historyRepository;
-        this.roomMasterProjectionRepository = roomMasterProjectionRepository;
-        this.housekeepingRoomDayStatusRepository = housekeepingRoomDayStatusRepository;
-        this.currentUserProvider = currentUserProvider;
-    }
+    // =========================================================
+    // DASHBOARD
+    // =========================================================
 
     @Override
     @Transactional(readOnly = true)
-    public HousekeepingDashboardResponse dashboard(UUID propertyId, LocalDate businessDate) {
+    public HousekeepingDashboardResponse dashboard(
+            UUID propertyId,
+            LocalDate businessDate
+    ) {
+
         log.info(
-                "{}::dashboard - Fetching dashboard for propertyId={}, businessDate={}",
-                getClass().getSimpleName(),
+                "Fetching housekeeping dashboard. propertyId={}, businessDate={}",
                 propertyId,
                 businessDate
         );
@@ -78,21 +72,47 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 );
 
         long totalRooms = rows.size();
-        long vacantClean = count(rows, r -> r.getFrontOfficeStatus() == FrontOfficeStatus.VACANT && r.getCleaningStatus() == CleaningStatus.CLEAN);
-        long vacantDirty = count(rows, r -> r.getFrontOfficeStatus() == FrontOfficeStatus.VACANT && r.getCleaningStatus() == CleaningStatus.DIRTY);
-        long occupiedClean = count(rows, r -> r.getFrontOfficeStatus() == FrontOfficeStatus.OCCUPIED && r.getCleaningStatus() == CleaningStatus.CLEAN);
-        long occupiedDirty = count(rows, r -> r.getFrontOfficeStatus() == FrontOfficeStatus.OCCUPIED && r.getCleaningStatus() == CleaningStatus.DIRTY);
-        long outOfOrder = count(rows, r -> r.getCleaningStatus() == CleaningStatus.OUT_OF_ORDER);
-        long outOfService = count(rows, r -> r.getCleaningStatus() == CleaningStatus.OUT_OF_SERVICE);
-        long inspected = count(rows, r -> r.getCleaningStatus() == CleaningStatus.INSPECTED);
-        long pickup = count(rows, r -> r.getCleaningStatus() == CleaningStatus.PICKUP);
-        long arrivals = count(rows, r -> r.getReservationStatus() == ReservationStatus.ARRIVAL);
-        long departures = count(rows, r -> r.getReservationStatus() == ReservationStatus.DEPARTURE);
 
-        log.info(
-                "{}::dashboard - Dashboard calculated successfully. totalRooms={}",
-                getClass().getSimpleName(),
-                totalRooms
+        long vacantClean = count(rows, row ->
+                row.getFrontOfficeStatus() == FrontOfficeStatus.VACANT
+                        && row.getCleaningStatus() == CleaningStatus.CLEAN
+        );
+
+        long vacantDirty = count(rows, row ->
+                row.getFrontOfficeStatus() == FrontOfficeStatus.VACANT
+                        && row.getCleaningStatus() == CleaningStatus.DIRTY
+        );
+
+        long occupiedClean = count(rows, row ->
+                row.getFrontOfficeStatus() == FrontOfficeStatus.OCCUPIED
+                        && row.getCleaningStatus() == CleaningStatus.CLEAN
+        );
+
+        long occupiedDirty = count(rows, row ->
+                row.getFrontOfficeStatus() == FrontOfficeStatus.OCCUPIED
+                        && row.getCleaningStatus() == CleaningStatus.DIRTY
+        );
+
+        long outOfOrder = count(rows,
+                row -> row.getCleaningStatus() == CleaningStatus.OUT_OF_ORDER);
+
+        long outOfService = count(rows,
+                row -> row.getCleaningStatus() == CleaningStatus.OUT_OF_SERVICE);
+
+        long inspected = count(rows,
+                row -> row.getCleaningStatus() == CleaningStatus.INSPECTED);
+
+        long pickup = count(rows,
+                row -> row.getCleaningStatus() == CleaningStatus.PICKUP);
+
+        long arrivals = count(
+                rows,
+                row -> row.getReservationStatus() == ReservationStatus.ARRIVAL
+        );
+
+        long departures = count(
+                rows,
+                row -> row.getReservationStatus() == ReservationStatus.DEPARTURE
         );
 
         return new HousekeepingDashboardResponse(
@@ -110,73 +130,119 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
+    // =========================================================
+    // ROOMS
+    // =========================================================
+
     @Override
     @Transactional(readOnly = true)
-    public HousekeepingRoomsPageResponse rooms(HousekeepingRoomFilterRequest request) {
+    public HousekeepingRoomsPageResponse rooms(
+            HousekeepingRoomFilterRequest request
+    ) {
+
         log.info(
-                "{}::rooms - Fetching rooms. propertyId={}, businessDate={}",
+                "{}::rooms - Fetching rooms. propertyId={}, businessDate={}, cleaningStatus={}",
                 getClass().getSimpleName(),
                 request.propertyId(),
-                request.businessDate()
+                request.businessDate(),
+                request.cleaningStatus()
         );
 
         int page = request.page() == null ? 0 : request.page();
         int size = request.size() == null ? 50 : request.size();
 
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                buildSort(request.sortBy(), request.sortDir())
+        Sort sort = buildSort(
+                request.sortBy(),
+                request.sortDir()
         );
 
+        /*
+         * Cleaning status can now safely be filtered by the
+         * Specification because future dates are physically
+         * updated in housekeeping_room_day_status.
+         */
         Specification<HousekeepingRoomDayStatus> specification =
                 HousekeepingRoomSpecification.build(request);
 
-        Page<HousekeepingRoomDayStatus> roomPage =
-                dayStatusRepository.findAll(specification, pageable);
+        List<HousekeepingRoomDayStatus> allRows =
+                dayStatusRepository.findAll(
+                        specification,
+                        sort
+                );
 
-        List<HousekeepingRoomRowResponse> rooms = roomPage.getContent()
-                .stream()
-                .map(this::toRowResponse)
-                .toList();
+        long totalElements = allRows.size();
 
-        log.info(
-                "{}::rooms - Retrieved {} rooms",
-                getClass().getSimpleName(),
-                roomPage.getNumberOfElements()
+        int fromIndex = Math.min(
+                page * size,
+                allRows.size()
         );
 
+        int toIndex = Math.min(
+                fromIndex + size,
+                allRows.size()
+        );
+
+        List<HousekeepingRoomRowResponse> rooms =
+                allRows.subList(fromIndex, toIndex)
+                        .stream()
+                        .map(this::toRowResponse)
+                        .toList();
+
+        int totalPages =
+                totalElements == 0
+                        ? 0
+                        : (int) Math.ceil(
+                        (double) totalElements / size
+                );
+
         return new HousekeepingRoomsPageResponse(
-                roomPage.getNumber(),
-                roomPage.getSize(),
-                roomPage.getTotalElements(),
-                roomPage.getTotalPages(),
-//                request.fromDate(),
-//                request.toDate(),
-                buildFilters(request.propertyId(), request.businessDate()),
+                page,
+                size,
+                totalElements,
+                totalPages,
+                buildFilters(
+                        request.propertyId(),
+                        request.businessDate()
+                ),
                 rooms
         );
     }
 
-    private HousekeepingFiltersResponse buildFilters(UUID propertyId, LocalDate businessDate) {
-        log.debug(
-                "{}::buildFilters - Building filter values",
-                getClass().getSimpleName()
-        );
+    private HousekeepingFiltersResponse buildFilters(
+            UUID propertyId,
+            LocalDate businessDate
+    ) {
 
         return new HousekeepingFiltersResponse(
-                dayStatusRepository.findDistinctRoomTypes(propertyId, businessDate),
-                dayStatusRepository.findDistinctFloors(propertyId, businessDate),
-                dayStatusRepository.findDistinctAttendants(propertyId, businessDate)
+                dayStatusRepository.findDistinctRoomTypes(
+                        propertyId,
+                        businessDate
+                ),
+                dayStatusRepository.findDistinctFloors(
+                        propertyId,
+                        businessDate
+                ),
+                dayStatusRepository.findDistinctAttendants(
+                        propertyId,
+                        businessDate
+                )
         );
     }
 
-    private Sort buildSort(String sortBy, String sortDirection) {
-        Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection)
-                ? Sort.Direction.DESC
-                : Sort.Direction.ASC;
+    private Sort buildSort(
+            String sortBy,
+            String sortDirection
+    ) {
 
-        String entityField = switch (sortBy == null ? "" : sortBy) {
+        Sort.Direction direction =
+                "desc".equalsIgnoreCase(sortDirection)
+                        ? Sort.Direction.DESC
+                        : Sort.Direction.ASC;
+
+        String entityField = switch (
+                sortBy == null ? "" : sortBy
+                ) {
+
             case "roomNumber" -> "roomNumber";
             case "arrivalDate" -> "arrivalDate";
             case "departureDate" -> "departureDate";
@@ -189,15 +255,15 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             default -> "roomNumber";
         };
 
-        log.debug(
-                "{}::buildSort - sortBy={}, direction={}",
-                getClass().getSimpleName(),
-                entityField,
-                direction
+        return Sort.by(
+                direction,
+                entityField
         );
-
-        return Sort.by(direction, entityField);
     }
+
+    // =========================================================
+    // CALENDAR
+    // =========================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -215,7 +281,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         }
 
         List<HousekeepingRoomDayStatus> records =
-                housekeepingRoomDayStatusRepository.findCalendarData(
+                dayStatusRepository.findCalendarData(
                         propertyId,
                         fromDate,
                         toDate,
@@ -223,10 +289,17 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 );
 
         List<CalendarDateResponse> dates =
-                buildCalendarDates(fromDate, toDate);
+                buildCalendarDates(
+                        fromDate,
+                        toDate
+                );
 
         List<CalendarRoomTypeResponse> roomTypes =
-                buildRoomTypes(records, fromDate, toDate);
+                buildRoomTypes(
+                        records,
+                        fromDate,
+                        toDate
+                );
 
         return new HousekeepingCalendarResponse(
                 propertyId,
@@ -244,11 +317,13 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         return fromDate
                 .datesUntil(toDate.plusDays(1))
-                .map(date -> new CalendarDateResponse(
-                        date,
-                        date.getDayOfWeek().name(),
-                        date.getDayOfMonth()
-                ))
+                .map(date ->
+                        new CalendarDateResponse(
+                                date,
+                                date.getDayOfWeek().name(),
+                                date.getDayOfMonth()
+                        )
+                )
                 .toList();
     }
 
@@ -271,7 +346,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 .map(roomTypeRecords -> {
 
                     HousekeepingRoomDayStatus first =
-                            roomTypeRecords.get(0);
+                            roomTypeRecords.getFirst();
 
                     Map<String, List<HousekeepingRoomDayStatus>> byRoom =
                             roomTypeRecords.stream()
@@ -287,7 +362,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                     .map(roomRecords -> {
 
                                         HousekeepingRoomDayStatus firstRoom =
-                                                roomRecords.get(0);
+                                                roomRecords.getFirst();
 
                                         List<CalendarRoomDayResponse> days =
                                                 buildRoomDays(
@@ -345,13 +420,14 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                 null,
                                 null,
                                 null,
-                                null,
+                                false,
                                 null
                         );
                     }
 
                     return new CalendarRoomDayResponse(
                             date,
+
                             record.getCleaningStatus() != null
                                     ? record.getCleaningStatus().name()
                                     : null,
@@ -365,11 +441,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                     : null,
 
                             record.getGuestDisplayName(),
-
                             record.getArrivalDate(),
-
                             record.getDepartureDate(),
-
                             record.getAttendantName(),
 
                             record.getPriority() != null
@@ -377,58 +450,95 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                     : null,
 
                             record.isSellable(),
-
-                            record.getConfirmationId() != null
-                                    ? record.getConfirmationId().toString()
-                                    : null
+                            record.getConfirmationId()
                     );
                 })
                 .toList();
     }
 
+    // =========================================================
+    // ASSIGNABLE ROOMS
+    // =========================================================
+
     @Override
     @Transactional(readOnly = true)
-    public List<AssignableRoomResponse> assignableRooms(UUID propertyId, LocalDate businessDate, UUID roomTypeId, int limit) {
-        log.info("HousekeepingService::assignableRooms - Fetching assignable rooms. propertyId={}, businessDate={}, roomTypeId={}, limit={}",
-                propertyId, businessDate, roomTypeId, limit);
+    public List<AssignableRoomResponse> assignableRooms(
+            UUID propertyId,
+            LocalDate businessDate,
+            UUID roomTypeId,
+            int limit
+    ) {
 
-        int safeLimit = Math.min(Math.max(limit, 1), 200);
-        List<HousekeepingRoomDayStatus> rows = dayStatusRepository
-                .findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
-                        propertyId,
-                        businessDate,
-                        roomTypeId,
-                        List.of(CleaningStatus.CLEAN, CleaningStatus.INSPECTED),
-                        FrontOfficeStatus.VACANT
-                );
+        int safeLimit = Math.min(
+                Math.max(limit, 1),
+                200
+        );
 
-        log.info("HousekeepingService::assignableRooms - {} eligible rooms found.", rows.size());
+        List<HousekeepingRoomDayStatus> rows =
+                dayStatusRepository
+                        .findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
+                                propertyId,
+                                businessDate,
+                                roomTypeId,
+                                List.of(
+                                        CleaningStatus.CLEAN,
+                                        CleaningStatus.INSPECTED
+                                ),
+                                FrontOfficeStatus.VACANT
+                        );
 
-        Map<String, RoomMasterProjection> roomMasterByNumber = roomMasterProjectionRepository.findAllByPropertyId(propertyId)
-                .stream()
-                .collect(Collectors.toMap(RoomMasterProjection::getRoomNumber, projection -> projection, (left, right) -> left, HashMap::new));
+        Map<String, RoomMasterProjection> roomMasterByNumber =
+                roomMasterProjectionRepository
+                        .findAllByPropertyId(propertyId)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                RoomMasterProjection::getRoomNumber,
+                                Function.identity(),
+                                (left, right) -> left,
+                                HashMap::new
+                        ));
 
-        List<AssignableRoomResponse> out = new ArrayList<>();
+        List<AssignableRoomResponse> result =
+                new ArrayList<>();
+
         for (HousekeepingRoomDayStatus row : rows) {
-            RoomMasterProjection projection = roomMasterByNumber.get(row.getRoomNumber());
-            out.add(new AssignableRoomResponse(
-                    row.getRoomNumber(),
-                    row.getRoomTypeId(),
-                    projection == null ? null : projection.getRoomTypeName(),
-                    projection == null ? null : projection.getFloor(),
-                    projection == null ? null : projection.getRoomClass(),
-                    projection == null ? null : projection.getZone(),
-                    row.getCleaningStatus().name()
-            ));
-            if (out.size() >= safeLimit) {
+
+            RoomMasterProjection projection =
+                    roomMasterByNumber.get(
+                            row.getRoomNumber()
+                    );
+
+            result.add(
+                    new AssignableRoomResponse(
+                            row.getRoomNumber(),
+                            row.getRoomTypeId(),
+                            projection == null
+                                    ? null
+                                    : projection.getRoomTypeName(),
+                            projection == null
+                                    ? null
+                                    : projection.getFloor(),
+                            projection == null
+                                    ? null
+                                    : projection.getRoomClass(),
+                            projection == null
+                                    ? null
+                                    : projection.getZone(),
+                            row.getCleaningStatus().name()
+                    )
+            );
+
+            if (result.size() >= safeLimit) {
                 break;
             }
         }
 
-        log.info("HousekeepingService::assignableRooms - Returning {} assignable rooms.", out.size());
-
-        return out;
+        return result;
     }
+
+    // =========================================================
+    // UPDATE ROOM STATUS
+    // =========================================================
 
     @Override
     @Transactional
@@ -436,95 +546,118 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             String roomNumber,
             UpdateHousekeepingStatusRequest request
     ) {
-        log.info("HousekeepingService::updateRoomStatus - Request received for roomNumber={}, propertyId={}, businessDate={}",
+
+        log.info(
+                "Updating room status. roomNumber={}, propertyId={}, businessDate={}",
                 roomNumber,
                 request.propertyId(),
-                request.businessDate());
+                request.businessDate()
+        );
 
-        String loggedInUser = currentUserProvider.getCurrentUsername();
+        String loggedInUser =
+                currentUserProvider.getCurrentUsername();
 
-        log.info("HousekeepingService::updateRoomStatus - Logged in user={}", loggedInUser);
+        HousekeepingRoomDayStatus row =
+                dayStatusRepository
+                        .findByPropertyIdAndBusinessDateAndRoomNumber(
+                                request.propertyId(),
+                                request.businessDate(),
+                                roomNumber
+                        )
+                        .orElseThrow(() ->
+                                new HousekeepingNotFoundException(
+                                        "Housekeeping status not found for room: "
+                                                + roomNumber
+                                )
+                        );
 
-        HousekeepingRoomDayStatus row = dayStatusRepository
-                .findByPropertyIdAndBusinessDateAndRoomNumber(request.propertyId(), request.businessDate(), roomNumber)
-                .orElseThrow(() -> {
-                    log.warn("HousekeepingService::updateRoomStatus - Room not found. propertyId={}, businessDate={}, roomNumber={}",
-                            request.propertyId(),
-                            request.businessDate(),
-                            roomNumber);
-
-                    return new HousekeepingNotFoundException(
-                            "Housekeeping status not found for room: " + roomNumber);
-                });
         LocalDateTime now = LocalDateTime.now();
 
-        applyCleaningStatusChange(row, request, now, loggedInUser);
-        applyFrontOfficeStatusChange(row, request, now, loggedInUser);
-        applyReservationStatusChange(row, request, now, loggedInUser);
+        applyCleaningStatusChange(
+                row,
+                request,
+                now,
+                loggedInUser
+        );
 
-        if (request.confirmationId() != null || row.getConfirmationId() != null) {
-            String oldValue = row.getConfirmationId();
-            String newValue = request.confirmationId();
-            if (!Objects.equals(oldValue, newValue)) {
-                log.info("HousekeepingService::updateRoomStatus - Assigned reservation changing from {} to {}",
-                        oldValue,
-                        newValue);
+        applyFrontOfficeStatusChange(
+                row,
+                request,
+                now,
+                loggedInUser
+        );
 
-                row.setConfirmationId(newValue);
-                saveHistory(row, "assignedReservationId", oldValue, newValue, request, now, loggedInUser);
-            }
-        }
+        applyReservationStatusChange(
+                row,
+                request,
+                now,
+                loggedInUser
+        );
 
-        if (request.attendantName() != null && !Objects.equals(row.getAttendantName(), request.attendantName())) {
-            log.info("HousekeepingService::updateRoomStatus - Attendant changing from {} to {}",
-                    row.getAttendantName(),
-                    request.attendantName());
+        updateConfirmationId(
+                row,
+                request,
+                now,
+                loggedInUser
+        );
 
-            saveHistory(row, "attendantName", row.getAttendantName(), request.attendantName(), request, now, loggedInUser);
-            row.setAttendantName(request.attendantName());
-        }
+        updateAttendant(
+                row,
+                request,
+                now,
+                loggedInUser
+        );
 
-        if (request.priority() != null && request.priority() != row.getPriority()) {
-            log.info("HousekeepingService::updateRoomStatus - Priority changing from {} to {}",
-                    row.getPriority(),
-                    request.priority());
-            saveHistory(row, "priority", row.getPriority().name(), request.priority().name(), request, now, loggedInUser);
-            row.setPriority(request.priority());
-        }
+        updatePriority(
+                row,
+                request,
+                now,
+                loggedInUser
+        );
 
         if (request.guestDisplayName() != null) {
-            log.info("HousekeepingService::updateRoomStatus - Guest display name changing from {} to {}",
-                    row.getGuestDisplayName(),
-                    request.guestDisplayName());
-            row.setGuestDisplayName(request.guestDisplayName());
-        }
-        if (request.arrivalDate() != null) {
-            row.setArrivalDate(request.arrivalDate());
-        }
-        if (request.departureDate() != null) {
-            row.setDepartureDate(request.departureDate());
+            row.setGuestDisplayName(
+                    request.guestDisplayName()
+            );
         }
 
-        row.setSellable(request.sellable() != null ? request.sellable() : computeSellable(row));
+        if (request.arrivalDate() != null) {
+            row.setArrivalDate(
+                    request.arrivalDate()
+            );
+        }
+
+        if (request.departureDate() != null) {
+            row.setDepartureDate(
+                    request.departureDate()
+            );
+        }
+
+        row.setSellable(
+                request.sellable() != null
+                        ? request.sellable()
+                        : computeSellable(row)
+        );
 
         row.setUpdatedBy(loggedInUser);
         row.setUpdatedAt(now);
 
-        HousekeepingRoomDayStatus saved = dayStatusRepository.save(row);
-        log.info("HousekeepingService::updateRoomStatus - Successfully updated room {}. CleaningStatus={}, FrontOfficeStatus={}, ReservationStatus={}, Sellable={}",
-                saved.getRoomNumber(),
-                saved.getCleaningStatus(),
-                saved.getFrontOfficeStatus(),
-                saved.getReservationStatus(),
-                saved.isSellable());
+        HousekeepingRoomDayStatus saved =
+                dayStatusRepository.saveAndFlush(row);
 
         return new HousekeepingStatusUpdateResponse(
                 saved.getPropertyId(),
                 saved.getBusinessDate(),
                 saved.getRoomNumber(),
-                saved.getCleaningStatus().name(),
-                saved.getFrontOfficeStatus().name(),
-                saved.getReservationStatus().name(),
+                saved.getCleaningStatus() != null
+                        ? saved.getCleaningStatus().name()
+                        : null,
+                saved.getFrontOfficeStatus() != null
+                        ? saved.getFrontOfficeStatus().name()
+                        : null,
+                saved.getReservationStatus() != null
+                        ? saved.getReservationStatus().name()
+                        : null,
                 saved.getAttendantName(),
                 saved.getPriority(),
                 saved.getConfirmationId(),
@@ -534,104 +667,338 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
-    private void applyCleaningStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
-        if (request.cleaningStatus() == null || request.cleaningStatus() == row.getCleaningStatus()) {
-            log.debug("HousekeepingService::applyCleaningStatusChange - No cleaning status change for room {}",
-                    row.getRoomNumber());
-            return;
-        }
+    // =========================================================
+    // CLEANING STATUS
+    // =========================================================
 
-        log.info(
-                "HousekeepingService::applyCleaningStatusChange - Room {} cleaning status changing from {} to {}",
-                row.getRoomNumber(),
-                row.getCleaningStatus(),
-                request.cleaningStatus()
-        );
-
-        saveHistory(row, "cleaningStatus", row.getCleaningStatus().name(), request.cleaningStatus().name(), request, now, loggedInUser);
-        row.setCleaningStatus(request.cleaningStatus());
-        if (request.cleaningStatus() == CleaningStatus.CLEAN ) {
-            row.setLastCleanedAt(now);
-
-            log.info(
-                    "HousekeepingService::applyCleaningStatusChange - lastCleanedAt updated for room {}",
-                    row.getRoomNumber()
-            );
-        }
-    }
-
-    private void applyFrontOfficeStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
-        if (request.frontOfficeStatus() == null || request.frontOfficeStatus() == row.getFrontOfficeStatus()) {
-            return;
-        }
-        log.info(
-                "HousekeepingService::applyFrontOfficeStatusChange - Room {} front office status changing from {} to {}",
-                row.getRoomNumber(),
-                row.getFrontOfficeStatus(),
-                request.frontOfficeStatus()
-        );
-        saveHistory(row, "frontOfficeStatus", row.getFrontOfficeStatus().name(), request.frontOfficeStatus().name(), request, now, loggedInUser);
-        row.setFrontOfficeStatus(request.frontOfficeStatus());
-    }
-
-    private void applyReservationStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
-        if (request.reservationStatus() == null || request.reservationStatus() == row.getReservationStatus()) {
-            return;
-        }
-        log.info(
-                "HousekeepingService::applyReservationStatusChange - Room {} reservation status changing from {} to {}",
-                row.getRoomNumber(),
-                row.getReservationStatus(),
-                request.reservationStatus()
-        );
-        saveHistory(row, "reservationStatus", row.getReservationStatus().name(), request.reservationStatus().name(), request, now, loggedInUser);
-        row.setReservationStatus(request.reservationStatus());
-    }
-
-    private void saveHistory(
+    private void applyCleaningStatusChange(
             HousekeepingRoomDayStatus row,
-            String field,
-            String oldValue,
-            String newValue,
             UpdateHousekeepingStatusRequest request,
             LocalDateTime now,
             String loggedInUser
     ) {
-        log.debug(
-                "HousekeepingService::saveHistory - Recording history for room {}, field={}, old={}, new={}",
-                row.getRoomNumber(),
-                field,
-                oldValue,
-                newValue
+
+        CleaningStatus requestedStatus =
+                request.cleaningStatus();
+
+        if (requestedStatus == null
+                || requestedStatus == row.getCleaningStatus()) {
+            return;
+        }
+
+        CleaningStatus oldStatus =
+                row.getCleaningStatus();
+
+        saveHistory(
+                row,
+                "cleaningStatus",
+                toStringValue(oldStatus),
+                toStringValue(requestedStatus),
+                request,
+                now,
+                loggedInUser
         );
 
-        HousekeepingRoomDayStatusHistory history = HousekeepingRoomDayStatusHistory.builder()
-                .propertyId(row.getPropertyId())
-                .businessDate(row.getBusinessDate())
-                .roomNumber(row.getRoomNumber())
-                .changedField(field)
-                .oldValue(oldValue)
-                .newValue(newValue)
-                .changedAt(now)
-                .changedBy(loggedInUser)
-                .sourceModule(request.sourceModule())
-                .build();
-        historyRepository.save(history);
+        /*
+         * Update the current business date.
+         */
+        row.setCleaningStatus(requestedStatus);
+
+        if (requestedStatus == CleaningStatus.CLEAN) {
+
+            row.setLastCleanedAt(now);
+
+            log.info(
+                    "Room {} marked CLEAN on {}. Propagating CLEAN to future dates.",
+                    row.getRoomNumber(),
+                    row.getBusinessDate()
+            );
+
+            /*
+             * IMPORTANT:
+             *
+             * Current row is handled by JPA.
+             * Future rows are physically updated using one bulk UPDATE.
+             */
+            dayStatusRepository.updateCleaningStatusFromDate(
+                    row.getPropertyId(),
+                    row.getRoomNumber(),
+                    row.getBusinessDate().plusDays(1),
+                    CleaningStatus.CLEAN,
+                    now,
+                    now,
+                    loggedInUser
+            );
+
+        } else if (requestedStatus == CleaningStatus.DIRTY) {
+
+            row.setLastCleanedAt(null);
+
+            log.info(
+                    "Room {} marked DIRTY on {}. Propagating DIRTY to future dates.",
+                    row.getRoomNumber(),
+                    row.getBusinessDate()
+            );
+
+            dayStatusRepository.updateCleaningStatusFromDateAfterCheckout(
+                    row.getPropertyId(),
+                    row.getRoomNumber(),
+                    row.getBusinessDate().plusDays(1),
+                    CleaningStatus.DIRTY,
+                    now,
+                    loggedInUser
+            );
+        }
     }
 
-    private long count(List<HousekeepingRoomDayStatus> rows, java.util.function.Predicate<HousekeepingRoomDayStatus> predicate) {
-        return rows.stream().filter(predicate).count();
+    // =========================================================
+    // FRONT OFFICE STATUS
+    // =========================================================
+
+    private void applyFrontOfficeStatusChange(
+            HousekeepingRoomDayStatus row,
+            UpdateHousekeepingStatusRequest request,
+            LocalDateTime now,
+            String loggedInUser
+    ) {
+
+        if (request.frontOfficeStatus() == null
+                || request.frontOfficeStatus()
+                == row.getFrontOfficeStatus()) {
+            return;
+        }
+
+        saveHistory(
+                row,
+                "frontOfficeStatus",
+                toStringValue(row.getFrontOfficeStatus()),
+                toStringValue(request.frontOfficeStatus()),
+                request,
+                now,
+                loggedInUser
+        );
+
+        row.setFrontOfficeStatus(
+                request.frontOfficeStatus()
+        );
     }
 
-    private HousekeepingRoomRowResponse toRowResponse(HousekeepingRoomDayStatus room) {
+    // =========================================================
+    // RESERVATION STATUS
+    // =========================================================
+
+    private void applyReservationStatusChange(
+            HousekeepingRoomDayStatus row,
+            UpdateHousekeepingStatusRequest request,
+            LocalDateTime now,
+            String loggedInUser
+    ) {
+
+        if (request.reservationStatus() == null
+                || request.reservationStatus()
+                == row.getReservationStatus()) {
+            return;
+        }
+
+        saveHistory(
+                row,
+                "reservationStatus",
+                toStringValue(row.getReservationStatus()),
+                toStringValue(request.reservationStatus()),
+                request,
+                now,
+                loggedInUser
+        );
+
+        row.setReservationStatus(
+                request.reservationStatus()
+        );
+
+        /*
+         * CHECKED_OUT is the housekeeping reset event.
+         *
+         * Current date + all future dates become DIRTY.
+         */
+        if (request.reservationStatus()
+                == ReservationStatus.CHECKED_OUT) {
+
+            CleaningStatus oldStatus =
+                    row.getCleaningStatus();
+
+            if (oldStatus != CleaningStatus.DIRTY) {
+
+                saveHistory(
+                        row,
+                        "cleaningStatus",
+                        toStringValue(oldStatus),
+                        CleaningStatus.DIRTY.name(),
+                        request,
+                        now,
+                        loggedInUser
+                );
+            }
+
+            row.setCleaningStatus(
+                    CleaningStatus.DIRTY
+            );
+
+            row.setLastCleanedAt(null);
+
+            /*
+             * Physically reset every future day.
+             */
+            dayStatusRepository.updateCleaningStatusFromDateAfterCheckout(
+                    row.getPropertyId(),
+                    row.getRoomNumber(),
+                    row.getBusinessDate().plusDays(1),
+                    CleaningStatus.DIRTY,
+                    now,
+                    loggedInUser
+            );
+
+            log.info(
+                    "Room {} checked out on {}. Current and future cleaning status set to DIRTY.",
+                    row.getRoomNumber(),
+                    row.getBusinessDate()
+            );
+        }
+    }
+
+    // =========================================================
+    // CONFIRMATION ID
+    // =========================================================
+
+    private void updateConfirmationId(
+            HousekeepingRoomDayStatus row,
+            UpdateHousekeepingStatusRequest request,
+            LocalDateTime now,
+            String loggedInUser
+    ) {
+
+        if (request.confirmationId() == null
+                && row.getConfirmationId() == null) {
+            return;
+        }
+
+        String oldValue =
+                row.getConfirmationId();
+
+        String newValue =
+                request.confirmationId();
+
+        if (Objects.equals(oldValue, newValue)) {
+            return;
+        }
+
+        saveHistory(
+                row,
+                "confirmationId",
+                oldValue,
+                newValue,
+                request,
+                now,
+                loggedInUser
+        );
+
+        row.setConfirmationId(newValue);
+    }
+
+    // =========================================================
+    // ATTENDANT
+    // =========================================================
+
+    private void updateAttendant(
+            HousekeepingRoomDayStatus row,
+            UpdateHousekeepingStatusRequest request,
+            LocalDateTime now,
+            String loggedInUser
+    ) {
+
+        if (request.attendantName() == null
+                || Objects.equals(
+                row.getAttendantName(),
+                request.attendantName())) {
+            return;
+        }
+
+        saveHistory(
+                row,
+                "attendantName",
+                row.getAttendantName(),
+                request.attendantName(),
+                request,
+                now,
+                loggedInUser
+        );
+
+        row.setAttendantName(
+                request.attendantName()
+        );
+    }
+
+    // =========================================================
+    // PRIORITY
+    // =========================================================
+
+    private void updatePriority(
+            HousekeepingRoomDayStatus row,
+            UpdateHousekeepingStatusRequest request,
+            LocalDateTime now,
+            String loggedInUser
+    ) {
+
+        if (request.priority() == null
+                || request.priority() == row.getPriority()) {
+            return;
+        }
+
+        saveHistory(
+                row,
+                "priority",
+                toStringValue(row.getPriority()),
+                toStringValue(request.priority()),
+                request,
+                now,
+                loggedInUser
+        );
+
+        row.setPriority(
+                request.priority()
+        );
+    }
+
+    // =========================================================
+    // RESPONSE MAPPING
+    // =========================================================
+
+    private HousekeepingRoomRowResponse toRowResponse(
+            HousekeepingRoomDayStatus room
+    ) {
+
+        /*
+         * No history lookup is required anymore.
+         *
+         * cleaningStatus in housekeeping_room_day_status is
+         * already the effective physical status.
+         */
         return new HousekeepingRoomRowResponse(
                 room.getRoomNumber(),
                 room.getRoomTypeId(),
                 room.getRoomTypeName(),
                 room.getFloor(),
-                room.getCleaningStatus().name(),
-                room.getFrontOfficeStatus().name(),
-                room.getReservationStatus().name(),
+
+                room.getCleaningStatus() != null
+                        ? room.getCleaningStatus().name()
+                        : null,
+
+                room.getFrontOfficeStatus() != null
+                        ? room.getFrontOfficeStatus().name()
+                        : null,
+
+                room.getReservationStatus() != null
+                        ? room.getReservationStatus().name()
+                        : null,
+
                 room.getGuestDisplayName(),
                 room.getArrivalDate(),
                 room.getDepartureDate(),
@@ -644,18 +1011,85 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
-    private boolean computeSellable(HousekeepingRoomDayStatus status) {
-        boolean cleanEnough = status.getCleaningStatus() == CleaningStatus.CLEAN
-                || status.getCleaningStatus() == CleaningStatus.INSPECTED;
-        boolean vacant = status.getFrontOfficeStatus() == FrontOfficeStatus.VACANT;
-        boolean noAssignment = status.getConfirmationId() == null;
-        boolean notOut = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
-                && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
-        return cleanEnough && vacant && noAssignment && notOut;
+    // =========================================================
+    // SELLABLE
+    // =========================================================
+
+    private boolean computeSellable(
+            HousekeepingRoomDayStatus status
+    ) {
+
+        CleaningStatus cleaningStatus =
+                status.getCleaningStatus();
+
+        boolean cleanEnough =
+                cleaningStatus == CleaningStatus.CLEAN
+                        || cleaningStatus == CleaningStatus.INSPECTED;
+
+        boolean vacant =
+                status.getFrontOfficeStatus()
+                        == FrontOfficeStatus.VACANT;
+
+        boolean noAssignment =
+                status.getConfirmationId() == null;
+
+        boolean notOut =
+                cleaningStatus != CleaningStatus.OUT_OF_ORDER
+                        && cleaningStatus != CleaningStatus.OUT_OF_SERVICE;
+
+        return cleanEnough
+                && vacant
+                && noAssignment
+                && notOut;
+    }
+
+    // =========================================================
+    // HISTORY
+    // =========================================================
+
+    private void saveHistory(
+            HousekeepingRoomDayStatus row,
+            String field,
+            String oldValue,
+            String newValue,
+            UpdateHousekeepingStatusRequest request,
+            LocalDateTime now,
+            String loggedInUser
+    ) {
+
+        HousekeepingRoomDayStatusHistory history =
+                HousekeepingRoomDayStatusHistory.builder()
+                        .propertyId(row.getPropertyId())
+                        .businessDate(row.getBusinessDate())
+                        .roomNumber(row.getRoomNumber())
+                        .changedField(field)
+                        .oldValue(oldValue)
+                        .newValue(newValue)
+                        .changedAt(now)
+                        .changedBy(loggedInUser)
+                        .sourceModule(request.sourceModule())
+                        .build();
+
+        historyRepository.save(history);
+    }
+
+    // =========================================================
+    // UTILITY
+    // =========================================================
+
+    private long count(
+            List<HousekeepingRoomDayStatus> rows,
+            java.util.function.Predicate<HousekeepingRoomDayStatus> predicate
+    ) {
+
+        return rows.stream()
+                .filter(predicate)
+                .count();
     }
 
     private String toStringValue(Object value) {
-        return value == null ? null : value.toString();
+        return value == null
+                ? null
+                : value.toString();
     }
 }
-

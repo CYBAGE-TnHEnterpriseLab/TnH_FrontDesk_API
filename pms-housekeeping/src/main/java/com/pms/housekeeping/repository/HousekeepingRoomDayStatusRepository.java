@@ -9,10 +9,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -94,5 +96,46 @@ order by h.roomTypeName
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate,
             @Param("roomTypeId") UUID roomTypeId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE HousekeepingRoomDayStatus r
+       SET r.cleaningStatus = :status,
+           r.lastCleanedAt = :lastCleanedAt,
+           r.updatedAt = :updatedAt,
+           r.updatedBy = :updatedBy
+     WHERE r.propertyId = :propertyId
+       AND r.roomNumber = :roomNumber
+       AND r.businessDate >= :fromDate
+""")
+    int updateCleaningStatusFromDate(
+            @Param("propertyId") UUID propertyId,
+            @Param("roomNumber") String roomNumber,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("status") CleaningStatus status,
+            @Param("lastCleanedAt") LocalDateTime lastCleanedAt,
+            @Param("updatedAt") LocalDateTime updatedAt,
+            @Param("updatedBy") String updatedBy
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE HousekeepingRoomDayStatus r
+       SET r.cleaningStatus = :status,
+           r.lastCleanedAt = null,
+           r.updatedAt = :updatedAt,
+           r.updatedBy = :updatedBy
+     WHERE r.propertyId = :propertyId
+       AND r.roomNumber = :roomNumber
+       AND r.businessDate >= :fromDate
+""")
+    int updateCleaningStatusFromDateAfterCheckout(
+            @Param("propertyId") UUID propertyId,
+            @Param("roomNumber") String roomNumber,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("status") CleaningStatus status,
+            @Param("updatedAt") LocalDateTime updatedAt,
+            @Param("updatedBy") String updatedBy
     );
 }
