@@ -1,0 +1,59 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: rate-management-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rate_db
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+        hbm2ddl.create_namespaces: true
+
+  flyway:
+    enabled: true
+    validate-on-migrate: false
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+       
+   
+
+services:
+  property-wizard:
+    base-url: ${property.wizard.base-url}
+    endpoints:
+
+      property-by-id: /api/property/getPublishedProperty/{propertyId}
+      room-types-by-property: /api/rooms/properties/{propertyId}/room-outlet-types  
+
+  #policy-management:
+   #  base-url: ${policy.management.base-url}
+    # endpoints:
+     #  map-policy-to-rate-plan: /api/v1/policies/getPolicyByServiceType
+
+  #policy:
+   # management:
+    #  base-url: http://localhost:8089         
+
+property:
+  wizard:
+    base-url: http://localhost:8082
+
+security:
+  jwt:
+    secret: ${PMS_FRONTDESK_JWT_SECRET:${SECURITY_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}}
+
+app:
+  cors:
+    allowed-origin-patterns: http://172.27.57.*:*,https://172.27.57.*:*,http://localhost:*,https://localhost:*,http://127.0.0.1:*,https://127.0.0.1:*
