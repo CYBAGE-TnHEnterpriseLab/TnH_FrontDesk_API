@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import static com.pms.dashboard.constants.DashboardConstants.*;
 
 @Service
 public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService {
@@ -57,7 +58,9 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
 
     @Override
     public FrontdeskDashboardResponse getDashboard(UUID propertyId, LocalDate businessDate) {
-        Duration timeout = Duration.ofMillis(Math.max(500, properties.getTimeoutMs()));
+        Duration timeout = Duration.ofMillis(
+                Math.max(MIN_TIMEOUT_MS, properties.getTimeoutMs())
+        );
 
         Mono<SourceResult<DashboardModels.HousekeepingDashboardData>> housekeepingSummary = wrap(
                 "housekeepingSummary",
@@ -109,7 +112,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                             }
 
                             List<DashboardModels.PropertyRoomTypeData> fallbackTypes = deriveRoomTypesFromHousekeeping(hkRooms.payload());
-                            return fetchRoomTypeOverview(propertyId, businessDate, fallbackTypes, "DEGRADED", timeout);
+                            return fetchRoomTypeOverview(propertyId, businessDate, fallbackTypes, STATUS_DEGRADED, timeout);
                         });
 
         Mono<FrontdeskDashboardResponse> merged = Mono.zip(
@@ -157,12 +160,12 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             FrontdeskDashboardResponse.HousekeepingRoomStatus housekeepingStatus = summarizeHousekeepingStatus(hkSummary.payload(), hkToday.payload());
 
             Map<String, String> sources = new LinkedHashMap<>();
-            sources.put("housekeepingSummary", hkSummary.status());
-            sources.put("housekeepingRoomsToday", hkToday.status());
-            sources.put("housekeepingRoomsTomorrow", hkTomorrow.status());
-            sources.put("propertyRoomTypes", roomTypes.status());
-            sources.put("inventory", roomOverview.status());
-            sources.put("reservationFlow", reservation.status());
+            sources.put(SOURCE_HOUSEKEEPING_SUMMARY, hkSummary.status());
+            sources.put(SOURCE_HOUSEKEEPING_ROOMS_TODAY, hkToday.status());
+            sources.put(SOURCE_HOUSEKEEPING_ROOMS_TOMORROW, hkTomorrow.status());
+            sources.put(SOURCE_PROPERTY_ROOM_TYPES, roomTypes.status());
+            sources.put(SOURCE_INVENTORY, roomOverview.status());
+            sources.put(SOURCE_RESERVATION_FLOW, reservation.status());
 
             return new FrontdeskDashboardResponse(
                     propertyId,
@@ -180,7 +183,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
         });
 
         return merged.blockOptional(timeout)
-                .orElseThrow(() -> new IllegalStateException("Unable to build frontdesk dashboard response"));
+                .orElseThrow(() -> new IllegalStateException(DASHBOARD_BUILD_ERROR));
     }
 
     private Mono<SourceResult<List<FrontdeskDashboardResponse.RoomTypeOverview>>> fetchRoomTypeOverview(
@@ -205,7 +208,9 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                             ));
                         }))
                 .collectList()
-                .map(items -> "OK".equals(sourceStatus) ? SourceResult.ok(items) : SourceResult.degraded(items));
+                .map(items -> STATUS_OK.equals(sourceStatus)
+                        ? SourceResult.ok(items)
+                        : SourceResult.degraded(items));
     }
 
     private List<DashboardModels.PropertyRoomTypeData> deriveRoomTypesFromHousekeeping(List<DashboardModels.HousekeepingRoomData> rooms) {
@@ -247,7 +252,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             String type = coalesceTypeName(null, room.roomTypeName());
             Acc acc = grouped.computeIfAbsent(type, ignored -> new Acc());
             acc.total++;
-            if (containsAny(room.frontOfficeStatus(), "OCCUPIED")) {
+            if (containsAny(room.frontOfficeStatus(), FRONT_OFFICE_OCCUPIED)) {
                 acc.booked++;
             }
             if (room.sellable()) {
@@ -286,14 +291,27 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             );
         }
 
-        long inspectedVacant = countRooms(rooms, "VACANT", "INSPECTED");
-        long cleanVacant = countRooms(rooms, "VACANT", "CLEAN");
-        long dirtyVacant = countRooms(rooms, "VACANT", "DIRTY");
-        long pickupVacant = countRooms(rooms, "VACANT", "PICKUP");
-        long cleanOccupied = countRooms(rooms, "OCCUPIED", "CLEAN") + countRooms(rooms, "OCCUPIED", "INSPECTED");
-        long pickupOccupied = countRooms(rooms, "OCCUPIED", "PICKUP");
-        long dirtyOccupied = countRooms(rooms, "OCCUPIED", "DIRTY");
+        long inspectedVacant =
+                countRooms(rooms, FRONT_OFFICE_VACANT, CLEANING_INSPECTED);
 
+        long cleanVacant =
+                countRooms(rooms, FRONT_OFFICE_VACANT, CLEANING_CLEAN);
+
+        long dirtyVacant =
+                countRooms(rooms, FRONT_OFFICE_VACANT, CLEANING_DIRTY);
+
+        long pickupVacant =
+                countRooms(rooms, FRONT_OFFICE_VACANT, CLEANING_PICKUP);
+
+        long cleanOccupied =
+                countRooms(rooms, FRONT_OFFICE_OCCUPIED, CLEANING_CLEAN)
+                        + countRooms(rooms, FRONT_OFFICE_OCCUPIED, CLEANING_INSPECTED);
+
+        long pickupOccupied =
+                countRooms(rooms, FRONT_OFFICE_OCCUPIED, CLEANING_PICKUP);
+
+        long dirtyOccupied =
+                countRooms(rooms, FRONT_OFFICE_OCCUPIED, CLEANING_DIRTY);
         return new FrontdeskDashboardResponse.HousekeepingRoomStatus(
                 new FrontdeskDashboardResponse.Vacant(inspectedVacant, cleanVacant, dirtyVacant, pickupVacant),
                 new FrontdeskDashboardResponse.Occupied(cleanOccupied, pickupOccupied, dirtyOccupied)
@@ -301,9 +319,29 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
     }
 
     private FrontdeskDashboardResponse.TomorrowStatus summarizeTomorrowStatus(List<DashboardModels.HousekeepingRoomData> tomorrowRooms) {
-        long required = tomorrowRooms.stream().filter(r -> containsAny(r.cleaningStatus(), "DIRTY", "PICKUP")).count();
-        long notRequired = tomorrowRooms.stream().filter(r -> containsAny(r.cleaningStatus(), "OUT_OF_ORDER", "OUT_OF_SERVICE")).count();
-        long completed = tomorrowRooms.stream().filter(r -> containsAny(r.cleaningStatus(), "CLEAN", "INSPECTED")).count();
+        long required = tomorrowRooms.stream()
+                .filter(r -> containsAny(
+                        r.cleaningStatus(),
+                        CLEANING_DIRTY,
+                        CLEANING_PICKUP
+                ))
+                .count();
+
+        long notRequired = tomorrowRooms.stream()
+                .filter(r -> containsAny(
+                        r.cleaningStatus(),
+                        CLEANING_OUT_OF_ORDER,
+                        CLEANING_OUT_OF_SERVICE
+                ))
+                .count();
+
+        long completed = tomorrowRooms.stream()
+                .filter(r -> containsAny(
+                        r.cleaningStatus(),
+                        CLEANING_CLEAN,
+                        CLEANING_INSPECTED
+                ))
+                .count();
         return new FrontdeskDashboardResponse.TomorrowStatus(required, notRequired, completed);
     }
 
@@ -398,7 +436,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
         if (code != null && !code.isBlank()) {
             return code;
         }
-        return "Unknown";
+        return UNKNOWN_ROOM_TYPE;
     }
 
     private double toPercent(long numerator, long denominator) {
