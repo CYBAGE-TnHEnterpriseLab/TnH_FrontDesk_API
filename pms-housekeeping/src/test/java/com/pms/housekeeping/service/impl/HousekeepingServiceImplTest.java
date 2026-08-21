@@ -244,75 +244,263 @@ class HousekeepingServiceImplTest {
     void calendar_shouldBuildNestedDateAndRoomStructure() {
         UUID propertyId = UUID.randomUUID();
         UUID roomTypeId = UUID.randomUUID();
+
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
         LocalDate toDate = LocalDate.of(2026, 8, 20);
 
-        HousekeepingRoomDayStatus room101Day1 = status(propertyId, fromDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.ARRIVAL);
+        List<String> roomTypes = List.of("Deluxe");
+
+        HousekeepingRoomDayStatus room101Day1 =
+                status(
+                        propertyId,
+                        fromDate,
+                        "101",
+                        CleaningStatus.CLEAN,
+                        FrontOfficeStatus.VACANT,
+                        ReservationStatus.ARRIVAL
+                );
+
         room101Day1.setRoomTypeId(roomTypeId);
         room101Day1.setRoomTypeName("Deluxe");
         room101Day1.setFloor("1");
         room101Day1.setGuestDisplayName("Guest One");
-        room101Day1.setArrivalDate(LocalDate.of(2026, 8, 18));
-        room101Day1.setDepartureDate(LocalDate.of(2026, 8, 20));
+        room101Day1.setArrivalDate(
+                LocalDate.of(2026, 8, 18)
+        );
+        room101Day1.setDepartureDate(
+                LocalDate.of(2026, 8, 20)
+        );
         room101Day1.setAttendantName("Anna");
-        room101Day1.setPriority(HousekeepingPriority.NORMAL);
+        room101Day1.setPriority(
+                HousekeepingPriority.NORMAL
+        );
         room101Day1.setSellable(true);
-        room101Day1.setConfirmationId(UUID.randomUUID().toString());
+        room101Day1.setConfirmationId(
+                UUID.randomUUID().toString()
+        );
 
-        HousekeepingRoomDayStatus room101Day3 = status(propertyId, toDate, "101", null, FrontOfficeStatus.OCCUPIED, ReservationStatus.DEPARTURE);
+        HousekeepingRoomDayStatus room101Day3 =
+                status(
+                        propertyId,
+                        toDate,
+                        "101",
+                        null,
+                        FrontOfficeStatus.OCCUPIED,
+                        ReservationStatus.DEPARTURE
+                );
+
         room101Day3.setRoomTypeId(roomTypeId);
         room101Day3.setRoomTypeName("Deluxe");
         room101Day3.setFloor("1");
         room101Day3.setGuestDisplayName("Guest One");
-        room101Day3.setArrivalDate(LocalDate.of(2026, 8, 18));
-        room101Day3.setDepartureDate(LocalDate.of(2026, 8, 20));
+        room101Day3.setArrivalDate(
+                LocalDate.of(2026, 8, 18)
+        );
+        room101Day3.setDepartureDate(
+                LocalDate.of(2026, 8, 20)
+        );
         room101Day3.setAttendantName("Anna");
-        room101Day3.setPriority(HousekeepingPriority.HIGH);
+        room101Day3.setPriority(
+                HousekeepingPriority.HIGH
+        );
         room101Day3.setSellable(false);
         room101Day3.setConfirmationId(null);
 
-        HousekeepingRoomDayStatus room102Day2 = status(propertyId, fromDate.plusDays(1), "102", CleaningStatus.DIRTY, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
+        HousekeepingRoomDayStatus room102Day2 =
+                status(
+                        propertyId,
+                        fromDate.plusDays(1),
+                        "102",
+                        CleaningStatus.DIRTY,
+                        FrontOfficeStatus.VACANT,
+                        ReservationStatus.NOT_RESERVED
+                );
+
         room102Day2.setRoomTypeId(roomTypeId);
         room102Day2.setRoomTypeName("Deluxe");
         room102Day2.setFloor("1");
         room102Day2.setGuestDisplayName(null);
         room102Day2.setAttendantName(null);
-        room102Day2.setPriority(HousekeepingPriority.NORMAL);
+        room102Day2.setPriority(
+                HousekeepingPriority.NORMAL
+        );
         room102Day2.setSellable(false);
 
-        when(housekeepingRoomDayStatusRepository.findCalendarData(propertyId, fromDate, toDate, roomTypeId))
-                .thenReturn(List.of(room101Day1, room101Day3, room102Day2));
+        when(
+                housekeepingRoomDayStatusRepository.findCalendarData(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                )
+        ).thenReturn(
+                List.of(
+                        room101Day1,
+                        room101Day3,
+                        room102Day2
+                )
+        );
 
-        HousekeepingCalendarResponse response = service.calendar(propertyId, fromDate, toDate, roomTypeId);
+        HousekeepingCalendarResponse response =
+                service.calendar(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                );
 
-        assertThat(response.propertyId()).isEqualTo(propertyId);
-        assertThat(response.fromDate()).isEqualTo(fromDate);
-        assertThat(response.toDate()).isEqualTo(toDate);
-        assertThat(response.dates()).hasSize(3);
-        assertThat(response.dates().getFirst()).isEqualTo(new CalendarDateResponse(fromDate, fromDate.getDayOfWeek().name(), fromDate.getDayOfMonth()));
-        assertThat(response.roomTypes()).hasSize(1);
+        assertThat(response.propertyId())
+                .isEqualTo(propertyId);
 
-        CalendarRoomTypeResponse roomType = response.roomTypes().getFirst();
-        assertThat(roomType.roomTypeId()).isEqualTo(roomTypeId);
-        assertThat(roomType.roomTypeName()).isEqualTo("Deluxe");
-        assertThat(roomType.rooms()).hasSize(2);
+        assertThat(response.fromDate())
+                .isEqualTo(fromDate);
 
-        CalendarRoomResponse room101 = roomType.rooms().getFirst();
-        assertThat(room101.roomNumber()).isEqualTo("101");
-        assertThat(room101.floor()).isEqualTo("1");
-        assertThat(room101.days()).hasSize(3);
-        assertThat(room101.days().get(0).cleaningStatus()).isEqualTo("CLEAN");
-        assertThat(room101.days().get(1).cleaningStatus()).isNull();
-        assertThat(room101.days().get(2).frontOfficeStatus()).isEqualTo("OCCUPIED");
-        assertThat(room101.days().get(2).priority()).isEqualTo("HIGH");
-        assertThat(room101.days().get(2).assignedReservationId()).isNull();
+        assertThat(response.toDate())
+                .isEqualTo(toDate);
 
-        CalendarRoomResponse room102 = roomType.rooms().get(1);
-        assertThat(room102.roomNumber()).isEqualTo("102");
-        assertThat(room102.days().get(0).cleaningStatus()).isNull();
-        assertThat(room102.days().get(1).cleaningStatus()).isEqualTo("DIRTY");
-        assertThat(room102.days().get(2).sellable()).isNull();
+        assertThat(response.dates())
+                .hasSize(3);
+
+        assertThat(response.dates().getFirst())
+                .isEqualTo(
+                        new CalendarDateResponse(
+                                fromDate,
+                                fromDate.getDayOfWeek().name(),
+                                fromDate.getDayOfMonth()
+                        )
+                );
+
+        assertThat(response.roomTypes())
+                .hasSize(1);
+
+        CalendarRoomTypeResponse roomType =
+                response.roomTypes().getFirst();
+
+        assertThat(roomType.roomTypeId())
+                .isEqualTo(roomTypeId);
+
+        assertThat(roomType.roomTypeName())
+                .isEqualTo("Deluxe");
+
+        assertThat(roomType.rooms())
+                .hasSize(2);
+
+        CalendarRoomResponse room101 =
+                roomType.rooms().getFirst();
+
+        assertThat(room101.roomNumber())
+                .isEqualTo("101");
+
+        assertThat(room101.floor())
+                .isEqualTo("1");
+
+        assertThat(room101.days())
+                .hasSize(3);
+
+        assertThat(room101.days().get(0).cleaningStatus())
+                .isEqualTo("CLEAN");
+
+        assertThat(room101.days().get(1).cleaningStatus())
+                .isNull();
+
+        assertThat(room101.days().get(2).frontOfficeStatus())
+                .isEqualTo("OCCUPIED");
+
+        assertThat(room101.days().get(2).priority())
+                .isEqualTo("HIGH");
+
+        assertThat(room101.days().get(2).assignedReservationId())
+                .isNull();
+
+        CalendarRoomResponse room102 =
+                roomType.rooms().get(1);
+
+        assertThat(room102.roomNumber())
+                .isEqualTo("102");
+
+        assertThat(room102.days().get(0).cleaningStatus())
+                .isNull();
+
+        assertThat(room102.days().get(1).cleaningStatus())
+                .isEqualTo("DIRTY");
+
+        assertThat(room102.days().get(2).sellable())
+                .isNull();
     }
+
+//    @Test
+//    void calendar_shouldBuildNestedDateAndRoomStructure() {
+//        UUID propertyId = UUID.randomUUID();
+//        UUID roomTypeId = UUID.randomUUID();
+//        LocalDate fromDate = LocalDate.of(2026, 8, 18);
+//        LocalDate toDate = LocalDate.of(2026, 8, 20);
+//
+//        HousekeepingRoomDayStatus room101Day1 = status(propertyId, fromDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.ARRIVAL);
+//        room101Day1.setRoomTypeId(roomTypeId);
+//        room101Day1.setRoomTypeName("Deluxe");
+//        room101Day1.setFloor("1");
+//        room101Day1.setGuestDisplayName("Guest One");
+//        room101Day1.setArrivalDate(LocalDate.of(2026, 8, 18));
+//        room101Day1.setDepartureDate(LocalDate.of(2026, 8, 20));
+//        room101Day1.setAttendantName("Anna");
+//        room101Day1.setPriority(HousekeepingPriority.NORMAL);
+//        room101Day1.setSellable(true);
+//        room101Day1.setConfirmationId(UUID.randomUUID().toString());
+//
+//        HousekeepingRoomDayStatus room101Day3 = status(propertyId, toDate, "101", null, FrontOfficeStatus.OCCUPIED, ReservationStatus.DEPARTURE);
+//        room101Day3.setRoomTypeId(roomTypeId);
+//        room101Day3.setRoomTypeName("Deluxe");
+//        room101Day3.setFloor("1");
+//        room101Day3.setGuestDisplayName("Guest One");
+//        room101Day3.setArrivalDate(LocalDate.of(2026, 8, 18));
+//        room101Day3.setDepartureDate(LocalDate.of(2026, 8, 20));
+//        room101Day3.setAttendantName("Anna");
+//        room101Day3.setPriority(HousekeepingPriority.HIGH);
+//        room101Day3.setSellable(false);
+//        room101Day3.setConfirmationId(null);
+//
+//        HousekeepingRoomDayStatus room102Day2 = status(propertyId, fromDate.plusDays(1), "102", CleaningStatus.DIRTY, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
+//        room102Day2.setRoomTypeId(roomTypeId);
+//        room102Day2.setRoomTypeName("Deluxe");
+//        room102Day2.setFloor("1");
+//        room102Day2.setGuestDisplayName(null);
+//        room102Day2.setAttendantName(null);
+//        room102Day2.setPriority(HousekeepingPriority.NORMAL);
+//        room102Day2.setSellable(false);
+//
+//        when(housekeepingRoomDayStatusRepository.findCalendarData(propertyId, fromDate, toDate, "Deluxe"))
+//                .thenReturn(List.of(room101Day1, room101Day3, room102Day2));
+//
+//        HousekeepingCalendarResponse response = service.calendar(propertyId, fromDate, toDate, roomTypeId);
+//
+//        assertThat(response.propertyId()).isEqualTo(propertyId);
+//        assertThat(response.fromDate()).isEqualTo(fromDate);
+//        assertThat(response.toDate()).isEqualTo(toDate);
+//        assertThat(response.dates()).hasSize(3);
+//        assertThat(response.dates().getFirst()).isEqualTo(new CalendarDateResponse(fromDate, fromDate.getDayOfWeek().name(), fromDate.getDayOfMonth()));
+//        assertThat(response.roomTypes()).hasSize(1);
+//
+//        CalendarRoomTypeResponse roomType = response.roomTypes().getFirst();
+//        assertThat(roomType.roomTypeId()).isEqualTo(roomTypeId);
+//        assertThat(roomType.roomTypeName()).isEqualTo("Deluxe");
+//        assertThat(roomType.rooms()).hasSize(2);
+//
+//        CalendarRoomResponse room101 = roomType.rooms().getFirst();
+//        assertThat(room101.roomNumber()).isEqualTo("101");
+//        assertThat(room101.floor()).isEqualTo("1");
+//        assertThat(room101.days()).hasSize(3);
+//        assertThat(room101.days().get(0).cleaningStatus()).isEqualTo("CLEAN");
+//        assertThat(room101.days().get(1).cleaningStatus()).isNull();
+//        assertThat(room101.days().get(2).frontOfficeStatus()).isEqualTo("OCCUPIED");
+//        assertThat(room101.days().get(2).priority()).isEqualTo("HIGH");
+//        assertThat(room101.days().get(2).assignedReservationId()).isNull();
+//
+//        CalendarRoomResponse room102 = roomType.rooms().get(1);
+//        assertThat(room102.roomNumber()).isEqualTo("102");
+//        assertThat(room102.days().get(0).cleaningStatus()).isNull();
+//        assertThat(room102.days().get(1).cleaningStatus()).isEqualTo("DIRTY");
+//        assertThat(room102.days().get(2).sellable()).isNull();
+//    }
 
     @Test
     void assignableRooms_shouldClampLimitAndEnrichResults() {

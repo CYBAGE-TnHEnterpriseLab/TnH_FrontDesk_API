@@ -79,20 +79,20 @@ order by h.roomTypeName
 
     //Calender data query
     @Query("""
-        SELECT r
-        FROM HousekeepingRoomDayStatus r
-        WHERE r.propertyId = :propertyId
-          AND r.businessDate BETWEEN :fromDate AND :toDate
-          AND (
-                :roomTypeId IS NULL
-                OR r.roomTypeId = :roomTypeId
-          )
-        ORDER BY r.roomTypeName, r.roomNumber, r.businessDate
-        """)
+    SELECT r
+    FROM HousekeepingRoomDayStatus r
+    WHERE r.propertyId = :propertyId
+      AND r.businessDate BETWEEN :fromDate AND :toDate
+      AND (
+            :roomTypes IS NULL
+            OR r.roomTypeName IN :roomTypes
+      )
+    ORDER BY r.roomTypeName, r.roomNumber, r.businessDate
+    """)
     List<HousekeepingRoomDayStatus> findCalendarData(
             @Param("propertyId") UUID propertyId,
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate,
-            @Param("roomTypeId") UUID roomTypeId
+            @Param("roomTypes") List<String> roomTypes
     );
 }

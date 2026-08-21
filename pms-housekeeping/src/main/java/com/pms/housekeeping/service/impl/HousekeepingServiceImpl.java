@@ -205,7 +205,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             UUID propertyId,
             LocalDate fromDate,
             LocalDate toDate,
-            UUID roomTypeId
+            List<String> roomTypes
     ) {
 
         if (fromDate.isAfter(toDate)) {
@@ -219,13 +219,13 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                         propertyId,
                         fromDate,
                         toDate,
-                        roomTypeId
+                        roomTypes
                 );
 
         List<CalendarDateResponse> dates =
                 buildCalendarDates(fromDate, toDate);
 
-        List<CalendarRoomTypeResponse> roomTypes =
+        List<CalendarRoomTypeResponse> calendarRoomTypes =
                 buildRoomTypes(records, fromDate, toDate);
 
         return new HousekeepingCalendarResponse(
@@ -233,7 +233,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 fromDate,
                 toDate,
                 dates,
-                roomTypes
+                calendarRoomTypes
         );
     }
 

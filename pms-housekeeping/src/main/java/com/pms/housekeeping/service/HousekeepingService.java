@@ -18,7 +18,7 @@ public interface HousekeepingService {
             UUID propertyId,
             LocalDate fromDate,
             LocalDate toDate,
-            UUID roomTypeId
+            List<String> roomTypes
     );
 
     List<AssignableRoomResponse> assignableRooms(UUID propertyId, LocalDate businessDate, UUID roomTypeId, int limit);

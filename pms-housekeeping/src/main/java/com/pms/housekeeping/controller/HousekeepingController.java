@@ -61,13 +61,13 @@ public class HousekeepingController {
             LocalDate toDate,
 
             @RequestParam(required = false)
-            UUID roomTypeId
+            List<String> roomTypes
     ) {
         return housekeepingService.calendar(
                 propertyId,
                 fromDate,
                 toDate,
-                roomTypeId
+                roomTypes
         );
     }
 
