@@ -17,7 +17,6 @@ public class Folio {
     @Column(nullable = false, precision = 19, scale = 2) private BigDecimal outstandingBalance;
     @Column(nullable = false) private Instant createdAt;
     @Column(nullable = false) private Instant lastUpdatedAt;
-    @Lob
     @Column(name = "transactions_json")
     private String transactionsJson;
 
