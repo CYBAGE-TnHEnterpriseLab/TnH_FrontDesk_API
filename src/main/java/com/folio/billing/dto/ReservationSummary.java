@@ -1,5 +1,6 @@
 package com.folio.billing.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record ReservationSummary(
@@ -19,7 +20,8 @@ public record ReservationSummary(
         LocalDate checkInDate,
         LocalDate checkOutDate,
         int nights,
-        String comments
+        String comments,
+        BigDecimal reservationAmount
 ) {
 }
 

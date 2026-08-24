@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -50,6 +51,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,11 +97,11 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             foliosByKey.put(f.getConfirmationNumber() + ":" + f.getFolioCode(),
                 new FolioState(f.getConfirmationNumber(), f.getFolioCode(), f.getGuestName(), f.getRoomNo(),
                         f.getTotalCharges(), f.getTotalPayment(), f.getOutstandingBalance(), f.getCreatedAt(), f.getLastUpdatedAt()));
-            try { if (f.getTransactionsJson() != null) postedTransactionsByKey.put(f.getConfirmationNumber() + ":" + f.getFolioCode(), objectMapper.readValue(f.getTransactionsJson(), new TypeReference<List<FolioTransactionRow>>() {})); } catch (Exception ignored) { }
         });
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FolioBillingRow> getFolioBilling(FolioBillingFilter filter) {
         if (filter == null) {
             return List.of();
@@ -168,6 +171,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     @Override
+    @Transactional
     public BillingDetailsResponse getBillingDetails(String confirmationNumber, String roomNo, String guestName) {
         ReservationSummary summary = reservationServiceClient
                 .getReservationSummary(confirmationNumber, roomNo, guestName)
@@ -176,6 +180,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         String resolvedConfirmationNumber = firstNonBlank(summary.confirmationNumber(), normalize(confirmationNumber));
         String resolvedRoomNo = firstNonBlank(summary.roomNo(), normalize(roomNo));
         String resolvedFolioCode = resolveActiveFolioCode(resolvedConfirmationNumber);
+        ensureReservationCharge(resolvedConfirmationNumber, resolvedFolioCode, summary);
 
         BalanceSnapshot balanceSnapshot = safeSyncFolioWithLatestBalances(
                 resolvedConfirmationNumber,
@@ -235,6 +240,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FolioDashboardResponse getFolioDashboard(String confirmationNumber) {
         String resolvedConfirmationNumber = normalize(confirmationNumber);
         String resolvedFolioCode = resolveActiveFolioCode(resolvedConfirmationNumber);
@@ -281,6 +287,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FolioDetailsResponse getFolioDetails(String confirmationNumber) {
         String cn = normalize(confirmationNumber);
         if (!hasText(cn)) {
@@ -289,7 +296,10 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         }
 
         try {
-            List<FolioDetailsResponse.Folio> result = folioRepository.findByConfirmationNumberOrderByFolioCode(cn).stream()
+            List<Folio> persistedFolios = folioRepository.findByConfirmationNumberOrderByFolioCode(cn);
+            persistedFolios.stream().filter(Objects::nonNull)
+                    .forEach(f -> loadPersistedTransactionsIfNeeded(cn, f.getFolioCode()));
+            List<FolioDetailsResponse.Folio> result = persistedFolios.stream()
                 .filter(f -> f != null)
                 .map(f -> new FolioDetailsResponse.Folio(
                     "FOLIO-" + defaultString(f.getFolioCode()) + "-001",
@@ -298,7 +308,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                     safeAmount(f.getOutstandingBalance()),
                     safeAmount(f.getTotalCharges()),
                     safeAmount(f.getTotalPayment()),
-                    postedTransactionsByKey.getOrDefault(folioKey(cn, f.getFolioCode()), List.of()).stream()
+                    getMergedTransactions(cn, f.getFolioCode(), null).stream()
                         .filter(t -> t != null)
                         .map(t -> new FolioDetailsResponse.Transaction(
                             t.referenceNumber(),
@@ -387,25 +397,37 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         }
 
     @Override
+    @Transactional
     public FolioChargePostResponse addCharge(FolioChargePostRequest request) {
         String confirmationNumber = normalize(request.confirmationNumber());
         if (!hasText(confirmationNumber)) {
             throw badRequest("confirmationNumber is required");
         }
 
-        String transactionType = firstNonBlank(request.transactionType(), "CHARGE").toUpperCase();
-        String requestedFolioCode = folioCodeFromId(request.folioId());
+        String transactionType = canonicalTransactionType(request.transactionType());
+        String requestedFolioCode = firstNonBlank(folioCodeFromId(request.folioId()), folioCodeFromId(request.folioName()));
         String folioCode = hasText(requestedFolioCode) ? requestedFolioCode : resolveActiveFolioCode(confirmationNumber);
-        validateTransactionCategory(transactionType, request.category());
+        activeFolioByConfirmationNumber.put(confirmationNumber, folioCode);
         BigDecimal amount = scaleMoney(safeAmount(request.amount()));
         validateChargeAmounts(amount);
 
-        String category = firstNonBlank(request.category(), "MISCELLANEOUS");
+        String category = normalizeCategoryForTransactionType(transactionType, request.category());
+        validateTransactionCategory(transactionType, category);
         String description = firstNonBlank(request.description(), category + " charge");
         LocalDate postingDate = request.postingDate() != null ? request.postingDate() : LocalDate.now();
         LocalDateTime postedAt = LocalDateTime.now();
         String userId = firstNonBlank(request.userId(), "frontdesk-agent");
         String referenceNumber = generateChargeReference();
+        BigDecimal charges = "PAYMENT".equals(transactionType)
+                || "ADJUSTMENT".equals(transactionType)
+                || "REFUND".equals(transactionType)
+                ? BigDecimal.ZERO
+                : amount;
+        BigDecimal credit = "PAYMENT".equals(transactionType)
+                || "ADJUSTMENT".equals(transactionType)
+                || "REFUND".equals(transactionType)
+                ? amount
+                : BigDecimal.ZERO;
 
         FolioTransactionRow chargeTransaction = new FolioTransactionRow(
                 postingDate,
@@ -413,8 +435,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 transactionType,
                 category,
                 description,
-                amount,
-                BigDecimal.ZERO,
+                charges,
+                credit,
                 userId,
                 postedAt,
                 null,
@@ -423,9 +445,16 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
         appendPostedTransaction(confirmationNumber, folioCode, chargeTransaction);
 
-        ReservationSummary summary = reservationServiceClient
-                .getReservationSummary(confirmationNumber, request.roomNo(), request.guestName())
-                .orElseGet(() -> emptySummary(request.guestName(), confirmationNumber, request.roomNo()));
+        ReservationSummary summary;
+        try {
+            summary = reservationServiceClient
+                    .getReservationSummary(confirmationNumber, request.roomNo(), request.guestName())
+                    .orElseGet(() -> emptySummary(request.guestName(), confirmationNumber, request.roomNo()));
+        } catch (Exception ex) {
+            LOGGER.warn("Unable to load reservation summary after posting transaction for confirmationNumber {}: {}",
+                    confirmationNumber, ex.getMessage());
+            summary = emptySummary(request.guestName(), confirmationNumber, request.roomNo());
+        }
 
         BalanceSnapshot balanceSnapshot = safeSyncFolioWithLatestBalances(
                 confirmationNumber,
@@ -436,12 +465,19 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         );
 
         String folioId = "FOLIO-" + folioCode + "-001";
+        List<FolioChargePostResponse.Transaction> transactionHistory = postedTransactionsByKey
+                .getOrDefault(folioKey(confirmationNumber, folioCode), List.of()).stream()
+                .map(t -> new FolioChargePostResponse.Transaction(
+                        t.referenceNumber(), t.referenceNumber(), t.transactionType(), t.category(),
+                        t.description(), safeAmount(t.charges()).add(safeAmount(t.credit())),
+                        safeAmount(t.charges()), safeAmount(t.credit()), t.date(), t.userId()))
+                .toList();
         return new FolioChargePostResponse(
                 confirmationNumber,
                 folioId,
                 "FOLIO " + folioCode,
                 new FolioChargePostResponse.Transaction(referenceNumber, referenceNumber, transactionType, category, description,
-                        amount, amount, BigDecimal.ZERO, postingDate, userId),
+                        amount, charges, credit, postingDate, userId),
                 new FolioChargePostResponse.FolioSummary(balanceSnapshot.totalCharges(), balanceSnapshot.totalPayment(), balanceSnapshot.balance()),
                 new FolioChargePostResponse.CheckoutSummary(balanceSnapshot.balance(), balanceSnapshot.balance().compareTo(BigDecimal.ZERO) == 0),
                 referenceNumber,
@@ -453,7 +489,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 postingDate,
                 balanceSnapshot.totalCharges(),
                 balanceSnapshot.totalPayment(),
-                balanceSnapshot.balance()
+                balanceSnapshot.balance(),
+                transactionHistory
         );
     }
 
@@ -879,11 +916,56 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     private String folioCodeFromId(String folioId) {
-        if (!hasText(folioId)) return "";
+        if (!hasText(folioId)) {
+            return "";
+        }
+
         String value = folioId.trim().toUpperCase();
-        int marker = value.indexOf("FOLIO-");
-        if (marker == 0 && value.length() > 6) return value.substring(6, 7);
-        return value.length() == 1 ? value : "";
+        if (value.length() == 1 && Character.isLetter(value.charAt(0))) {
+            return value;
+        }
+
+        String letters = value.replaceAll("[^A-Z]", "");
+        if (letters.startsWith("FOLIO") && letters.length() > 5) {
+            return letters.substring(letters.length() - 1);
+        }
+        return "";
+    }
+
+    private String canonicalTransactionType(String type) {
+        String value = firstNonBlank(type, "CHARGE").trim().toUpperCase();
+        return switch (value) {
+            case "CHARGE", "CHARGES" -> "CHARGE";
+            case "PAYMENT" -> "PAYMENT";
+            case "ADJUSTMENT" -> "ADJUSTMENT";
+            case "REFUND" -> "REFUND";
+            default -> "CHARGE";
+        };
+    }
+
+    private String normalizeCategoryForTransactionType(String transactionType, String category) {
+        String raw = firstNonBlank(category, "").trim();
+        String normalized = raw.toUpperCase().replace('-', '_').replace(' ', '_');
+
+        if ("CHARGE".equals(transactionType)) {
+            if (List.of("F&B", "ACCOMMODATION", "ACCOMODATION", "WELLNESS", "HOUSEKEEPING", "TRANSPORT", "MISCELLANEOUS").contains(normalized)) {
+                return raw;
+            }
+            return "Miscellaneous";
+        }
+        if ("PAYMENT".equals(transactionType)) {
+            if (List.of("UPI", "CREDIT_CARD", "CASH", "DEBIT_CARD", "NET_BANKING").contains(normalized)) {
+                return raw;
+            }
+            return "Cash";
+        }
+        if ("ADJUSTMENT".equals(transactionType)) {
+            return "Discount";
+        }
+        if ("REFUND".equals(transactionType)) {
+            return "Refund";
+        }
+        return "Miscellaneous";
     }
 
     private void validateTransactionCategory(String type, String category) {
@@ -1005,6 +1087,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
         List<FolioTransactionRow> baseTransactions = knownBaseTransactions == null ? List.of() : knownBaseTransactions;
 
+        loadPersistedTransactionsIfNeeded(normalizedconfirmationNumber, normalizedFolioCode);
+
         List<FolioTransactionRow> postedTransactions = postedTransactionsByKey
                 .getOrDefault(folioKey(normalizedconfirmationNumber, normalizedFolioCode), List.of());
 
@@ -1015,7 +1099,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         return Stream.concat(baseTransactions.stream(), postedTransactions.stream())
                 .sorted(Comparator
                         .comparing(FolioTransactionRow::date, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(FolioTransactionRow::postedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(FolioTransactionRow::postedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(FolioTransactionRow::referenceNumber, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
@@ -1025,6 +1109,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         String normalizedFolioCode = resolveRequestedOrActiveFolioCode(confirmationNumber, folioCode);
         String key = folioKey(normalizedconfirmationNumber, normalizedFolioCode);
 
+        loadPersistedTransactionsIfNeeded(normalizedconfirmationNumber, normalizedFolioCode);
+
         postedTransactionsByKey.compute(key, (ignored, existingTransactions) -> {
             List<FolioTransactionRow> mergedTransactions = existingTransactions == null
                     ? new ArrayList<>()
@@ -1033,16 +1119,80 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             return List.copyOf(mergedTransactions);
         });
         if (folioRepository != null) {
-            findPersistedFolio(normalizedconfirmationNumber, normalizedFolioCode).ifPresent(f -> {
-                try {
+            try {
+                Optional<Folio> persistedFolio = findPersistedFolio(normalizedconfirmationNumber, normalizedFolioCode);
+                if (persistedFolio.isPresent()) {
+                    Folio f = persistedFolio.get();
                     f.setTransactionsJson(objectMapper.writeValueAsString(postedTransactionsByKey.get(key)));
-                    folioRepository.save(f);
+                    folioRepository.saveAndFlush(f);
+                }
+            } catch (Exception ex) {
+                throw new IllegalStateException("Unable to persist folio transaction for confirmationNumber "
+                        + normalizedconfirmationNumber + " and folioCode " + normalizedFolioCode, ex);
+            }
+        }
+    }
+
+    private void loadPersistedTransactionsIfNeeded(String confirmationNumber, String folioCode) {
+        if (folioRepository == null) {
+            return;
+        }
+
+        String key = folioKey(confirmationNumber, folioCode);
+
+        try {
+            findPersistedFolio(confirmationNumber, folioCode).ifPresent(folio -> {
+                String transactionsJson = folio.getTransactionsJson();
+                if (transactionsJson == null || transactionsJson.isBlank()) {
+                    postedTransactionsByKey.putIfAbsent(key, List.of());
+                    return;
+                }
+                try {
+                    List<FolioTransactionRow> transactions = objectMapper.readValue(
+                            transactionsJson, new TypeReference<List<FolioTransactionRow>>() {});
+                    List<FolioTransactionRow> cleanedTransactions = deduplicateTransactions(
+                            transactions == null ? List.of() : transactions);
+                    List<FolioTransactionRow> inMemoryTransactions = postedTransactionsByKey.getOrDefault(key, List.of());
+                    List<FolioTransactionRow> mergedTransactions = deduplicateTransactions(
+                            Stream.concat(cleanedTransactions.stream(), inMemoryTransactions.stream()).toList());
+                    postedTransactionsByKey.put(key, mergedTransactions);
+                    if (cleanedTransactions.size() != (transactions == null ? 0 : transactions.size())) {
+                        BigDecimal charges = mergedTransactions.stream()
+                                .map(BillingFolioServiceImpl::chargeComponent)
+                                .map(BillingFolioServiceImpl::safeAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        BigDecimal credits = mergedTransactions.stream()
+                                .map(FolioTransactionRow::credit)
+                                .map(BillingFolioServiceImpl::safeAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        folio.update(folio.getGuestName(), folio.getRoomNo(), charges, credits,
+                                charges.subtract(credits), folio.getLastUpdatedAt());
+                        folio.setTransactionsJson(objectMapper.writeValueAsString(mergedTransactions));
+                        folioRepository.saveAndFlush(folio);
+                    }
                 } catch (Exception ex) {
-                    LOGGER.warn("Skipping folio transaction persistence for confirmationNumber {} and folioCode {} due to: {}",
-                            normalizedconfirmationNumber, normalizedFolioCode, ex.getMessage());
+                    throw new IllegalStateException("Unable to deserialize folio transactions for " + key, ex);
                 }
             });
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to load persisted transactions for confirmationNumber "
+                    + confirmationNumber + " and folioCode " + folioCode, ex);
         }
+    }
+
+    private List<FolioTransactionRow> deduplicateTransactions(List<FolioTransactionRow> transactions) {
+        Map<String, FolioTransactionRow> uniqueByReference = new LinkedHashMap<>();
+        for (FolioTransactionRow transaction : transactions) {
+            if (transaction == null) {
+                continue;
+            }
+            String reference = normalize(transaction.referenceNumber());
+            String identity = hasText(reference)
+                    ? "REFERENCE:" + reference.toUpperCase()
+                    : "ROW:" + uniqueByReference.size();
+            uniqueByReference.putIfAbsent(identity, transaction);
+        }
+        return List.copyOf(uniqueByReference.values());
     }
 
     private void appendAllocationHistory(String confirmationNumber, String folioCode, PaymentAllocationHistoryEntry historyEntry) {
@@ -1118,7 +1268,14 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                         state.totalCharges(), state.totalPayment(), state.outstandingBalance(), state.createdAt(), state.lastUpdatedAt()));
         persisted.update(state.guestName(), state.roomNo(), state.totalCharges(), state.totalPayment(),
                 state.outstandingBalance(), state.lastUpdatedAt());
-        folioRepository.save(persisted);
+        try {
+            persisted.setTransactionsJson(objectMapper.writeValueAsString(
+                    postedTransactionsByKey.getOrDefault(key, List.of())));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to serialize folio transactions for confirmationNumber "
+                    + normalizedConfirmationNumber + " and folioCode " + normalizedFolioCode, ex);
+        }
+        folioRepository.saveAndFlush(persisted);
         return state;
     }
 
@@ -1170,8 +1327,25 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 null,
                 null,
                 0,
-                ""
+                "",
+                BigDecimal.ZERO
         );
+    }
+
+    private void ensureReservationCharge(String confirmationNumber, String folioCode, ReservationSummary summary) {
+        BigDecimal amount = scaleMoney(safeAmount(summary.reservationAmount()));
+        if (!hasText(confirmationNumber) || amount.signum() <= 0) return;
+
+        loadPersistedTransactionsIfNeeded(confirmationNumber, folioCode);
+        List<FolioTransactionRow> existing = postedTransactionsByKey.getOrDefault(
+                folioKey(confirmationNumber, folioCode), List.of());
+        String reference = "RESERVATION-" + normalize(confirmationNumber);
+        if (existing.stream().anyMatch(t -> reference.equalsIgnoreCase(defaultString(t.referenceNumber())))) return;
+
+        appendPostedTransaction(confirmationNumber, folioCode, new FolioTransactionRow(
+                LocalDate.now(), reference, "CHARGE", "ACCOMMODATION",
+                "Reservation amount", amount, BigDecimal.ZERO, "reservation-service",
+                LocalDateTime.now(), null, null));
     }
 
     private String resolveActiveFolioCode(String confirmationNumber) {
@@ -1374,7 +1548,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     private String generateChargeReference() {
-        return "TXN-CHG-" + chargeReferenceSequence.incrementAndGet();
+        return "TXN-CHG-" + UUID.randomUUID();
     }
 
     private String generateAdjustmentReference() {

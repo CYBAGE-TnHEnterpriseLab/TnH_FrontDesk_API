@@ -333,8 +333,19 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         JsonNode stay = reservationDetails != null ? reservationDetails.path("stay") : null;
         JsonNode room = reservationDetails != null ? reservationDetails.path("room") : null;
         JsonNode booking = reservationDetails != null ? reservationDetails.path("booking") : null;
+        JsonNode pricing = reservationDetails != null ? reservationDetails.path("pricing") : null;
         JsonNode comments = reservationDetails != null ? reservationDetails.path("comments") : null;
         JsonNode additionalGuests = reservationDetails != null ? reservationDetails.path("additionalGuests") : null;
+        BigDecimal reservationAmount = firstNonNullAmount(
+                amount(pricing, "totalRate"),
+                amount(reservationDetails, "totalAmount"),
+                amount(reservationDetails, "totalPrice"),
+                amount(booking, "totalAmount"),
+                amount(booking, "totalPrice"),
+                amount(stay, "totalAmount"),
+                amount(guestListingRow, "totalAmount"),
+                amount(guestListingRow, "amount")
+        );
 
         String firstName = firstNonBlank(text(guest, "firstName"), text(guestListingRow, "firstName"));
         String lastName = firstNonBlank(text(guest, "lastName"), text(guestListingRow, "lastName"));
@@ -371,8 +382,27 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 checkInDate,
                 checkOutDate,
                 intValue(stay, "nights", intValue(guestListingRow, "nights", 0)),
-                commentsText
+                commentsText,
+                reservationAmount
         );
+    }
+
+    private BigDecimal amount(JsonNode node, String field) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.hasNonNull(field)) {
+            return null;
+        }
+        try {
+            return node.get(field).decimalValue();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal firstNonNullAmount(BigDecimal... values) {
+        for (BigDecimal value : values) {
+            if (value != null && value.signum() >= 0) return value;
+        }
+        return BigDecimal.ZERO;
     }
 
     private List<GuestDetail> toGuestDetails(JsonNode reservationDetails, JsonNode guestListingRow) {
