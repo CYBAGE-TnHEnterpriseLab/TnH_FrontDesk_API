@@ -23,6 +23,8 @@ import com.folio.billing.dto.FolioPaymentAllocationLineResult;
 import com.folio.billing.dto.FolioPaymentAllocationRequest;
 import com.folio.billing.dto.FolioPaymentAllocationResponse;
 import com.folio.billing.dto.FolioTransactionRow;
+import com.folio.billing.dto.FolioTransactionAmountUpdateRequest;
+import com.folio.billing.dto.FolioTransactionAmountUpdateResponse;
 import com.folio.billing.dto.GuestDetail;
 import com.folio.billing.dto.PaymentAllocationHistoryEntry;
 import com.folio.billing.dto.PaymentAllocationTargetRequest;
@@ -1102,6 +1104,48 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                         .thenComparing(FolioTransactionRow::postedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(FolioTransactionRow::referenceNumber, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public FolioTransactionAmountUpdateResponse updateTransactionAmount(FolioTransactionAmountUpdateRequest request) {
+        String confirmationNumber = normalize(request.confirmationNumber());
+        String folioCode = resolveActiveFolioCode(confirmationNumber);
+        String referenceNumber = normalize(request.referenceNumber());
+        List<FolioTransactionRow> existing = new ArrayList<>(getMergedTransactions(confirmationNumber, folioCode, null));
+        int index = -1;
+        for (int i = 0; i < existing.size(); i++) {
+            if (referenceNumber.equalsIgnoreCase(defaultString(existing.get(i).referenceNumber()))) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found: " + referenceNumber);
+        }
+
+        FolioTransactionRow old = existing.get(index);
+        BigDecimal amount = scaleMoney(request.amount());
+        boolean creditTransaction = "PAYMENT".equalsIgnoreCase(old.transactionType())
+                || "ADJUSTMENT".equalsIgnoreCase(old.transactionType())
+                || "REFUND".equalsIgnoreCase(old.transactionType());
+        FolioTransactionRow updated = new FolioTransactionRow(
+                old.date(), old.referenceNumber(), old.transactionType(), old.category(), old.description(),
+                creditTransaction ? BigDecimal.ZERO : amount,
+                creditTransaction ? amount : BigDecimal.ZERO,
+                firstNonBlank(request.userId(), old.userId()), old.postedAt(), old.originalReferenceNumber(),
+                old.adjustmentReason());
+        existing.set(index, updated);
+        postedTransactionsByKey.put(folioKey(confirmationNumber, folioCode), List.copyOf(existing));
+
+        BillingTotals totals = totalsFromTransactions(existing);
+        upsertFolio(confirmationNumber, folioCode, "", "", totals.totalCharges(), totals.totalPayment());
+        return new FolioTransactionAmountUpdateResponse(
+                confirmationNumber,
+                "FOLIO-" + folioCode + "-001",
+                new FolioChargePostResponse.Transaction(updated.referenceNumber(), updated.referenceNumber(), updated.transactionType(),
+                        updated.category(), updated.description(), amount, updated.charges(), updated.credit(), updated.date(), updated.userId()),
+                totals.totalCharges(), totals.totalPayment(), totals.totalCharges().subtract(totals.totalPayment()));
     }
 
     private void appendPostedTransaction(String confirmationNumber, String folioCode, FolioTransactionRow transaction) {
