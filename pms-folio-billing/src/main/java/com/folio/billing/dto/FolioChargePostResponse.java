@@ -2,6 +2,7 @@ package com.folio.billing.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public record FolioChargePostResponse(
         String confirmationNumber,
@@ -19,7 +20,8 @@ public record FolioChargePostResponse(
         LocalDate postingDate,
         BigDecimal totalCharges,
         BigDecimal totalPayment,
-        BigDecimal balance
+        BigDecimal balance,
+        List<Transaction> transactions
 ) {
     public record Transaction(String transactionId, String referenceNumber, String transactionType, String category,
                               String description, BigDecimal amount, BigDecimal charges, BigDecimal credit,
@@ -32,7 +34,6 @@ public record FolioChargePostResponse(
                                                                    BigDecimal totalAmount, LocalDate postingDate,
                                    BigDecimal totalCharges, BigDecimal totalPayment, BigDecimal balance) {
         this(confirmationNumber, null, null, null, null, null, referenceNumber, transactionType, category, description,
-                                amount, totalAmount, postingDate, totalCharges, totalPayment, balance);
+                amount, totalAmount, postingDate, totalCharges, totalPayment, balance, List.of());
     }
 }
-

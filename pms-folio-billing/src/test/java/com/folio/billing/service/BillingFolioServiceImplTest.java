@@ -13,7 +13,6 @@ import com.folio.billing.repository.FolioRepository;
 import com.folio.billing.service.impl.BillingFolioServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -86,7 +85,7 @@ class BillingFolioServiceImplTest {
     }
 
         @Test
-        void addChargeReturnsResponseWhenTransactionPersistenceFails() {
+        void addChargeFailsWhenTransactionPersistenceFails() {
                 ReservationServiceClient reservations = mock(ReservationServiceClient.class);
                 FolioRepository folioRepository = mock(FolioRepository.class);
                 when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
@@ -95,17 +94,13 @@ class BillingFolioServiceImplTest {
                 Folio folioA = new Folio("CONF-1", "A", "Guest", "101", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, now, now);
                 when(folioRepository.findAll()).thenReturn(List.of(folioA));
                 when(folioRepository.findByConfirmationNumberOrderByFolioCode("CONF-1")).thenReturn(List.of(folioA));
-                when(folioRepository.save(any(Folio.class))).thenThrow(new RuntimeException("db write failed"));
+                when(folioRepository.save(any())).thenThrow(new RuntimeException("db write failed"));
 
                 BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper(), folioRepository);
 
-                FolioChargePostResponse response = assertDoesNotThrow(() -> service.addCharge(new FolioChargePostRequest(
+                assertThrows(IllegalStateException.class, () -> service.addCharge(new FolioChargePostRequest(
                                 "CONF-1", "101", "Guest", "Accomodation", "Dinner", new BigDecimal("100.00"), LocalDate.of(2026, 8, 20), "agent"
                 )));
-
-                assertNotNull(response);
-                assertEquals("CONF-1", response.confirmationNumber());
-                assertEquals(new BigDecimal("100.00"), response.totalAmount());
         }
 
         @Test
@@ -123,14 +118,141 @@ class BillingFolioServiceImplTest {
         }
 
         @Test
-        void rejectsUnsupportedChargeCategory() {
+        void normalizesUnsupportedChargeCategory() {
+                        ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                        when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
+                        BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
+
+                        FolioChargePostResponse response = assertDoesNotThrow(() -> service.addCharge(new FolioChargePostRequest(
+                                                        "CONF-1", "101", "Guest", "Minibar", "Water", new BigDecimal("100.00"), LocalDate.of(2026, 8, 20), "agent"
+                        )));
+
+                        assertEquals("Miscellaneous", response.category());
+        }
+
+        @Test
+        void paymentTypeWithChargeCategoryDefaultsToCash() {
                 ReservationServiceClient reservations = mock(ReservationServiceClient.class);
                 when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
                 BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
 
-                assertThrows(ResponseStatusException.class, () -> service.addCharge(new FolioChargePostRequest(
-                                "CONF-1", "101", "Guest", "Minibar", "Water", new BigDecimal("100.00"), LocalDate.of(2026, 8, 20), "agent"
-                )));
+                FolioChargePostRequest request = new FolioChargePostRequest();
+                request.setConfirmationNumber("CONF-1");
+                request.setTransactionType("Payment");
+                request.setCategory("Accomodation");
+                request.setDescription("Payment received");
+                request.setAmount(new BigDecimal("100.00"));
+                request.setPostingDate(LocalDate.of(2026, 8, 20));
+                request.setUserId("agent");
+
+                FolioChargePostResponse response = assertDoesNotThrow(() -> service.addCharge(request));
+                assertEquals("PAYMENT", response.transactionType());
+                assertEquals("Cash", response.category());
+        }
+
+        @Test
+        void paymentIsPostedAsCreditWithSelectedCategory() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
+
+                FolioChargePostRequest request = new FolioChargePostRequest();
+                request.setConfirmationNumber("CONF-1");
+                request.setTransactionType("Payment");
+                request.setCategory("UPI");
+                request.setDescription("Dinner");
+                request.setAmount(new BigDecimal("1000.00"));
+
+                FolioChargePostResponse response = service.addCharge(request);
+
+                assertEquals("PAYMENT", response.transactionType());
+                assertEquals("UPI", response.category());
+                assertEquals(0, BigDecimal.ZERO.compareTo(response.transaction().charges()));
+                assertEquals(new BigDecimal("1000.00"), response.transaction().credit());
+        }
+
+        @Test
+        void adjustmentIsPostedAsChargeWithSelectedCategory() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
+
+                FolioChargePostRequest request = new FolioChargePostRequest();
+                request.setConfirmationNumber("CONF-1");
+                request.setTransactionType("Adjustment");
+                request.setCategory("Discount");
+                request.setDescription("Discount");
+                request.setAmount(new BigDecimal("1000.00"));
+
+                FolioChargePostResponse response = service.addCharge(request);
+
+                assertEquals("ADJUSTMENT", response.transactionType());
+                assertEquals("Discount", response.category());
+                assertEquals(0, BigDecimal.ZERO.compareTo(response.transaction().charges()));
+                assertEquals(new BigDecimal("1000.00"), response.transaction().credit());
+        }
+
+        @Test
+        void addChargeReturnsSuccessWhenReservationLookupFails() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                when(reservations.getReservationSummary(any(), any(), any()))
+                        .thenThrow(new RuntimeException("reservation service unavailable"));
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
+
+                FolioChargePostRequest request = new FolioChargePostRequest();
+                request.setConfirmationNumber("CONF-1");
+                request.setTransactionType("Charges");
+                request.setCategory("Transport");
+                request.setDescription("Cab");
+                request.setAmount(new BigDecimal("100.00"));
+
+                FolioChargePostResponse response = service.addCharge(request);
+
+                assertNotNull(response);
+                assertEquals("CHARGE", response.transactionType());
+                assertEquals(new BigDecimal("100.00"), response.transaction().charges());
+        }
+
+        @Test
+        void addChargeReturnsSuccessWhenFolioTransactionPersistenceFails() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                FolioRepository folioRepository = mock(FolioRepository.class);
+                when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
+                when(folioRepository.findByConfirmationNumberAndFolioCode(any(), any()))
+                        .thenThrow(new RuntimeException("database unavailable"));
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper(), folioRepository);
+
+                FolioChargePostRequest request = new FolioChargePostRequest();
+                request.setConfirmationNumber("CONF-1");
+                request.setTransactionType("Charges");
+                request.setCategory("Transport");
+                request.setDescription("Cab");
+                request.setAmount(new BigDecimal("500.00"));
+
+                FolioChargePostResponse response = service.addCharge(request);
+
+                assertNotNull(response);
+                assertEquals(new BigDecimal("500.00"), response.transaction().charges());
+        }
+
+        @Test
+        void addChargeHonorsSelectedFolioFromFolioName() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
+
+                FolioChargePostRequest request = new FolioChargePostRequest();
+                request.setConfirmationNumber("CONF-1");
+                request.setFolioName("FOLIO B");
+                request.setTransactionType("Charges");
+                request.setCategory("Housekeeping");
+                request.setDescription("Laundry");
+                request.setAmount(new BigDecimal("100.00"));
+                request.setPostingDate(LocalDate.of(2026, 8, 20));
+                request.setUserId("agent");
+
+                FolioChargePostResponse response = assertDoesNotThrow(() -> service.addCharge(request));
+                assertEquals("FOLIO-B-001", response.folioId());
         }
 
     @Test
@@ -144,7 +266,7 @@ class BillingFolioServiceImplTest {
         Folio folioA2 = new Folio("CONF-1", "A", "Guest", "101", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, now, now);
         when(folioRepository.findAll()).thenReturn(List.of(folioA1, folioA2));
         when(folioRepository.findByConfirmationNumberOrderByFolioCode("CONF-1")).thenReturn(List.of(folioA1, folioA2));
-        when(folioRepository.save(any(Folio.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(folioRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper(), folioRepository);
 
@@ -152,7 +274,7 @@ class BillingFolioServiceImplTest {
 
         assertNotNull(response);
         assertEquals("CONF-1", response.confirmationNumber());
-        verify(folioRepository).save(any(Folio.class));
+        verify(folioRepository).saveAndFlush(any());
     }
 
     @Test
@@ -178,7 +300,7 @@ class BillingFolioServiceImplTest {
         when(reservations.searchFolioBilling(any(FolioBillingFilter.class))).thenReturn(List.of(row));
         when(folioRepository.findAll()).thenReturn(List.of());
         when(folioRepository.findByConfirmationNumberOrderByFolioCode("1283737609")).thenReturn(List.of());
-        when(folioRepository.save(any(Folio.class))).thenThrow(new RuntimeException("db write failed"));
+        when(folioRepository.save(any())).thenThrow(new RuntimeException("db write failed"));
 
         BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper(), folioRepository);
 
@@ -197,7 +319,7 @@ class BillingFolioServiceImplTest {
         when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
         when(folioRepository.findAll()).thenReturn(List.of());
         when(folioRepository.findByConfirmationNumberOrderByFolioCode("1283737609")).thenReturn(List.of());
-        when(folioRepository.save(any(Folio.class))).thenThrow(new RuntimeException("db write failed"));
+        when(folioRepository.save(any())).thenThrow(new RuntimeException("db write failed"));
 
         BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper(), folioRepository);
 
