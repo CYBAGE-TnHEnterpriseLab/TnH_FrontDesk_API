@@ -19,6 +19,9 @@ import com.pms.housekeeping.specifications.HousekeepingRoomSpecification;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -130,9 +133,9 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
-    // =========================================================
-    // ROOMS
-    // =========================================================
+// =========================================================
+// ROOMS
+// =========================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -148,8 +151,13 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 request.cleaningStatus()
         );
 
-        int page = request.page() == null ? 0 : request.page();
-        int size = request.size() == null ? 50 : request.size();
+        int page = request.page() == null
+                ? 0
+                : request.page();
+
+        int size = request.size() == null
+                ? 50
+                : request.size();
 
         Sort sort = buildSort(
                 request.sortBy(),
@@ -164,42 +172,50 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         Specification<HousekeepingRoomDayStatus> specification =
                 HousekeepingRoomSpecification.build(request);
 
-        List<HousekeepingRoomDayStatus> allRows =
-                dayStatusRepository.findAll(
-                        specification,
+        /*
+         * IMPORTANT:
+         *
+         * Pagination is now handled by the DATABASE.
+         *
+         * Only the requested page of records is loaded into memory.
+         */
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
                         sort
                 );
 
-        long totalElements = allRows.size();
+        Page<HousekeepingRoomDayStatus> result =
+                dayStatusRepository.findAll(
+                        specification,
+                        pageable
+                );
 
-        int fromIndex = Math.min(
-                page * size,
-                allRows.size()
-        );
-
-        int toIndex = Math.min(
-                fromIndex + size,
-                allRows.size()
-        );
-
+        /*
+         * Convert only the records belonging to the current page.
+         */
         List<HousekeepingRoomRowResponse> rooms =
-                allRows.subList(fromIndex, toIndex)
+                result.getContent()
                         .stream()
                         .map(this::toRowResponse)
                         .toList();
 
-        int totalPages =
-                totalElements == 0
-                        ? 0
-                        : (int) Math.ceil(
-                        (double) totalElements / size
-                );
-
-        return new HousekeepingRoomsPageResponse(
+        log.info(
+                "{}::rooms - Retrieved {} rooms. page={}, size={}, totalElements={}, totalPages={}",
+                getClass().getSimpleName(),
+                rooms.size(),
                 page,
                 size,
-                totalElements,
-                totalPages,
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
+
+        return new HousekeepingRoomsPageResponse(
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
                 buildFilters(
                         request.propertyId(),
                         request.businessDate()
@@ -271,7 +287,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             UUID propertyId,
             LocalDate fromDate,
             LocalDate toDate,
-            UUID roomTypeId
+            List<String> roomTypes
     ) {
 
         if (fromDate.isAfter(toDate)) {
@@ -285,7 +301,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                         propertyId,
                         fromDate,
                         toDate,
-                        roomTypeId
+                        roomTypes
                 );
 
         List<CalendarDateResponse> dates =
@@ -294,19 +310,16 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                         toDate
                 );
 
-        List<CalendarRoomTypeResponse> roomTypes =
-                buildRoomTypes(
-                        records,
-                        fromDate,
-                        toDate
-                );
+
+        List<CalendarRoomTypeResponse> calendarRoomTypes =
+                buildRoomTypes(records, fromDate, toDate);
 
         return new HousekeepingCalendarResponse(
                 propertyId,
                 fromDate,
                 toDate,
                 dates,
-                roomTypes
+                calendarRoomTypes
         );
     }
 

@@ -84,16 +84,48 @@ class HousekeepingControllerTest {
     @Test
     void calendar_shouldDelegateToService() {
         UUID propertyId = UUID.randomUUID();
+
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
         LocalDate toDate = LocalDate.of(2026, 8, 20);
-        UUID roomTypeId = UUID.randomUUID();
-        HousekeepingCalendarResponse expected = new HousekeepingCalendarResponse(propertyId, fromDate, toDate, List.of(), List.of());
-        when(housekeepingService.calendar(propertyId, fromDate, toDate, roomTypeId)).thenReturn(expected);
 
-        HousekeepingCalendarResponse response = controller.calendar(propertyId, fromDate, toDate, roomTypeId);
+        List<String> roomTypes = List.of("Deluxe", "Standard");
 
-        assertThat(response).isSameAs(expected);
-        verify(housekeepingService).calendar(propertyId, fromDate, toDate, roomTypeId);
+        HousekeepingCalendarResponse expected =
+                new HousekeepingCalendarResponse(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        List.of(),
+                        List.of()
+                );
+
+        when(
+                housekeepingService.calendar(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                )
+        ).thenReturn(expected);
+
+        HousekeepingCalendarResponse response =
+                controller.calendar(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                );
+
+        assertThat(response)
+                .isSameAs(expected);
+
+        verify(housekeepingService)
+                .calendar(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                );
     }
 
     @Test
