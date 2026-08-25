@@ -63,7 +63,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
     @Override
     @Transactional(readOnly = true)
-    public HousekeepingDashboardResponse dashboard(UUID propertyId, LocalDate businessDate) {
+    public HousekeepingDashboardResponse dashboard(String propertyId, LocalDate businessDate) {
         log.info(
                 "{}::dashboard - Fetching dashboard for propertyId={}, businessDate={}",
                 getClass().getSimpleName(),
@@ -158,7 +158,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
-    private HousekeepingFiltersResponse buildFilters(UUID propertyId, LocalDate businessDate) {
+    private HousekeepingFiltersResponse buildFilters(String propertyId, LocalDate businessDate) {
         log.debug(
                 "{}::buildFilters - Building filter values",
                 getClass().getSimpleName()
@@ -202,7 +202,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     @Override
     @Transactional(readOnly = true)
     public HousekeepingCalendarResponse calendar(
-            UUID propertyId,
+            String propertyId,
             LocalDate fromDate,
             LocalDate toDate,
             List<String> roomTypes
@@ -345,7 +345,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                 null,
                                 null,
                                 null,
-                                null,
+                                false,
                                 null
                         );
                     }
@@ -388,7 +388,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AssignableRoomResponse> assignableRooms(UUID propertyId, LocalDate businessDate, UUID roomTypeId, int limit) {
+    public List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, UUID roomTypeId, int limit) {
         log.info("HousekeepingService::assignableRooms - Fetching assignable rooms. propertyId={}, businessDate={}, roomTypeId={}, limit={}",
                 propertyId, businessDate, roomTypeId, limit);
 

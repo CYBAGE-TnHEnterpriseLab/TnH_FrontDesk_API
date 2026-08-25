@@ -34,7 +34,7 @@ public class HousekeepingController {
     @GetMapping("/dashboard")
     @Operation(summary = "Get housekeeping dashboard counters")
     public HousekeepingDashboardResponse dashboard(
-            @RequestParam @NotNull UUID propertyId,
+            @RequestParam @NotNull String propertyId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate
     ) {
         return housekeepingService.dashboard(propertyId, businessDate);
@@ -50,7 +50,7 @@ public class HousekeepingController {
     @GetMapping("/rooms/calendar")
     @Operation(summary = "Get housekeeping rooms for calendar view")
     public HousekeepingCalendarResponse calendar(
-            @RequestParam @NotNull UUID propertyId,
+            @RequestParam @NotNull String propertyId,
 
             @RequestParam @NotNull
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -74,7 +74,7 @@ public class HousekeepingController {
     @GetMapping("/assignable-rooms")
     @Operation(summary = "Get assignable room numbers for dropdown")
     public List<AssignableRoomResponse> assignableRooms(
-            @RequestParam @NotNull UUID propertyId,
+            @RequestParam @NotNull String propertyId,
             @RequestParam @NotNull UUID roomTypeId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate,
             @RequestParam(defaultValue = "50") int limit

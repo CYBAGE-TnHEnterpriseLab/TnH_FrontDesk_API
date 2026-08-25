@@ -5,13 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 public interface RoomMasterProjectionRepository extends JpaRepository<RoomMasterProjection, Long> {
 
-    List<RoomMasterProjection> findAllByPropertyId(UUID propertyId);
+    List<RoomMasterProjection> findAllByPropertyId(String propertyId);
 
-    Optional<RoomMasterProjection> findByPropertyIdAndRoomNumber(UUID propertyId, String roomNumber);
+    Optional<RoomMasterProjection> findByPropertyIdAndRoomNumber(String propertyId, String roomNumber);
 }
 
 

@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,7 +38,7 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
     @Override
     @Transactional
     public RoomMasterSyncResponse sync(RoomMasterSyncRequest request) {
-        UUID propertyId = request.propertyId();
+        String propertyId = request.propertyId();
         LocalDateTime now = LocalDateTime.now();
 
         Map<String, RoomMasterProjection> existingByRoom = roomMasterProjectionRepository.findAllByPropertyId(propertyId)
@@ -89,7 +88,7 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
     }
 
     private void ensureDayStatusExistsForRange(
-            UUID propertyId,
+            String propertyId,
             RoomMasterSyncRequest.RoomMasterUnit room,
             LocalDate fromDate,
             LocalDate toDate,

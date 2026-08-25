@@ -39,8 +39,8 @@ public class RoomMasterProjection {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    @Column(name = "property_id", nullable = false, length = 36)
+    private String propertyId;
 
     @Column(name = "room_number", nullable = false, length = 32)
     private String roomNumber;

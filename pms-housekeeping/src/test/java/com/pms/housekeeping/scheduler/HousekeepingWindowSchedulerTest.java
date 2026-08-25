@@ -35,8 +35,8 @@ class HousekeepingWindowSchedulerTest {
 
     @Test
     void addTailDayForAllProperties_shouldSyncActiveRoomsGroupedByProperty() {
-        UUID propertyA = UUID.randomUUID();
-        UUID propertyB = UUID.randomUUID();
+        String propertyA = UUID.randomUUID().toString();
+        String propertyB = UUID.randomUUID().toString();
 
         RoomMasterProjection activeA1 = projection(propertyA, "101", true);
         RoomMasterProjection activeA2 = projection(propertyA, "102", true);
@@ -74,7 +74,7 @@ class HousekeepingWindowSchedulerTest {
 
     @Test
     void addTailDayForAllProperties_shouldClampHorizonToOneAndSkipWhenNoActiveRooms() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         when(roomMasterProjectionRepository.findAll()).thenReturn(List.of(projection(propertyId, "301", false)));
 
         HousekeepingWindowScheduler scheduler = new HousekeepingWindowScheduler(
@@ -88,7 +88,7 @@ class HousekeepingWindowSchedulerTest {
         verify(roomMasterSyncService, never()).sync(org.mockito.ArgumentMatchers.any());
     }
 
-    private static RoomMasterProjection projection(UUID propertyId, String roomNumber, boolean active) {
+    private static RoomMasterProjection projection(String propertyId, String roomNumber, boolean active) {
         return RoomMasterProjection.builder()
                 .propertyId(propertyId)
                 .roomNumber(roomNumber)

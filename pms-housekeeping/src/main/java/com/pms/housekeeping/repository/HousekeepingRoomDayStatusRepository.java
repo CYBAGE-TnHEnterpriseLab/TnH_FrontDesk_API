@@ -22,16 +22,16 @@ public interface HousekeepingRoomDayStatusRepository
         JpaSpecificationExecutor<HousekeepingRoomDayStatus> {
 
     List<HousekeepingRoomDayStatus> findAllByPropertyIdAndBusinessDate(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate);
 
     Optional<HousekeepingRoomDayStatus> findByPropertyIdAndBusinessDateAndRoomNumber(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate,
             String roomNumber);
 
     List<HousekeepingRoomDayStatus> findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate,
             UUID roomTypeId,
             List<CleaningStatus> cleaningStatuses,
@@ -48,7 +48,7 @@ and h.businessDate = :businessDate
 order by h.roomTypeName
 """)
     List<RoomTypeOptionResponse> findDistinctRoomTypes(
-            @Param("propertyId") UUID propertyId,
+            @Param("propertyId") String propertyId,
             @Param("businessDate") LocalDate businessDate);
 
     @Query("""
@@ -61,7 +61,7 @@ order by h.roomTypeName
         order by h.floor
         """)
     List<String> findDistinctFloors(
-            @Param("propertyId") UUID propertyId,
+            @Param("propertyId") String propertyId,
             @Param("businessDate") LocalDate businessDate);
 
     @Query("""
@@ -73,7 +73,7 @@ order by h.roomTypeName
     order by h.attendantName
     """)
     List<String> findDistinctAttendants(
-            @Param("propertyId") UUID propertyId,
+            @Param("propertyId") String propertyId,
             @Param("businessDate") LocalDate businessDate);
 
 
@@ -90,7 +90,7 @@ order by h.roomTypeName
     ORDER BY r.roomTypeName, r.roomNumber, r.businessDate
     """)
     List<HousekeepingRoomDayStatus> findCalendarData(
-            @Param("propertyId") UUID propertyId,
+            @Param("propertyId") String propertyId,
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate,
             @Param("roomTypes") List<String> roomTypes

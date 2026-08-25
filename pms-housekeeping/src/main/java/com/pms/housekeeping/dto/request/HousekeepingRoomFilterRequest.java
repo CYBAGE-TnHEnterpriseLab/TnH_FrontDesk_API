@@ -16,7 +16,7 @@ import java.util.UUID;
 public record HousekeepingRoomFilterRequest(
 
         @NotNull
-        UUID propertyId,
+        String propertyId,
 
         @NotNull
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

@@ -43,7 +43,7 @@ class HousekeepingControllerTest {
 
     @Test
     void dashboard_shouldDelegateToService() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingDashboardResponse expected = new HousekeepingDashboardResponse(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
         when(housekeepingService.dashboard(propertyId, businessDate)).thenReturn(expected);
@@ -57,7 +57,7 @@ class HousekeepingControllerTest {
     @Test
     void rooms_shouldDelegateToService() {
         HousekeepingRoomFilterRequest request = new HousekeepingRoomFilterRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 "suite",
                 List.of(CleaningStatus.CLEAN),
@@ -83,7 +83,7 @@ class HousekeepingControllerTest {
 
     @Test
     void calendar_shouldDelegateToService() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
 
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
         LocalDate toDate = LocalDate.of(2026, 8, 20);
@@ -130,7 +130,7 @@ class HousekeepingControllerTest {
 
     @Test
     void assignableRooms_shouldDelegateToService() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         List<AssignableRoomResponse> expected = List.of(new AssignableRoomResponse("101", roomTypeId, "Deluxe", "1", "CLASS-A", "NORTH", "CLEAN"));
@@ -145,7 +145,7 @@ class HousekeepingControllerTest {
     @Test
     void updateRoomStatus_shouldDelegateToService() {
         UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 CleaningStatus.CLEAN,
                 FrontOfficeStatus.VACANT,

@@ -117,7 +117,7 @@ class HousekeepingValidationTest {
     @Test
     void validRequests_shouldPassValidation() {
         HousekeepingRoomFilterRequest filterRequest = new HousekeepingRoomFilterRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 "suite",
                 List.of(),
@@ -134,7 +134,7 @@ class HousekeepingValidationTest {
         );
 
         UpdateHousekeepingStatusRequest updateRequest = new UpdateHousekeepingStatusRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 null,
                 null,
@@ -152,7 +152,7 @@ class HousekeepingValidationTest {
         );
 
         RoomMasterSyncRequest syncRequest = new RoomMasterSyncRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 LocalDate.of(2026, 8, 20),
                 List.of(new RoomMasterSyncRequest.RoomMasterUnit(
