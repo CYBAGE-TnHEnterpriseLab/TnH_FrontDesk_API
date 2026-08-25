@@ -167,6 +167,7 @@ class HousekeepingControllerTest {
                 "101",
                 "CLEAN",
                 "VACANT",
+                "Guest",
                 "NOT_RESERVED",
                 "Alice",
                 HousekeepingPriority.NORMAL,

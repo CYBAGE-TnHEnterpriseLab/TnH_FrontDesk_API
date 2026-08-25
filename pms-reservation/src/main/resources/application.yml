@@ -54,6 +54,9 @@ rate-management:
   retryMaxAttempts: 2
   retryBackoffMs: 100
 
+housekeeping-service:
+  base-url: http://localhost:8086
+
 dashboard:
   timeout-ms: 2500
   housekeeping:

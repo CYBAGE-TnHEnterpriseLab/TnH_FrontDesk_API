@@ -7,13 +7,15 @@ import com.pms.security.config.JwtSecurityProperties;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
-import java.time.Duration;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.util.Timeout;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 @Configuration
@@ -28,22 +30,26 @@ public class AppConfig {
     @Bean
     @Primary
     public RestTemplate restTemplate(ReservationServiceProperties properties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));
-        factory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
-        return new RestTemplate(factory);
+        return new RestTemplate(httpRequestFactory(
+                properties.getConnectTimeoutMs(), properties.getReadTimeoutMs()));
     }
 
     @Bean
     @Qualifier("rateManagementRestTemplate")
     public RestTemplate rateManagementRestTemplate(RateManagementServiceProperties properties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));
-        factory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
-
-        RestTemplate template = new RestTemplate(factory);
+        RestTemplate template = new RestTemplate(httpRequestFactory(
+                properties.getConnectTimeoutMs(), properties.getReadTimeoutMs()));
         template.getInterceptors().add(new RateManagementAuthInterceptor(properties.getServiceAuthToken()));
         return template;
+    }
+
+    private HttpComponentsClientHttpRequestFactory httpRequestFactory(int connectTimeoutMs, int readTimeoutMs) {
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(Timeout.ofMilliseconds(connectTimeoutMs))
+                .setResponseTimeout(Timeout.ofMilliseconds(readTimeoutMs))
+                .build();
+        return new HttpComponentsClientHttpRequestFactory(
+                HttpClients.custom().setDefaultRequestConfig(requestConfig).build());
     }
 
     @Bean

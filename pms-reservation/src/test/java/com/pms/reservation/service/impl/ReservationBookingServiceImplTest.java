@@ -21,6 +21,7 @@ import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
@@ -55,6 +56,9 @@ class ReservationBookingServiceImplTest {
 
     @Mock
     private PropertyInventoryPort propertyInventoryPort;
+
+    @Mock
+    private HousekeepingRoomStatusClient housekeepingRoomStatusClient;
 
     @Mock
     private PropertyWizardServiceProperties propertyWizardServiceProperties;
