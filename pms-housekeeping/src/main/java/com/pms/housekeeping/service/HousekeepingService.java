@@ -10,18 +10,18 @@ import java.util.UUID;
 
 public interface HousekeepingService {
 
-    HousekeepingDashboardResponse dashboard(UUID propertyId, LocalDate businessDate);
+    HousekeepingDashboardResponse dashboard(String propertyId, LocalDate businessDate);
 
     HousekeepingRoomsPageResponse rooms(HousekeepingRoomFilterRequest request);
 
     HousekeepingCalendarResponse calendar(
-            UUID propertyId,
+            String propertyId,
             LocalDate fromDate,
             LocalDate toDate,
             List<String> roomTypes
     );
 
-    List<AssignableRoomResponse> assignableRooms(UUID propertyId, LocalDate businessDate, UUID roomTypeId, int limit);
+    List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, UUID roomTypeId, int limit);
 
     HousekeepingStatusUpdateResponse updateRoomStatus(String roomNumber, UpdateHousekeepingStatusRequest request);
 

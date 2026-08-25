@@ -66,7 +66,7 @@ public class HousekeepingRoomDayStatus {
     private Long id;
 
     @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    private String propertyId;
 
     @Column(name = "business_date", nullable = false)
     private LocalDate businessDate;

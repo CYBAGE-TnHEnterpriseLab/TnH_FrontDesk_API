@@ -56,7 +56,7 @@ class RoomMasterSyncServiceImplTest {
 
     @Test
     void sync_shouldUpsertIncomingRoomsSeedDaysAndDeactivateMissingRooms() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
         LocalDate toDate = LocalDate.of(2026, 8, 19);
@@ -123,7 +123,7 @@ class RoomMasterSyncServiceImplTest {
 
     @Test
     void sync_shouldSkipDayCreationWhenFromDateIsAfterToDate() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
         LocalDate fromDate = LocalDate.of(2026, 8, 20);
         LocalDate toDate = LocalDate.of(2026, 8, 18);
@@ -155,7 +155,7 @@ class RoomMasterSyncServiceImplTest {
         verify(dayStatusRepository, never()).save(any());
     }
 
-    private static RoomMasterProjection roomProjection(UUID propertyId, String roomNumber, UUID roomTypeId, boolean active) {
+    private static RoomMasterProjection roomProjection(String propertyId, String roomNumber, UUID roomTypeId, boolean active) {
         return RoomMasterProjection.builder()
                 .propertyId(propertyId)
                 .roomNumber(roomNumber)
@@ -173,7 +173,7 @@ class RoomMasterSyncServiceImplTest {
     }
 
     private static HousekeepingRoomDayStatus housekeepingStatus(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate,
             String roomNumber,
             CleaningStatus cleaningStatus,

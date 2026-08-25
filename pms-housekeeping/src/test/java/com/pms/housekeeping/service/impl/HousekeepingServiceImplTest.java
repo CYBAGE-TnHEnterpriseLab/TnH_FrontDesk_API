@@ -97,7 +97,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void dashboard_shouldCalculateAllCounters() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         List<HousekeepingRoomDayStatus> rows = List.of(
                 status(propertyId, businessDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.ARRIVAL),
@@ -128,7 +128,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void rooms_shouldApplyDefaultPagingSortingAndFilters() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "201", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setRoomTypeId(UUID.randomUUID());
@@ -232,7 +232,7 @@ class HousekeepingServiceImplTest {
     @Test
     void calendar_shouldRejectInvalidDateRange() {
         assertThatThrownBy(() -> service.calendar(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 20),
                 LocalDate.of(2026, 8, 18),
                 null
@@ -242,7 +242,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void calendar_shouldBuildNestedDateAndRoomStructure() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
 
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
@@ -430,7 +430,7 @@ class HousekeepingServiceImplTest {
 
 //    @Test
 //    void calendar_shouldBuildNestedDateAndRoomStructure() {
-//        UUID propertyId = UUID.randomUUID();
+//        String propertyId = UUID.randomUUID().toString();
 //        UUID roomTypeId = UUID.randomUUID();
 //        LocalDate fromDate = LocalDate.of(2026, 8, 18);
 //        LocalDate toDate = LocalDate.of(2026, 8, 20);
@@ -504,7 +504,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void assignableRooms_shouldClampLimitAndEnrichResults() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
 
@@ -563,7 +563,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void assignableRooms_shouldReturnAtLeastOneRoomEvenWhenLimitIsZero() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "301", CleaningStatus.INSPECTED, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
@@ -588,7 +588,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldThrowWhenRoomIsMissing() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
                 propertyId,
@@ -619,7 +619,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldApplyChangesSaveHistoryAndComputeSellable() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "501", CleaningStatus.DIRTY, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setAttendantName("Old Attendant");
@@ -695,7 +695,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldRespectExplicitSellableAndSkipNoOpChanges() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "601", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setAttendantName("Alice");
@@ -735,7 +735,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldComputeSellableWhenEligibleAndSellableIsNotProvided() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "602", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setConfirmationId(null);
@@ -773,7 +773,7 @@ class HousekeepingServiceImplTest {
     }
 
     private static HousekeepingRoomDayStatus status(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate,
             String roomNumber,
             CleaningStatus cleaningStatus,

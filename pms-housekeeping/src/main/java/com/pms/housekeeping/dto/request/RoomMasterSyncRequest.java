@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record RoomMasterSyncRequest(
-        @NotNull UUID propertyId,
+        @NotNull String propertyId,
         @NotNull LocalDate fromDate,
         @NotNull LocalDate toDate,
         @Valid @NotEmpty List<RoomMasterUnit> rooms

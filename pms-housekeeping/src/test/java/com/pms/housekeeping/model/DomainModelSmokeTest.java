@@ -42,7 +42,7 @@ class DomainModelSmokeTest {
 
     @Test
     void recordsEnumsAndEntities_shouldBeInstantiableAndExposeValues() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         UUID roomTypeId = UUID.randomUUID();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         LocalDateTime now = LocalDateTime.of(2026, 8, 18, 10, 0);

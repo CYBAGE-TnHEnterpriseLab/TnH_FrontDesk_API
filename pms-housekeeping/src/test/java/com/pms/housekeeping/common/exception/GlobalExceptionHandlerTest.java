@@ -85,7 +85,7 @@ class GlobalExceptionHandlerTest {
         var typeMismatch = handler.handleBadInput(new MethodArgumentTypeMismatchException("abc", String.class, "propertyId", parameter, new IllegalArgumentException("bad")), request);
         assertThat(typeMismatch.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
-        var missingParam = handler.handleBadInput(new MissingServletRequestParameterException("propertyId", "UUID"), request);
+        var missingParam = handler.handleBadInput(new MissingServletRequestParameterException("propertyId", "String"), request);
         assertThat(missingParam.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 

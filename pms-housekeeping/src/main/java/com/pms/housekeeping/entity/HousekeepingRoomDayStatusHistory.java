@@ -17,7 +17,6 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -37,8 +36,8 @@ public class HousekeepingRoomDayStatusHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    @Column(name = "property_id", nullable = false, length = 36)
+    private String propertyId;
 
     @Column(name = "business_date", nullable = false)
     private LocalDate businessDate;
