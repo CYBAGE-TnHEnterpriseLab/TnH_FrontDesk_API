@@ -11,7 +11,7 @@ public interface HousekeepingRoomDayStatusHistoryRepository extends JpaRepositor
 
     Optional<HousekeepingRoomDayStatusHistory>
     findFirstByPropertyIdAndRoomNumberAndBusinessDateLessThanEqualAndChangedFieldOrderByBusinessDateDescChangedAtDesc(
-            UUID propertyId,
+            String propertyId,
             String roomNumber,
             LocalDate businessDate,
             String changedField
