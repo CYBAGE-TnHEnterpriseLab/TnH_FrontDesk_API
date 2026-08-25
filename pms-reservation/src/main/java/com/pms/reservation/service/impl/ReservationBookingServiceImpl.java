@@ -146,7 +146,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             try {
                 UUID propertyId = UUID.fromString(booking.getPropertyId());
                 housekeepingRoomStatusClient.updateReservationStatus(propertyId, booking.getArrivalDate(),
-                        booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
+                        booking.getArrivalDate(), booking.getDepartureDate(), booking.getAssignedRoomNo(),
+                        booking.getGuestName(), booking.getConfirmationNumber());
                 updated++;
             } catch (IllegalArgumentException ex) {
                 skipped++;
@@ -167,7 +168,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         try {
             housekeepingRoomStatusClient.updateReservationStatus(
                     java.util.UUID.fromString(booking.getPropertyId()), booking.getArrivalDate(),
-                    booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
+                    booking.getArrivalDate(), booking.getDepartureDate(), booking.getAssignedRoomNo(),
+                    booking.getGuestName(), booking.getConfirmationNumber());
         } catch (IllegalArgumentException ex) {
             log.warn("Skipping standalone housekeeping update because propertyId is not a UUID: {}", booking.getPropertyId());
         } catch (ExternalServiceException ex) {

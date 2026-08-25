@@ -22,15 +22,32 @@ public class HousekeepingRoomStatusClient {
     @Value("${housekeeping-service.base-url:http://localhost:8086}")
     private String baseUrl;
 
-    public void updateReservationStatus(UUID propertyId, LocalDate businessDate, String roomNumber,
+    public void updateReservationStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
+                                        LocalDate departureDate, String roomNumber,
                                         String guestDisplayName, String confirmationId) {
+        updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
+                guestDisplayName, confirmationId, "VACANT", "ARRIVAL");
+    }
+
+    public void updateCheckedInStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
+                                      LocalDate departureDate, String roomNumber,
+                                      String guestDisplayName, String confirmationId) {
+        updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
+                guestDisplayName, confirmationId, "OCCUPIED", "IN_HOUSE");
+    }
+
+    private void updateStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
+                              LocalDate departureDate, String roomNumber,
+                              String guestDisplayName, String confirmationId,
+                              String frontOfficeStatus, String reservationStatus) {
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .path("/api/v1/housekeeping/rooms/{roomNumber}/status")
                 .buildAndExpand(roomNumber)
                 .toUriString();
 
         HousekeepingRoomStatusUpdateRequest request = new HousekeepingRoomStatusUpdateRequest(
-                propertyId, businessDate, "VACANT", guestDisplayName, "NOT_RESERVED", confirmationId, "RESERVATION");
+                propertyId, businessDate, frontOfficeStatus, guestDisplayName, arrivalDate, departureDate,
+                reservationStatus, confirmationId, "RESERVATION");
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpHeaders requestHeaders = copyAuthorizationHeader(headers);
@@ -55,5 +72,6 @@ public class HousekeepingRoomStatusClient {
 
     private record HousekeepingRoomStatusUpdateRequest(
             UUID propertyId, LocalDate businessDate, String frontOfficeStatus,
-            String guestDisplayName, String reservationStatus, String confirmationId, String sourceModule) {}
+            String guestDisplayName, LocalDate arrivalDate, LocalDate departureDate,
+            String reservationStatus, String confirmationId, String sourceModule) {}
 }

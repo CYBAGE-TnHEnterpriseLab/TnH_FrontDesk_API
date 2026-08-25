@@ -7,10 +7,12 @@ import com.pms.reservation.dto.CheckInCompleteRequestDto;
 import com.pms.reservation.dto.CheckInCompletionResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationCheckInAuditRecord;
+import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInAuditRepository;
 import com.pms.reservation.service.ReservationCheckInWorkflowService;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
     private final ReservationBookingRepository reservationBookingRepository;
     private final ReservationCheckInAuditRepository auditRepository;
     private final HousekeepingRoomStatusService housekeepingRoomStatusService;
+    private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
 
     /**
      * Completes check-in by confirmation number. Payment validation and signature capture
@@ -65,6 +68,17 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
         housekeepingRequest.setConfirmationNumber(booking.getConfirmationNumber());
         housekeepingRequest.setRoomNo(booking.getAssignedRoomNo());
         housekeepingRoomStatusService.markOccupied(housekeepingRequest);
+
+        if (STATUS_CHECKED_IN.equals(targetStatus) && StringUtils.hasText(booking.getAssignedRoomNo())) {
+            housekeepingRoomStatusClient.updateCheckedInStatus(
+                    UUID.fromString(booking.getPropertyId()),
+                    request.getBusinessDate(),
+                    booking.getArrivalDate(),
+                    booking.getDepartureDate(),
+                    booking.getAssignedRoomNo(),
+                    booking.getGuestName(),
+                    booking.getConfirmationNumber());
+        }
 
         appendAudit(booking, "CHECKIN_COMPLETED", "Check-in completed successfully",
                 "reservationStatus, roomOccupancy", request.getActor());
