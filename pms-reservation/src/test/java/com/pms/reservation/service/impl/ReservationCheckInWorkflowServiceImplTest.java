@@ -35,7 +35,7 @@ class ReservationCheckInWorkflowServiceImplTest {
     @BeforeEach
     void setUp() {
         booking = ReservationBookingRecord.builder()
-                .id(10L).propertyId("PROP001").confirmationNumber("CONF-101")
+                .id(10L).propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47").confirmationNumber("CONF-101")
                 .reservationStatus("CONFIRMED").build();
     }
 

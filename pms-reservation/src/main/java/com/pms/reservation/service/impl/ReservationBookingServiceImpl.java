@@ -137,7 +137,9 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         int skipped = 0;
         int failed = 0;
         for (ReservationBookingRecord booking : reservationBookingRepository.findAll()) {
-            if (!RESERVATION_STATUS_CONFIRMED.equalsIgnoreCase(booking.getReservationStatus())
+            boolean confirmed = RESERVATION_STATUS_CONFIRMED.equalsIgnoreCase(booking.getReservationStatus());
+            boolean checkedIn = STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus());
+            if ((!confirmed && !checkedIn)
                     || !StringUtils.hasText(booking.getAssignedRoomNo())) {
                 skipped++;
                 continue;
@@ -145,9 +147,15 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             processed++;
             try {
                 UUID propertyId = UUID.fromString(booking.getPropertyId());
-                housekeepingRoomStatusClient.updateReservationStatus(propertyId, booking.getArrivalDate(),
-                        booking.getArrivalDate(), booking.getDepartureDate(), booking.getAssignedRoomNo(),
-                        booking.getGuestName(), booking.getConfirmationNumber());
+                if (checkedIn) {
+                    housekeepingRoomStatusClient.updateCheckedInStay(propertyId, booking.getArrivalDate(),
+                            booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                            booking.getConfirmationNumber());
+                } else {
+                    housekeepingRoomStatusClient.updateReservationStay(propertyId, booking.getArrivalDate(),
+                            booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                            booking.getConfirmationNumber());
+                }
                 updated++;
             } catch (IllegalArgumentException ex) {
                 skipped++;
@@ -166,10 +174,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
         try {
-            housekeepingRoomStatusClient.updateReservationStatus(
+            housekeepingRoomStatusClient.updateReservationStay(
                     java.util.UUID.fromString(booking.getPropertyId()), booking.getArrivalDate(),
-                    booking.getArrivalDate(), booking.getDepartureDate(), booking.getAssignedRoomNo(),
-                    booking.getGuestName(), booking.getConfirmationNumber());
+                    booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                    booking.getConfirmationNumber());
         } catch (IllegalArgumentException ex) {
             log.warn("Skipping standalone housekeeping update because propertyId is not a UUID: {}", booking.getPropertyId());
         } catch (ExternalServiceException ex) {
@@ -288,6 +296,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .lastName(nameParts[1])
                 .phoneNumber(booking.getPhoneNumber())
                 .email(preferredEmail(booking))
+                .address(booking.getAddress())
                 .loyaltyNumber(booking.getLoyaltyNumber())
                 .build();
     }

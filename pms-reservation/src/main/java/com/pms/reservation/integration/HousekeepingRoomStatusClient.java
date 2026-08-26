@@ -36,6 +36,28 @@ public class HousekeepingRoomStatusClient {
                 guestDisplayName, confirmationId, "OCCUPIED", "IN_HOUSE");
     }
 
+    public void updateCheckedInStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+                                    String roomNumber, String guestDisplayName, String confirmationId) {
+        LocalDate businessDate = arrivalDate;
+        while (businessDate.isBefore(departureDate)) {
+            updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
+                    guestDisplayName, confirmationId, "OCCUPIED", "IN_HOUSE");
+            businessDate = businessDate.plusDays(1);
+        }
+    }
+
+    public void updateReservationStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+                                      String roomNumber, String guestDisplayName, String confirmationId) {
+        LocalDate businessDate = arrivalDate;
+        boolean firstNight = true;
+        while (businessDate.isBefore(departureDate)) {
+            updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
+                    guestDisplayName, confirmationId, "VACANT", firstNight ? "ARRIVAL" : "STAY_OVER");
+            firstNight = false;
+            businessDate = businessDate.plusDays(1);
+        }
+    }
+
     private void updateStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
                               LocalDate departureDate, String roomNumber,
                               String guestDisplayName, String confirmationId,

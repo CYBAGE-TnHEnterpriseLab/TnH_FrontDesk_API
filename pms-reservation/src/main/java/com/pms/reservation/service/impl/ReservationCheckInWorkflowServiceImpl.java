@@ -70,9 +70,8 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
         housekeepingRoomStatusService.markOccupied(housekeepingRequest);
 
         if (STATUS_CHECKED_IN.equals(targetStatus) && StringUtils.hasText(booking.getAssignedRoomNo())) {
-            housekeepingRoomStatusClient.updateCheckedInStatus(
+            housekeepingRoomStatusClient.updateCheckedInStay(
                     UUID.fromString(booking.getPropertyId()),
-                    request.getBusinessDate(),
                     booking.getArrivalDate(),
                     booking.getDepartureDate(),
                     booking.getAssignedRoomNo(),

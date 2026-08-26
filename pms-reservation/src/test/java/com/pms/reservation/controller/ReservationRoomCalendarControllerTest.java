@@ -34,7 +34,7 @@ class ReservationRoomCalendarControllerTest {
     @Test
     void getRoomCalendarShouldReturnRoomWiseCalendar() throws Exception {
         ReservationRoomCalendarResponseDto response = ReservationRoomCalendarResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 8, 1))
                 .departureDate(LocalDate.of(2026, 8, 3))
                 .roomTypes(List.of("King", "Suite"))
@@ -74,27 +74,27 @@ class ReservationRoomCalendarControllerTest {
                 .build();
 
         when(reservationRoomCalendarService.getRoomCalendar(
-                eq("PROP001"),
+                eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"),
                 eq(LocalDate.of(2026, 8, 1)),
                 eq(LocalDate.of(2026, 8, 3)),
                 eq(List.of("King", "Suite"))
         )).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/rooms/calendar")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("arrivalDate", "2026-08-01")
                         .param("departureDate", "2026-08-03")
                         .param("roomTypes", "King", "Suite"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Room calendar fetched successfully"))
-                .andExpect(jsonPath("$.data.propertyId").value("PROP001"))
+                .andExpect(jsonPath("$.data.propertyId").value("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
                 .andExpect(jsonPath("$.data.roomTypes[0]").value("King"))
                 .andExpect(jsonPath("$.data.rooms[0].roomNo").value("101"))
                 .andExpect(jsonPath("$.data.rooms[0].calendar[0].status").value("BOOKED"));
 
         verify(reservationRoomCalendarService).getRoomCalendar(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 3),
                 List.of("King", "Suite")

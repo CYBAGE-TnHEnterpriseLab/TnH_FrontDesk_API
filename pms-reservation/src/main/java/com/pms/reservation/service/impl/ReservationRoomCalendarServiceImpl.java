@@ -55,6 +55,9 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         if (!StringUtils.hasText(propertyId)) {
             throw new BadRequestException("propertyId is required");
         }
+        if (!propertyWizardServiceProperties.isEnabled()) {
+            throw new BadRequestException("Room calendar is unavailable because Property Wizard integration is disabled");
+        }
         if (arrivalDate == null || departureDate == null) {
             throw new BadRequestException("arrivalDate and departureDate are required");
         }
