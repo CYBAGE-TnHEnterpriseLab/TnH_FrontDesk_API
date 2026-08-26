@@ -5,7 +5,7 @@ spring:
   application:
     name: frontdesk-dashboard
   datasource:
-    url: jdbc:postgresql://localhost:5432/frontdeskdb
+    url: jdbc:postgresql://localhost:5432/Property_Management_System_db?CurrentSchema=frontdeskdb
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
@@ -15,12 +15,18 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        default_schema: frontdeskdb
     open-in-view: false
+    
   flyway:
     enabled: true
     validate-on-migrate: false
     baseline-on-migrate: true
     locations: classpath:db/migration
+    create-schemas: true
+    schemas: frontdeskdb
+    default-schema: frontdeskdb
+
   jackson:
     time-zone: UTC
 

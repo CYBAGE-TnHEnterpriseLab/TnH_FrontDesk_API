@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS rate_db;
+SET search_path TO rate_db;
+
 CREATE TABLE IF NOT EXISTS rate_plan (
     id BIGSERIAL PRIMARY KEY,
     property_id VARCHAR(255) NOT NULL,

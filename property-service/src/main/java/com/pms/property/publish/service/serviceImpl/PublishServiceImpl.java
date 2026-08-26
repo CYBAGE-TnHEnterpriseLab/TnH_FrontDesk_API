@@ -1,4 +1,4 @@
-package com.pms.property.publish.service;
+package com.pms.property.publish.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
@@ -34,6 +34,7 @@ import com.pms.property.draft.service.DraftService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.mapper.PublishMapper;
+import com.pms.property.publish.service.PublishService;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.util.List;

@@ -17,6 +17,7 @@ import com.pms.property.draft.entity.DraftLifecycleState;
 import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.repository.PropertyDraftRepository;
+import com.pms.property.draft.service.serviceImpl.DraftServiceImpl;
 import com.pms.property.domain.property.repository.PropertyRepository;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.time.Instant;
