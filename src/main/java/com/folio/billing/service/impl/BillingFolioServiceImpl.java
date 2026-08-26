@@ -181,7 +181,9 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
         String resolvedConfirmationNumber = firstNonBlank(summary.confirmationNumber(), normalize(confirmationNumber));
         String resolvedRoomNo = firstNonBlank(summary.roomNo(), normalize(roomNo));
-        String resolvedFolioCode = resolveActiveFolioCode(resolvedConfirmationNumber);
+        // Reservation accommodation is always posted to the primary folio.
+        // Additional folios receive only transactions explicitly posted to them.
+        String resolvedFolioCode = DEFAULT_FOLIO_CODE;
         ensureReservationCharge(resolvedConfirmationNumber, resolvedFolioCode, summary);
 
         BalanceSnapshot balanceSnapshot = safeSyncFolioWithLatestBalances(
@@ -191,14 +193,15 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 resolvedRoomNo,
                 null
         );
+        BalanceSnapshot reservationTotals = aggregateFolioBalances(resolvedConfirmationNumber);
 
         String responseConfirmationNumber = firstNonBlank(summary.confirmationNumber(), resolvedConfirmationNumber);
         List<String> folios = getFoliosForConfirmationNumber(resolvedConfirmationNumber);
 
         return new BillingDetailsResponse(
-                balanceSnapshot.totalCharges(),
-                balanceSnapshot.totalPayment(),
-                balanceSnapshot.balance(),
+                reservationTotals.totalCharges(),
+                reservationTotals.totalPayment(),
+                reservationTotals.balance(),
                 folios,
                 resolvedFolioCode,
                 defaultString(summary.guestName()),
@@ -1196,7 +1199,17 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                             transactionsJson, new TypeReference<List<FolioTransactionRow>>() {});
                     List<FolioTransactionRow> cleanedTransactions = deduplicateTransactions(
                             transactions == null ? List.of() : transactions);
+                    if (!DEFAULT_FOLIO_CODE.equalsIgnoreCase(folio.getFolioCode())) {
+                        cleanedTransactions = cleanedTransactions.stream()
+                                .filter(transaction -> !isReservationTransaction(transaction))
+                                .toList();
+                    }
                     List<FolioTransactionRow> inMemoryTransactions = postedTransactionsByKey.getOrDefault(key, List.of());
+                    if (!DEFAULT_FOLIO_CODE.equalsIgnoreCase(folio.getFolioCode())) {
+                        inMemoryTransactions = inMemoryTransactions.stream()
+                                .filter(transaction -> !isReservationTransaction(transaction))
+                                .toList();
+                    }
                     List<FolioTransactionRow> mergedTransactions = deduplicateTransactions(
                             Stream.concat(cleanedTransactions.stream(), inMemoryTransactions.stream()).toList());
                     postedTransactionsByKey.put(key, mergedTransactions);
@@ -1214,6 +1227,12 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                         folio.setTransactionsJson(objectMapper.writeValueAsString(mergedTransactions));
                         folioRepository.saveAndFlush(folio);
                     }
+                } catch (com.fasterxml.jackson.databind.exc.MismatchedInputException ex) {
+                    // Older rows may contain a scalar value instead of the current JSON array.
+                    // Do not fail the billing-details request; the next folio update will
+                    // persist the valid array format and retain any newly posted transaction.
+                    LOGGER.warn("Ignoring invalid persisted transactions for {}: expected a JSON array", key);
+                    postedTransactionsByKey.putIfAbsent(key, List.of());
                 } catch (Exception ex) {
                     throw new IllegalStateException("Unable to deserialize folio transactions for " + key, ex);
                 }
@@ -1237,6 +1256,13 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             uniqueByReference.putIfAbsent(identity, transaction);
         }
         return List.copyOf(uniqueByReference.values());
+    }
+
+    private boolean isReservationTransaction(FolioTransactionRow transaction) {
+        return transaction != null
+                && defaultString(transaction.referenceNumber())
+                .toUpperCase()
+                .startsWith("RESERVATION-");
     }
 
     private void appendAllocationHistory(String confirmationNumber, String folioCode, PaymentAllocationHistoryEntry historyEntry) {
@@ -1423,6 +1449,22 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 .map(key -> key.substring(key.indexOf(':') + 1))
                 .sorted()
                 .toList();
+    }
+
+    private BalanceSnapshot aggregateFolioBalances(String confirmationNumber) {
+        String prefix = normalize(confirmationNumber) + ":";
+        BigDecimal totalCharges = BigDecimal.ZERO;
+        BigDecimal totalPayment = BigDecimal.ZERO;
+
+        for (FolioState folio : foliosByKey.values()) {
+            if (!folioKey(folio.confirmationNumber(), folio.folioCode()).startsWith(prefix)) {
+                continue;
+            }
+            totalCharges = totalCharges.add(safeAmount(folio.totalCharges()));
+            totalPayment = totalPayment.add(safeAmount(folio.totalPayment()));
+        }
+
+        return new BalanceSnapshot(totalCharges, totalPayment, totalCharges.subtract(totalPayment));
     }
 
     private Optional<Folio> findPersistedFolio(String confirmationNumber, String folioCode) {
