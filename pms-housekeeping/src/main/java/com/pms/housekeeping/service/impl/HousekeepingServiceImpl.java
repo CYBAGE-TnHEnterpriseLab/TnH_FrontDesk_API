@@ -521,6 +521,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 saved.getRoomNumber(),
                 saved.getCleaningStatus().name(),
                 saved.getFrontOfficeStatus().name(),
+                saved.getGuestDisplayName(),
                 saved.getReservationStatus().name(),
                 saved.getAttendantName(),
                 saved.getPriority(),

@@ -46,7 +46,7 @@ class GuestListingControllerTest {
     void getGuestListingShouldReturnBookingsFromSingleTableByDefault() throws Exception {
         ReservationBookingRecord booking = ReservationBookingRecord.builder()
                 .id(1L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("CNF458721")
                 .reservationStatus("CONFIRMED")
                 .salutation("Mr")
@@ -94,7 +94,7 @@ class GuestListingControllerTest {
                 any(),
                 anyCollection()
         )).thenReturn(List.of(HousekeepingRoomStatusRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(LocalDate.of(2026, 6, 1))
                 .confirmationNumber("CNF458721")
                 .roomNo("301")
@@ -103,7 +103,7 @@ class GuestListingControllerTest {
                 .build()));
 
         mockMvc.perform(get("/api/v1/guest-listing/list")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("businessDate", "2026-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -127,7 +127,7 @@ class GuestListingControllerTest {
     void getGuestListingShouldUseAssignedRoomNoWhenHousekeepingRoomNotAvailable() throws Exception {
         ReservationBookingRecord booking = ReservationBookingRecord.builder()
                 .id(2L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("CNF458722")
                 .reservationStatus("CONFIRMED")
                 .salutation("Ms")
@@ -171,7 +171,7 @@ class GuestListingControllerTest {
         )).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/guest-listing/list")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("businessDate", "2026-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -184,7 +184,7 @@ class GuestListingControllerTest {
     @Test
     void getGuestListingShouldReturnBadRequestWhenViewIsInvalid() throws Exception {
         mockMvc.perform(get("/api/v1/guest-listing/list")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("businessDate", "2026-06-01")
                         .param("view", "both"))
                 .andExpect(status().isBadRequest())

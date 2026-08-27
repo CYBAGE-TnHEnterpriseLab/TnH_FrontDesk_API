@@ -73,12 +73,12 @@ class ReservationAvailabilityServiceImplTest {
         quote.setFinalAmount(new BigDecimal("5900.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
                 .thenReturn(List.of(inventory));
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
                 .thenReturn(List.of(quote));
 
         RoomAvailabilityPricingDto availabilityItem = RoomAvailabilityPricingDto.builder()
@@ -94,7 +94,7 @@ class ReservationAvailabilityServiceImplTest {
             .build();
 
         ReservationAvailabilityResponseDto mappedResponse = ReservationAvailabilityResponseDto.builder()
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .arrivalDate(LocalDate.of(2026, 7, 1))
             .departureDate(LocalDate.of(2026, 7, 3))
             .night(2)
@@ -124,7 +124,7 @@ class ReservationAvailabilityServiceImplTest {
 
         var response = reservationAvailabilityService.getAvailability(request);
 
-        assertThat(response.getPropertyId()).isEqualTo("PROP001");
+        assertThat(response.getPropertyId()).isEqualTo("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         assertThat(response.getAvailability()).hasSize(1);
         assertThat(response.getAvailability().get(0).getRoomType()).isEqualTo("Deluxe King");
         assertThat(response.getAvailability().get(0).getRatePlan()).isEqualTo("BAR");
@@ -157,12 +157,12 @@ class ReservationAvailabilityServiceImplTest {
         taxRule.setActive(true);
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of(taxRule));
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of(taxRule));
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(quote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(quote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -179,7 +179,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
             .availableRateCodes(invocation.getArgument(3))
@@ -205,7 +205,7 @@ class ReservationAvailabilityServiceImplTest {
                 .hasMessage("Live inventory is unavailable because Property Wizard integration is disabled");
 
         verify(propertyInventoryPort, never()).fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull());
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull());
         verifyNoInteractions(rateManagementPort);
     }
 
@@ -243,12 +243,12 @@ class ReservationAvailabilityServiceImplTest {
         quote.setFinalAmount(new BigDecimal("5000.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(quote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(quote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -265,7 +265,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
             .availableRateCodes(invocation.getArgument(3))
@@ -298,17 +298,17 @@ class ReservationAvailabilityServiceImplTest {
         quote.setFinalAmount(new BigDecimal("5000.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenThrow(new ExternalServiceException("missing roomType"));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(quote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(quote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -325,7 +325,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
             .availableRateCodes(invocation.getArgument(3))
@@ -359,17 +359,17 @@ class ReservationAvailabilityServiceImplTest {
         quote.setFinalAmount(new BigDecimal("4500.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of());
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1)))
             .thenReturn(List.of(quote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(quote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -386,7 +386,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -429,17 +429,17 @@ class ReservationAvailabilityServiceImplTest {
         enrichedQuote.setFinalAmount(new BigDecimal("4500.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(directQuote));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("DLX"), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("DLX"), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(enrichedQuote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(enrichedQuote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -456,7 +456,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -516,23 +516,23 @@ class ReservationAvailabilityServiceImplTest {
         dlxPerRoomQuote.setFinalAmount(new BigDecimal("1800.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(dlxInventory, kngInventory));
-        when(propertyInventoryPort.fetchRoomOutletTypes(eq("PROP001")))
+        when(propertyInventoryPort.fetchRoomOutletTypes(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")))
             .thenReturn(List.of(dlxOutlet, kngOutlet));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(directQuote));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("DLX"), eq(27L), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("DLX"), eq(27L), eq(2), eq(1)))
             .thenReturn(List.of(dlxPerRoomQuote));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("KNG"), eq(28L), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("KNG"), eq(28L), eq(2), eq(1)))
             .thenReturn(List.of());
 
         when(reservationAvailabilityMapper.toRoomAvailability(dlxPerRoomQuote, dlxInventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -549,7 +549,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -585,13 +585,13 @@ class ReservationAvailabilityServiceImplTest {
         quote.setFinalAmount(new BigDecimal("4200.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(quote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(quote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -608,7 +608,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -655,13 +655,13 @@ class ReservationAvailabilityServiceImplTest {
         pricedQuote.setFinalAmount(new BigDecimal("1800.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(zeroQuote, pricedQuote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(pricedQuote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -678,7 +678,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -726,17 +726,17 @@ class ReservationAvailabilityServiceImplTest {
         pricedQuote.setFinalAmount(new BigDecimal("1800.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of());
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1)))
             .thenReturn(List.of(zeroQuote, pricedQuote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(pricedQuote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -753,7 +753,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -787,13 +787,13 @@ class ReservationAvailabilityServiceImplTest {
         quote.setFinalAmount(new BigDecimal("5000.00"));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001")))
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")))
             .thenThrow(new ExternalServiceException("Failed to fetch tax rules from Property Wizard service"));
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenReturn(List.of(quote));
 
         when(reservationAvailabilityMapper.toRoomAvailability(quote, inventory)).thenReturn(RoomAvailabilityPricingDto.builder()
@@ -810,7 +810,7 @@ class ReservationAvailabilityServiceImplTest {
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
             .availableRateCodes(invocation.getArgument(3))
@@ -819,7 +819,7 @@ class ReservationAvailabilityServiceImplTest {
 
         ReservationAvailabilityResponseDto response = reservationAvailabilityService.getAvailability(request);
 
-        assertThat(response.getPropertyId()).isEqualTo("PROP001");
+        assertThat(response.getPropertyId()).isEqualTo("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         assertThat(response.getAvailability()).hasSize(1);
         assertThat(response.getAvailability().get(0).getTaxAmount()).isEqualByComparingTo("0.00");
         assertThat(response.getAvailability().get(0).getFinalAmount()).isEqualByComparingTo("5000.00");
@@ -837,9 +837,9 @@ class ReservationAvailabilityServiceImplTest {
         inventory.setAvailableRooms(4);
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of());
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of());
         when(propertyInventoryPort.fetchLiveInventory(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull()))
             .thenReturn(List.of(inventory));
 
         ExternalServiceException unauthorized = new ExternalServiceException(
@@ -854,12 +854,12 @@ class ReservationAvailabilityServiceImplTest {
         );
 
         when(rateManagementPort.fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), isNull(), isNull(), eq(2), eq(1)))
             .thenThrow(unauthorized);
 
         when(reservationAvailabilityMapper.toResponse(eq(request), anyList(), anyList(), anyList())).thenAnswer(invocation ->
             ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .availability(invocation.getArgument(1))
                 .next15DaysPricing(invocation.getArgument(2))
                 .availableRateCodes(invocation.getArgument(3))
@@ -871,12 +871,12 @@ class ReservationAvailabilityServiceImplTest {
         assertThat(response.getAvailability()).isEmpty();
         assertThat(response.getAvailableRateCodes()).isEmpty();
         verify(rateManagementPort, never()).fetchRateQuotes(
-            eq("PROP001"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1));
+            eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq(LocalDate.of(2026, 7, 1)), eq(LocalDate.of(2026, 7, 3)), eq("Deluxe King"), eq(101L), eq(2), eq(1));
     }
 
     private ReservationAvailabilityRequestDto validRequest() {
         ReservationAvailabilityRequestDto request = new ReservationAvailabilityRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setArrivalDate(LocalDate.of(2026, 7, 1));
         request.setDepartureDate(LocalDate.of(2026, 7, 3));
         request.setNight(2);

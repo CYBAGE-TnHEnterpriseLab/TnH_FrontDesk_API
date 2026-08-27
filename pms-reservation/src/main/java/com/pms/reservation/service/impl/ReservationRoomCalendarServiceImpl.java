@@ -7,6 +7,7 @@ import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.ReservationRoomCalendarResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.service.ReservationRoomCalendarService;
@@ -39,6 +40,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
 
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final PropertyInventoryPort propertyInventoryPort;
+    private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final ReservationBookingRepository reservationBookingRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
 
@@ -53,16 +55,15 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         if (!StringUtils.hasText(propertyId)) {
             throw new BadRequestException("propertyId is required");
         }
+        if (!propertyWizardServiceProperties.isEnabled()) {
+            throw new BadRequestException("Room calendar is unavailable because Property Wizard integration is disabled");
+        }
         if (arrivalDate == null || departureDate == null) {
             throw new BadRequestException("arrivalDate and departureDate are required");
         }
         if (departureDate.isBefore(arrivalDate)) {
             throw new BadRequestException("departureDate must be on or after arrivalDate");
         }
-        if (!propertyWizardServiceProperties.isEnabled()) {
-            throw new BadRequestException("Room calendar is unavailable because Property Wizard integration is disabled");
-        }
-
         List<LocalDate> dates = buildDateRangeInclusive(arrivalDate, departureDate);
         LocalDate overlapUpperExclusive = departureDate.plusDays(1);
 
@@ -79,12 +80,8 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             ? requestedRoomTypes.iterator().next()
             : null;
 
-        List<PropertyRoomInventoryDto> liveInventory = propertyInventoryPort.fetchLiveInventory(
-                propertyId,
-                arrivalDate,
-                departureDate,
-            upstreamRoomTypeFilter
-        );
+        List<PropertyRoomInventoryDto> liveInventory = housekeepingRoomCalendarClient.fetchRooms(
+                propertyId, arrivalDate, departureDate);
         if (liveInventory == null) {
             liveInventory = List.of();
         }

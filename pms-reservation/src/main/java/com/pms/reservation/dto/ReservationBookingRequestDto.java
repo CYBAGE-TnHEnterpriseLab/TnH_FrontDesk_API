@@ -54,6 +54,8 @@ public class ReservationBookingRequestDto {
         @JsonAlias({"email", "guestEmail"})
     private String officialEmail;
 
+    private String address;
+
     private String city;
 
     private String country;

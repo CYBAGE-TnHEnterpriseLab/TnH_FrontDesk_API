@@ -67,7 +67,7 @@ class ReservationBookingMapperTest {
                 .id(42L)
             .confirmationNumber("1234567890")
                 .reservationStatus("CONFIRMED")
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .salutation("Mr")
                 .vipTag(Boolean.FALSE)
                 .guestName("Alex Johnson")
@@ -124,7 +124,7 @@ class ReservationBookingMapperTest {
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");

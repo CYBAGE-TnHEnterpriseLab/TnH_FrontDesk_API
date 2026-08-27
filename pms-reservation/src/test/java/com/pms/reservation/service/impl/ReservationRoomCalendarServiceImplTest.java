@@ -12,6 +12,7 @@ import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.ReservationRoomCalendarResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import java.time.LocalDate;
@@ -30,6 +31,9 @@ class ReservationRoomCalendarServiceImplTest {
 
     @Mock
     private PropertyInventoryPort propertyInventoryPort;
+
+    @Mock
+    private HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
 
     @Mock
     private ReservationBookingRepository reservationBookingRepository;
@@ -52,16 +56,15 @@ class ReservationRoomCalendarServiceImplTest {
         room102.setRoomNumber("102");
         room102.setRoomType("King");
 
-        when(propertyInventoryPort.fetchLiveInventory(
-                eq("PROP001"),
-                eq(LocalDate.of(2026, 8, 1)),
-                eq(LocalDate.of(2026, 8, 3)),
-                eq("KING")
+        when(housekeepingRoomCalendarClient.fetchRooms(
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 3)
         )).thenReturn(List.of(room101, room102));
 
         ReservationBookingRecord booking101 = ReservationBookingRecord.builder()
                 .id(901L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("C-101")
                 .reservationStatus("CONFIRMED")
                 .assignedRoomNo("101")
@@ -72,7 +75,7 @@ class ReservationRoomCalendarServiceImplTest {
 
         ReservationBookingRecord booking102 = ReservationBookingRecord.builder()
                 .id(902L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("C-102")
                 .reservationStatus("CHECKED_IN")
                 .assignedRoomNo("102")
@@ -82,13 +85,13 @@ class ReservationRoomCalendarServiceImplTest {
                 .build();
 
         when(reservationBookingRepository.findByPropertyIdAndAssignedRoomNoIsNotNullAndArrivalDateLessThanAndDepartureDateGreaterThan(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 4),
                 LocalDate.of(2026, 8, 1)
         )).thenReturn(List.of(booking101, booking102));
 
         HousekeepingRoomStatusRecord statusRecord = HousekeepingRoomStatusRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(LocalDate.of(2026, 8, 2))
                 .confirmationNumber("C-101")
                 .roomNo("101")
@@ -96,13 +99,13 @@ class ReservationRoomCalendarServiceImplTest {
                 .build();
 
         when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 3)
         )).thenReturn(List.of(statusRecord));
 
         ReservationRoomCalendarResponseDto response = reservationRoomCalendarService.getRoomCalendar(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 3),
                 List.of("King")
@@ -144,7 +147,7 @@ class ReservationRoomCalendarServiceImplTest {
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(false);
 
         assertThatThrownBy(() -> reservationRoomCalendarService.getRoomCalendar(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 3),
                 List.of("King")
@@ -169,27 +172,26 @@ class ReservationRoomCalendarServiceImplTest {
         room301.setRoomNumber("301");
         room301.setRoomType("Twin");
 
-        when(propertyInventoryPort.fetchLiveInventory(
-                eq("PROP001"),
-                eq(LocalDate.of(2026, 8, 1)),
-                eq(LocalDate.of(2026, 8, 2)),
-                eq((String) null)
+        when(housekeepingRoomCalendarClient.fetchRooms(
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 2)
         )).thenReturn(List.of(room101, room201, room301));
 
         when(reservationBookingRepository.findByPropertyIdAndAssignedRoomNoIsNotNullAndArrivalDateLessThanAndDepartureDateGreaterThan(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 3),
                 LocalDate.of(2026, 8, 1)
         )).thenReturn(List.of());
 
         when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 2)
         )).thenReturn(List.of());
 
         ReservationRoomCalendarResponseDto response = reservationRoomCalendarService.getRoomCalendar(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 2),
                 List.of("King", "Suite")

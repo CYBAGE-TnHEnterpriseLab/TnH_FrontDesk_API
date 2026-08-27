@@ -62,6 +62,9 @@ public class ReservationBookingRecord {
     @Column(nullable = false, length = 160)
     private String officialEmail;
 
+    @Column(length = 255)
+    private String address;
+
     @Column(nullable = false, length = 80)
     private String city;
 

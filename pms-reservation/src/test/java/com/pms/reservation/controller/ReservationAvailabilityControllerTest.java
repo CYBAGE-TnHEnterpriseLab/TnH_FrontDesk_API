@@ -38,7 +38,7 @@ class ReservationAvailabilityControllerTest {
     @Test
     void getAvailabilityShouldReturnLiveInventoryAndPricing() throws Exception {
         ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 7, 1))
                 .departureDate(LocalDate.of(2026, 7, 3))
                 .night(2)
@@ -94,7 +94,7 @@ class ReservationAvailabilityControllerTest {
         when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/availability")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("date", "2026-07-01")
                         .param("night", "2")
                         .param("numberOfRooms", "1")
@@ -107,7 +107,7 @@ class ReservationAvailabilityControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Availability and pricing fetched successfully"))
-                .andExpect(jsonPath("$.data.propertyId").value("PROP001"))
+                .andExpect(jsonPath("$.data.propertyId").value("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
                 .andExpect(jsonPath("$.data.night").value(2))
                 .andExpect(jsonPath("$.data.numberOfRooms").value(1))
                 .andExpect(jsonPath("$.data.groupCode").value("GRP001"))
@@ -139,7 +139,7 @@ class ReservationAvailabilityControllerTest {
         @Test
         void getAvailabilityShouldAllowMissingGroupCode() throws Exception {
                 ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                                .propertyId("PROP001")
+                                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                                 .arrivalDate(LocalDate.of(2026, 7, 1))
                                 .departureDate(LocalDate.of(2026, 7, 3))
                                 .night(2)
@@ -155,7 +155,7 @@ class ReservationAvailabilityControllerTest {
                 when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
                 mockMvc.perform(get("/api/v1/reservations/availability")
-                                                .param("propertyId", "PROP001")
+                                                .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                                                 .param("date", "2026-07-01")
                                                 .param("night", "2")
                                                 .param("numberOfRooms", "1")
@@ -163,7 +163,7 @@ class ReservationAvailabilityControllerTest {
                                                 .param("children", "1"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.success").value(true))
-                                .andExpect(jsonPath("$.data.propertyId").value("PROP001"));
+                                .andExpect(jsonPath("$.data.propertyId").value("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"));
 
                 verify(reservationAvailabilityService).getAvailability(any());
         }
@@ -171,7 +171,7 @@ class ReservationAvailabilityControllerTest {
     @Test
     void getAvailabilityShouldRejectLegacyDateRangeParams() throws Exception {
         ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 7, 1))
                 .departureDate(LocalDate.of(2026, 7, 3))
                 .night(2)
@@ -190,7 +190,7 @@ class ReservationAvailabilityControllerTest {
         when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/availability")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("arrivalDate", "2026-07-01")
                         .param("departureDate", "2026-07-03")
                         .param("adultCount", "2")
@@ -205,7 +205,7 @@ class ReservationAvailabilityControllerTest {
     @Test
     void getAvailabilityShouldDefaultNumberOfRoomsWhenMissing() throws Exception {
         ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 7, 1))
                 .departureDate(LocalDate.of(2026, 7, 3))
                 .night(2)
@@ -224,7 +224,7 @@ class ReservationAvailabilityControllerTest {
         when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/availability")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("date", "2026-07-01")
                         .param("night", "2")
                         .param("adults", "2")

@@ -67,7 +67,7 @@ class PropertyWizardServiceClientTest {
             "{\"success\":true,\"data\":{\"propertyExists\":true,\"roomTypeAvailable\":true,\"availableRooms\":5},\"message\":\"ok\"}"
         ));
 
-        PropertyInventoryValidationResponse validation = client.validateInventory("PROP001", "Deluxe King", 2);
+        PropertyInventoryValidationResponse validation = client.validateInventory("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", "Deluxe King", 2);
 
         assertThat(validation.getPropertyExists()).isTrue();
         assertThat(validation.getRoomTypeAvailable()).isTrue();
@@ -101,7 +101,7 @@ class PropertyWizardServiceClientTest {
         ));
 
         var inventory = client.fetchLiveInventory(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 7, 14),
                 LocalDate.of(2026, 7, 16),
                 null
@@ -142,7 +142,7 @@ class PropertyWizardServiceClientTest {
         ));
 
         var inventory = client.fetchLiveInventory(
-                "PROP001",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 7, 14),
                 LocalDate.of(2026, 7, 16),
                 null
@@ -181,7 +181,7 @@ class PropertyWizardServiceClientTest {
             "{\"success\":true,\"data\":[{\"roomType\":\"Deluxe King\",\"taxPercentage\":18,\"active\":true}],\"message\":\"ok\"}"
         ));
 
-        var taxRules = client.fetchTaxRules("PROP001");
+        var taxRules = client.fetchTaxRules("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
 
         assertThat(taxRules).hasSize(1);
         assertThat(taxRules.get(0).getRoomType()).isEqualTo("Deluxe King");
@@ -215,7 +215,7 @@ class PropertyWizardServiceClientTest {
             "{\"success\":true,\"data\":[{\"id\":28,\"roomCode\":\"KNG\",\"roomName\":\"King\"}],\"message\":\"ok\"}"
         ));
 
-        var outletTypes = client.fetchRoomOutletTypes("PROP001");
+        var outletTypes = client.fetchRoomOutletTypes("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
 
         assertThat(outletTypes).hasSize(1);
         PropertyRoomOutletTypeDto item = outletTypes.get(0);

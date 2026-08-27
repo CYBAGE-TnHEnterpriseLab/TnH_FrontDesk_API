@@ -21,6 +21,7 @@ import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
@@ -57,6 +58,9 @@ class ReservationBookingServiceImplTest {
     private PropertyInventoryPort propertyInventoryPort;
 
     @Mock
+    private HousekeepingRoomStatusClient housekeepingRoomStatusClient;
+
+    @Mock
     private PropertyWizardServiceProperties propertyWizardServiceProperties;
 
     @Mock
@@ -83,7 +87,7 @@ class ReservationBookingServiceImplTest {
 
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(99L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("1234567890")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
@@ -93,7 +97,7 @@ class ReservationBookingServiceImplTest {
                 .id(501L)
                 .bookingId(99L)
                 .confirmationNumber("1234567890")
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .paymentMode("CARD")
                 .amount(new BigDecimal("17000.00"))
                 .transactionStatus("SUCCESS")
@@ -141,7 +145,7 @@ class ReservationBookingServiceImplTest {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
-        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+        when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(true, true, 5));
         when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-200"));
 
@@ -158,11 +162,11 @@ class ReservationBookingServiceImplTest {
         taxRule.setRoomType("Deluxe King");
         taxRule.setTaxPercentage(new BigDecimal("10"));
         taxRule.setActive(true);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of(taxRule));
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of(taxRule));
 
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(100L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("1234567891")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
@@ -172,7 +176,7 @@ class ReservationBookingServiceImplTest {
                 .id(601L)
                 .bookingId(100L)
                 .confirmationNumber("1234567891")
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .paymentMode("CARD")
                 .amount(new BigDecimal("17000.00"))
                 .transactionStatus("SUCCESS")
@@ -195,10 +199,10 @@ class ReservationBookingServiceImplTest {
 
         reservationBookingService.createBooking(request);
 
-        verify(propertyInventoryPort).validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1));
+        verify(propertyInventoryPort).validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1));
         verify(propertyInventoryPort).deductInventory(any());
         verify(propertyInventoryPort).syncInventory(any());
-        verify(propertyInventoryPort).fetchTaxRules(eq("PROP001"));
+        verify(propertyInventoryPort).fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"));
 
         ArgumentCaptor<ReservationBookingRecord> recordCaptor = ArgumentCaptor.forClass(ReservationBookingRecord.class);
         verify(reservationBookingRepository).save(recordCaptor.capture());
@@ -246,7 +250,7 @@ class ReservationBookingServiceImplTest {
 
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(140L)
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .confirmationNumber("1234567892")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
@@ -256,7 +260,7 @@ class ReservationBookingServiceImplTest {
                         .id(701L)
                         .bookingId(140L)
                         .confirmationNumber("1234567892")
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("17000.00"))
                         .transactionStatus("SUCCESS")
@@ -324,7 +328,7 @@ class ReservationBookingServiceImplTest {
 
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(141L)
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .confirmationNumber("1234567893")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
@@ -334,7 +338,7 @@ class ReservationBookingServiceImplTest {
                         .id(702L)
                         .bookingId(141L)
                         .confirmationNumber("1234567893")
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("51000.00"))
                         .transactionStatus("SUCCESS")
@@ -381,7 +385,7 @@ class ReservationBookingServiceImplTest {
 
         ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                 .id(142L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("1234567894")
                 .reservationStatus("CONFIRMED")
                 .guestName("Alex Johnson")
@@ -391,7 +395,7 @@ class ReservationBookingServiceImplTest {
                 .id(703L)
                 .bookingId(142L)
                 .confirmationNumber("1234567894")
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .paymentMode("CARD")
                 .amount(new BigDecimal("17000.00"))
                 .transactionStatus("SUCCESS")
@@ -489,7 +493,7 @@ class ReservationBookingServiceImplTest {
     void createBookingShouldRejectWhenPropertyIsInvalidFromPropertyWizard() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+        when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(false, true, 5));
 
         assertThatThrownBy(() -> reservationBookingService.createBooking(request))
@@ -506,7 +510,7 @@ class ReservationBookingServiceImplTest {
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(propertyWizardServiceProperties.isFailOpenOnValidationError()).thenReturn(true);
                 when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
-                when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                         .thenThrow(new ExternalServiceException("pw unavailable"));
                 when(paymentProcessingService.processPayment(any(), any(), any())).thenReturn(successResult("PAY-299"));
 
@@ -518,7 +522,7 @@ class ReservationBookingServiceImplTest {
 
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(120L)
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .confirmationNumber("1234567895")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
@@ -528,7 +532,7 @@ class ReservationBookingServiceImplTest {
                         .id(699L)
                         .bookingId(120L)
                         .confirmationNumber("1234567895")
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("17000.00"))
                         .transactionStatus("SUCCESS")
@@ -550,7 +554,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
 
                 assertThat(response.getBookingId()).isEqualTo(120L);
-                verify(propertyInventoryPort).validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1));
+                verify(propertyInventoryPort).validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1));
                 verify(propertyInventoryPort).deductInventory(any());
                 verify(propertyInventoryPort).syncInventory(any());
                 verify(reservationBookingRepository).save(any(ReservationBookingRecord.class));
@@ -561,7 +565,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRequestDto request = validRequest();
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(propertyWizardServiceProperties.isFailOpenOnValidationError()).thenReturn(false);
-                when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                         .thenThrow(new ExternalServiceException("pw unavailable"));
 
                 assertThatThrownBy(() -> reservationBookingService.createBooking(request))
@@ -576,7 +580,7 @@ class ReservationBookingServiceImplTest {
     void createBookingShouldRejectWhenRoomTypeUnavailableFromPropertyWizard() {
         ReservationBookingRequestDto request = validRequest();
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+        when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(true, false, 0));
 
         assertThatThrownBy(() -> reservationBookingService.createBooking(request))
@@ -593,7 +597,7 @@ class ReservationBookingServiceImplTest {
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(propertyWizardServiceProperties.isFailOpenOnWriteError()).thenReturn(true);
                 when(reservationBookingRepository.existsByConfirmationNumber(any())).thenReturn(false);
-                when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                         .thenReturn(validationResponse(true, true, 5));
                 doThrow(new ExternalServiceException("deduct unavailable"))
                         .when(propertyInventoryPort).deductInventory(any());
@@ -607,7 +611,7 @@ class ReservationBookingServiceImplTest {
 
                 ReservationBookingRecord savedRecord = ReservationBookingRecord.builder()
                         .id(150L)
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .confirmationNumber("1234567896")
                         .reservationStatus("CONFIRMED")
                         .guestName("Alex Johnson")
@@ -617,7 +621,7 @@ class ReservationBookingServiceImplTest {
                         .id(750L)
                         .bookingId(150L)
                         .confirmationNumber("1234567896")
-                        .propertyId("PROP001")
+                        .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .paymentMode("CARD")
                         .amount(new BigDecimal("17000.00"))
                         .transactionStatus("SUCCESS")
@@ -639,7 +643,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
 
                 assertThat(response.getBookingId()).isEqualTo(150L);
-                verify(propertyInventoryPort).validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1));
+                verify(propertyInventoryPort).validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1));
                 verify(propertyInventoryPort).deductInventory(any());
                 verify(propertyInventoryPort, never()).syncInventory(any());
                 verify(reservationBookingRepository).save(any(ReservationBookingRecord.class));
@@ -650,7 +654,7 @@ class ReservationBookingServiceImplTest {
                 ReservationBookingRequestDto request = validRequest();
                 when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
                 when(propertyWizardServiceProperties.isFailOpenOnWriteError()).thenReturn(false);
-                when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+                when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                         .thenReturn(validationResponse(true, true, 5));
                 doThrow(new ExternalServiceException("deduct unavailable"))
                         .when(propertyInventoryPort).deductInventory(any());
@@ -669,7 +673,7 @@ class ReservationBookingServiceImplTest {
         request.setNumberOfRooms(3);
         request.setGuestNames(List.of("Alex Johnson", "Sam Lee", "Jordan Fox"));
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(3)))
+        when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(3)))
                 .thenReturn(validationResponse(true, true, 2));
 
         assertThatThrownBy(() -> reservationBookingService.createBooking(request))
@@ -754,7 +758,7 @@ class ReservationBookingServiceImplTest {
                 .confirmationNumber("10256CNF569")
                 .reservationStatus("CONFIRMED")
                 .createdAt(LocalDateTime.of(2026, 6, 12, 10, 45))
-                .propertyId("demo-property")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .salutation("Mr")
                 .guestName("Sachin Shah")
                 .phoneNumber("+91 89562314785")
@@ -802,7 +806,7 @@ class ReservationBookingServiceImplTest {
                 .thenReturn(Optional.of(latestTxn));
         when(reservationBookingMapper.toResponse(booking, latestTxn)).thenReturn(mapped);
         when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumber(
-                "demo-property",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 6, 23),
                 "10256CNF569"
         )).thenReturn(Optional.of(housekeepingStatus));
@@ -865,7 +869,7 @@ class ReservationBookingServiceImplTest {
                 .build();
 
         ReservationBookingRecord mapped = ReservationBookingRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .roomType("Deluxe King")
                 .rate(new BigDecimal("8500"))
                 .numberOfRooms(1)
@@ -876,7 +880,7 @@ class ReservationBookingServiceImplTest {
 
         ReservationBookingRecord saved = ReservationBookingRecord.builder()
                 .id(300L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("1234567000")
                 .reservationStatus("CONFIRMED")
                 .city("Mumbai")
@@ -898,7 +902,7 @@ class ReservationBookingServiceImplTest {
         taxRule.setActive(true);
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
-        when(propertyInventoryPort.validateInventory(eq("PROP001"), eq("Deluxe King"), eq(1)))
+        when(propertyInventoryPort.validateInventory(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"), eq("Deluxe King"), eq(1)))
                 .thenReturn(validationResponse(true, true, 5));
         when(reservationBookingRepository.findByConfirmationNumber("1234567000")).thenReturn(Optional.of(existing));
         when(reservationBookingMapper.toEntity(request)).thenReturn(mapped);
@@ -906,12 +910,12 @@ class ReservationBookingServiceImplTest {
         when(reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(300L))
                 .thenReturn(Optional.of(latestTxn));
         when(reservationBookingMapper.toResponse(saved, latestTxn)).thenReturn(mappedResponse);
-        when(propertyInventoryPort.fetchTaxRules(eq("PROP001"))).thenReturn(List.of(taxRule));
+        when(propertyInventoryPort.fetchTaxRules(eq("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))).thenReturn(List.of(taxRule));
 
         ReservationViewResponseDto response = reservationBookingService.updateBooking("1234567000", request);
 
         assertThat(response.getConfirmationNumber()).isEqualTo("1234567000");
-        assertThat(response.getPropertyId()).isEqualTo("PROP001");
+        assertThat(response.getPropertyId()).isEqualTo("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         assertThat(response.getStatus()).isEqualTo("CONFIRMED");
 
         ArgumentCaptor<ReservationBookingRecord> savedCaptor = ArgumentCaptor.forClass(ReservationBookingRecord.class);
@@ -978,7 +982,7 @@ class ReservationBookingServiceImplTest {
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");

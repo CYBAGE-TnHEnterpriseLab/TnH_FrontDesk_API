@@ -117,7 +117,7 @@ class DomainModelSmokeTest {
         HousekeepingCalendarResponse calendar = new HousekeepingCalendarResponse(propertyId, businessDate, businessDate.plusDays(1), List.of(calDate), List.of(calType));
         AssignableRoomResponse assignable = new AssignableRoomResponse("101", roomTypeId, "Deluxe", "1", "CLASS-A", "North", "CLEAN");
         HousekeepingStatusUpdateResponse statusUpdate = new HousekeepingStatusUpdateResponse(
-                propertyId, businessDate, "101", "CLEAN", "VACANT", "NOT_RESERVED", "Anna", HousekeepingPriority.NORMAL, null, true, now, now
+                propertyId, businessDate, "101", "CLEAN", "VACANT", "Guest", "NOT_RESERVED", "Anna", HousekeepingPriority.NORMAL, null, true, now, now
         );
         RoomMasterSyncResponse syncResponse = new RoomMasterSyncResponse(5, 1);
 
