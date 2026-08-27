@@ -27,6 +27,11 @@ public interface HousekeepingRoomDayStatusRepository
             String propertyId,
             LocalDate businessDate);
 
+    List<HousekeepingRoomDayStatus> findAllByPropertyIdAndBusinessDateBetween(
+            String propertyId,
+            LocalDate fromDate,
+            LocalDate toDate);
+
     Optional<HousekeepingRoomDayStatus> findByPropertyIdAndBusinessDateAndRoomNumber(
             String propertyId,
             LocalDate businessDate,

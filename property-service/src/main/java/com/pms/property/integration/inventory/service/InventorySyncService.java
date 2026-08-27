@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -32,19 +35,22 @@ public class InventorySyncService {
     private final InventorySyncPayloadMapper payloadMapper;
     private final InventorySyncClient inventorySyncClient;
     private final InventorySyncStateRepository syncStateRepository;
+    private final Executor inventorySyncExecutor;
 
     public InventorySyncService(
         RoomOutletTypeRepository roomOutletTypeRepository,
         InventoryRoomRepository inventoryRoomRepository,
         InventorySyncPayloadMapper payloadMapper,
         InventorySyncClient inventorySyncClient,
-        InventorySyncStateRepository syncStateRepository
+        InventorySyncStateRepository syncStateRepository,
+        @Qualifier("inventorySyncExecutor") Executor inventorySyncExecutor
     ) {
         this.roomOutletTypeRepository = roomOutletTypeRepository;
         this.inventoryRoomRepository = inventoryRoomRepository;
         this.payloadMapper = payloadMapper;
         this.inventorySyncClient = inventorySyncClient;
         this.syncStateRepository = syncStateRepository;
+        this.inventorySyncExecutor = inventorySyncExecutor;
     }
 
     public void requestSyncAfterCommit(String propertyId) {
@@ -81,21 +87,33 @@ public class InventorySyncService {
 
         InventoryReconciliationRequest request = payloadMapper.toRequest(propertyId, roomTypes);
 
-        RuntimeException roomMasterError = null;
-        if (!inventoryRooms.isEmpty()) {
+        // Run the housekeeping room-master sync and the inventory reconciliation
+        // concurrently. Each task captures its own failure so one failing does not
+        // prevent the other from running, preserving the original error-handling.
+        CompletableFuture<RuntimeException> roomMasterFuture = CompletableFuture.supplyAsync(() -> {
             try {
-                syncRoomMaster(propertyId, inventoryRooms, roomTypes, requestId);
+                if (!inventoryRooms.isEmpty()) {
+                    syncRoomMaster(propertyId, inventoryRooms, roomTypes, requestId);
+                }
+                return null;
             } catch (RuntimeException ex) {
-                roomMasterError = toSyncException("Room master sync failed", ex);
+                return toSyncException("Room master sync failed", ex);
             }
-        }
+        }, inventorySyncExecutor);
 
-        RuntimeException reconcileError = null;
-        try {
-            inventorySyncClient.reconcile(request, requestId);
-        } catch (RuntimeException ex) {
-            reconcileError = toSyncException("Inventory reconciliation failed", ex);
-        }
+        CompletableFuture<RuntimeException> reconcileFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                inventorySyncClient.reconcile(request, requestId);
+                return null;
+            } catch (RuntimeException ex) {
+                return toSyncException("Inventory reconciliation failed", ex);
+            }
+        }, inventorySyncExecutor);
+
+        CompletableFuture.allOf(roomMasterFuture, reconcileFuture).join();
+
+        RuntimeException roomMasterError = roomMasterFuture.join();
+        RuntimeException reconcileError = reconcileFuture.join();
 
         if (roomMasterError == null && reconcileError == null) {
             return markSuccess(propertyId, requestId);

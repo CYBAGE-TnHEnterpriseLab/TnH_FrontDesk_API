@@ -11,14 +11,19 @@ import com.pms.housekeeping.entity.RoomMasterProjection;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
 import com.pms.housekeeping.service.RoomMasterSyncService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,13 +31,16 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
 
     private final RoomMasterProjectionRepository roomMasterProjectionRepository;
     private final HousekeepingRoomDayStatusRepository dayStatusRepository;
+    private final Executor roomSyncExecutor;
 
     public RoomMasterSyncServiceImpl(
             RoomMasterProjectionRepository roomMasterProjectionRepository,
-            HousekeepingRoomDayStatusRepository dayStatusRepository
+            HousekeepingRoomDayStatusRepository dayStatusRepository,
+            @Qualifier("roomSyncExecutor") Executor roomSyncExecutor
     ) {
         this.roomMasterProjectionRepository = roomMasterProjectionRepository;
         this.dayStatusRepository = dayStatusRepository;
+        this.roomSyncExecutor = roomSyncExecutor;
     }
 
     @Override
@@ -41,34 +49,141 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
         String propertyId = request.propertyId();
         LocalDateTime now = LocalDateTime.now();
 
-        Map<String, RoomMasterProjection> existingByRoom = roomMasterProjectionRepository.findAllByPropertyId(propertyId)
+        Map<String, RoomMasterProjection> existingByRoom = roomMasterProjectionRepository
+                .findAllByPropertyId(propertyId)
                 .stream()
-                .collect(Collectors.toMap(RoomMasterProjection::getRoomNumber, projection -> projection, (left, right) -> left, HashMap::new));
+                .collect(Collectors.toMap(
+                        RoomMasterProjection::getRoomNumber,
+                        projection -> projection,
+                        (left, right) -> left,
+                        HashMap::new));
 
         Set<String> incomingRooms = request.rooms().stream()
                 .map(RoomMasterSyncRequest.RoomMasterUnit::roomNumber)
                 .collect(Collectors.toSet());
 
-        int synced = 0;
-        for (RoomMasterSyncRequest.RoomMasterUnit room : request.rooms()) {
-            RoomMasterProjection projection = existingByRoom.get(room.roomNumber());
-            if (projection == null) {
-                projection = RoomMasterProjection.builder()
-                        .propertyId(propertyId)
-                        .roomNumber(room.roomNumber())
-                        .createdAt(now)
-                        .build();
-            }
+        // One bulk read for the whole date range instead of N*D point lookups.
+        Map<LocalDate, Map<String, HousekeepingRoomDayStatus>> existingDayByDateRoom =
+                loadExistingDayStatus(propertyId, request.fromDate(), request.toDate());
 
-            updateProjection(projection, room, now);
-            roomMasterProjectionRepository.save(projection);
+        // Build the upsert entities for each room in parallel. These tasks only read
+        // the shared (immutable) maps and construct detached entities, so they are
+        // safe to run off the transaction thread. The actual persistence happens on
+        // the calling thread below, inside the transaction.
+        List<CompletableFuture<RoomSyncResult>> futures = request.rooms().stream()
+                .map(room -> CompletableFuture.supplyAsync(() -> buildRoomSyncResult(
+                        room,
+                        existingByRoom,
+                        existingDayByDateRoom,
+                        propertyId,
+                        request.fromDate(),
+                        request.toDate(),
+                        now), roomSyncExecutor))
+                .toList();
 
-            ensureDayStatusExistsForRange(propertyId, room, request.fromDate(), request.toDate(), now);
-            synced++;
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        List<RoomMasterProjection> projectionsToSave = new ArrayList<>();
+        List<HousekeepingRoomDayStatus> dayStatusesToSave = new ArrayList<>();
+        for (CompletableFuture<RoomSyncResult> future : futures) {
+            RoomSyncResult result = future.join();
+            projectionsToSave.add(result.projection());
+            dayStatusesToSave.addAll(result.dayStatuses());
         }
 
-        int deactivated = deactivateMissingRooms(existingByRoom, incomingRooms, now);
-        return new RoomMasterSyncResponse(synced, deactivated);
+        // Deactivate rooms present in the DB but missing from the incoming payload.
+        List<RoomMasterProjection> deactivatedToSave = deactivateMissingRooms(
+                existingByRoom, incomingRooms, now);
+
+        // Batched writes: a handful of statements instead of N + N*D round-trips.
+        roomMasterProjectionRepository.saveAll(projectionsToSave);
+        if (!deactivatedToSave.isEmpty()) {
+            roomMasterProjectionRepository.saveAll(deactivatedToSave);
+        }
+        if (!dayStatusesToSave.isEmpty()) {
+            dayStatusRepository.saveAll(dayStatusesToSave);
+        }
+
+        return new RoomMasterSyncResponse(projectionsToSave.size(), deactivatedToSave.size());
+    }
+
+    private RoomSyncResult buildRoomSyncResult(
+            RoomMasterSyncRequest.RoomMasterUnit room,
+            Map<String, RoomMasterProjection> existingByRoom,
+            Map<LocalDate, Map<String, HousekeepingRoomDayStatus>> existingDayByDateRoom,
+            String propertyId,
+            LocalDate fromDate,
+            LocalDate toDate,
+            LocalDateTime now
+    ) {
+        RoomMasterProjection projection = existingByRoom.get(room.roomNumber());
+        if (projection == null) {
+            projection = RoomMasterProjection.builder()
+                    .propertyId(propertyId)
+                    .roomNumber(room.roomNumber())
+                    .createdAt(now)
+                    .build();
+        }
+        updateProjection(projection, room, now);
+
+        List<HousekeepingRoomDayStatus> dayStatuses = new ArrayList<>();
+        if (fromDate != null && toDate != null && !fromDate.isAfter(toDate)) {
+            for (LocalDate businessDate = fromDate;
+                 !businessDate.isAfter(toDate);
+                 businessDate = businessDate.plusDays(1)) {
+
+                Map<String, HousekeepingRoomDayStatus> byRoom = existingDayByDateRoom.get(businessDate);
+                HousekeepingRoomDayStatus existing = byRoom == null ? null : byRoom.get(room.roomNumber());
+
+                HousekeepingRoomDayStatus status;
+                if (existing == null) {
+                    status = HousekeepingRoomDayStatus.builder()
+                            .propertyId(propertyId)
+                            .businessDate(businessDate)
+                            .roomNumber(room.roomNumber())
+                            .roomTypeId(room.roomTypeId())
+                            .roomTypeName(room.roomTypeName())
+                            .floor(room.floor())
+                            .cleaningStatus(CleaningStatus.DIRTY)
+                            .frontOfficeStatus(FrontOfficeStatus.VACANT)
+                            .reservationStatus(ReservationStatus.NOT_RESERVED)
+                            .priority(HousekeepingPriority.NORMAL)
+                            .sellable(false)
+                            .createdAt(now)
+                            .updatedAt(now)
+                            .build();
+                } else {
+                    status = existing;
+                    status.setRoomTypeId(room.roomTypeId());
+                    status.setRoomTypeName(room.roomTypeName());
+                    status.setFloor(room.floor());
+                    status.setUpdatedAt(now);
+                }
+                status.setSellable(computeSellable(status));
+                dayStatuses.add(status);
+            }
+        }
+
+        return new RoomSyncResult(projection, dayStatuses);
+    }
+
+    private Map<LocalDate, Map<String, HousekeepingRoomDayStatus>> loadExistingDayStatus(
+            String propertyId,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
+        Map<LocalDate, Map<String, HousekeepingRoomDayStatus>> result = new HashMap<>();
+        if (fromDate == null || toDate == null || fromDate.isAfter(toDate)) {
+            return result;
+        }
+
+        List<HousekeepingRoomDayStatus> all = dayStatusRepository
+                .findAllByPropertyIdAndBusinessDateBetween(propertyId, fromDate, toDate);
+        for (HousekeepingRoomDayStatus status : all) {
+            result.computeIfAbsent(status.getBusinessDate(), ignored -> new HashMap<>())
+                    .put(status.getRoomNumber(), status);
+        }
+        return result;
     }
 
     private void updateProjection(
@@ -87,54 +202,6 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
         projection.setUpdatedAt(now);
     }
 
-    private void ensureDayStatusExistsForRange(
-            String propertyId,
-            RoomMasterSyncRequest.RoomMasterUnit room,
-            LocalDate fromDate,
-            LocalDate toDate,
-            LocalDateTime now
-    ) {
-        if (fromDate == null || toDate == null || fromDate.isAfter(toDate)) {
-            return;
-        }
-
-        for (LocalDate businessDate = fromDate;
-             !businessDate.isAfter(toDate);
-             businessDate = businessDate.plusDays(1)) {
-
-            LocalDate finalBusinessDate = businessDate;
-            HousekeepingRoomDayStatus status =
-                    dayStatusRepository
-                            .findByPropertyIdAndBusinessDateAndRoomNumber(
-                                    propertyId,
-                                    businessDate,
-                                    room.roomNumber())
-                            .orElseGet(() -> HousekeepingRoomDayStatus.builder()
-                                    .propertyId(propertyId)
-                                    .businessDate(finalBusinessDate)
-                                    .roomNumber(room.roomNumber())
-                                    .roomTypeId(room.roomTypeId())
-                                    .roomTypeName(room.roomTypeName())
-                                    .floor(room.floor())
-                                    .cleaningStatus(CleaningStatus.DIRTY)
-                                    .frontOfficeStatus(FrontOfficeStatus.VACANT)
-                                    .reservationStatus(ReservationStatus.NOT_RESERVED)
-                                    .priority(HousekeepingPriority.NORMAL)
-                                    .sellable(false)
-                                    .createdAt(now)
-                                    .updatedAt(now)
-                                    .build());
-
-            status.setRoomTypeId(room.roomTypeId());
-            status.setRoomTypeName(room.roomTypeName());
-            status.setFloor(room.floor());
-            status.setUpdatedAt(now);
-            status.setSellable(computeSellable(status));
-
-            dayStatusRepository.save(status);
-        }
-    }
-
     private boolean computeSellable(HousekeepingRoomDayStatus status) {
         if (status.getCleaningStatus() == null || status.getFrontOfficeStatus() == null) {
             return false;
@@ -150,25 +217,28 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
         return clean && vacant && unassigned && available;
     }
 
-    private int deactivateMissingRooms(
+    private List<RoomMasterProjection> deactivateMissingRooms(
             Map<String, RoomMasterProjection> existingByRoom,
             Set<String> incomingRooms,
             LocalDateTime now
     ) {
-        int deactivated = 0;
+        List<RoomMasterProjection> deactivated = new ArrayList<>();
         for (Map.Entry<String, RoomMasterProjection> entry : existingByRoom.entrySet()) {
             if (!incomingRooms.contains(entry.getKey())) {
                 RoomMasterProjection projection = entry.getValue();
                 if (projection.isActive()) {
                     projection.setActive(false);
                     projection.setUpdatedAt(now);
-                    roomMasterProjectionRepository.save(projection);
-                    deactivated++;
+                    deactivated.add(projection);
                 }
             }
         }
         return deactivated;
     }
+
+    private record RoomSyncResult(
+            RoomMasterProjection projection,
+            List<HousekeepingRoomDayStatus> dayStatuses
+    ) {
+    }
 }
-
-
