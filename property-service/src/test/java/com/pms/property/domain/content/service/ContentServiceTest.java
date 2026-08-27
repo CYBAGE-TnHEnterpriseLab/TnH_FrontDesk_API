@@ -13,6 +13,8 @@ import com.pms.property.domain.content.entity.PropertyOverviewEntity;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
+import com.pms.property.domain.content.service.serviceImpl.ContentServiceImpl;
+
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 

@@ -5,22 +5,35 @@ spring:
   application:
     name: frontdesk-dashboard
   datasource:
-    url: jdbc:postgresql://localhost:5432/frontdeskdb
+    url: jdbc:postgresql://localhost:5432/Property_Management_System_db?CurrentSchema=frontdeskdb
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
+    hikari:
+       maximum-pool-size: 5
+       minimum-idle: 1
+       connection-timeout: 30000
+       idle-timeout: 600000
+       max-lifetime: 1800000
+
   jpa:
     hibernate:
       ddl-auto: none
     properties:
       hibernate:
         format_sql: true
+        default_schema: frontdeskdb
     open-in-view: false
+    
   flyway:
     enabled: true
     validate-on-migrate: false
     baseline-on-migrate: true
     locations: classpath:db/migration
+    create-schemas: true
+    schemas: frontdeskdb
+    default-schema: frontdeskdb
+
   jackson:
     time-zone: UTC
 
@@ -54,6 +67,9 @@ rate-management:
   retryMaxAttempts: 2
   retryBackoffMs: 100
 
+housekeeping-service:
+  base-url: http://localhost:8086
+
 dashboard:
   timeout-ms: 2500
   housekeeping:
@@ -83,7 +99,7 @@ springdoc:
 
 app:
   cors:
-    allowed-origins: http://172.27.57.211:4200,http://172.27.57.175:4200,http://172.27.57.97:4200,http://localhost:4200
+    allowed-origins: http://172.27.57.211:4200,http://172.27.57.175:4200,http://172.27.57.97:4200,http://localhost:4200,http://172.27.212.27:4200
     
 security:
   jwt:

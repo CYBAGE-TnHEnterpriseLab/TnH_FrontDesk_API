@@ -88,7 +88,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -136,7 +136,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -168,7 +168,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -205,7 +205,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -242,7 +242,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -280,7 +280,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -322,7 +322,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -360,7 +360,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -403,7 +403,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -441,7 +441,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -484,7 +484,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 15),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -544,7 +544,7 @@ class RateManagementServiceClientTest {
                     """);
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 listCalls.incrementAndGet();
@@ -577,7 +577,7 @@ class RateManagementServiceClientTest {
         });
 
         var nullRoomTypeQuotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 15),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -589,7 +589,7 @@ class RateManagementServiceClientTest {
         assertThat(nullRoomTypeQuotes.get(0).getFinalAmount()).isEqualByComparingTo("1800");
 
         var typedRoomTypeQuotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 15),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -650,7 +650,7 @@ class RateManagementServiceClientTest {
                 });
 
                 var quotes = client.fetchRateQuotes(
-                        "PROP001",
+                        "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                         LocalDate.of(2026, 7, 14),
                         LocalDate.of(2026, 7, 16),
                         "Deluxe Room",
@@ -718,7 +718,7 @@ class RateManagementServiceClientTest {
                 });
 
                 var quotes = client.fetchRateQuotes(
-                    "PROP001",
+                    "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                     LocalDate.of(2026, 7, 14),
                     LocalDate.of(2026, 7, 16),
                     "Deluxe Room",
@@ -787,7 +787,7 @@ class RateManagementServiceClientTest {
                 });
 
                 var quotes = client.fetchRateQuotes(
-                    "PROP001",
+                    "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                     LocalDate.of(2026, 7, 14),
                     LocalDate.of(2026, 7, 16),
                     "Deluxe Room",
@@ -812,7 +812,7 @@ class RateManagementServiceClientTest {
         )).thenAnswer(invocation -> {
             String url = invocation.getArgument(0);
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -846,7 +846,7 @@ class RateManagementServiceClientTest {
             throw new IllegalStateException("Unexpected URL: " + url);
         });
 
-        Map<Long, BigDecimal> prices = client.getPricingByRoomTypeForRatePlan("PROP001", 50L);
+        Map<Long, BigDecimal> prices = client.getPricingByRoomTypeForRatePlan("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", 50L);
 
         assertThat(prices).hasSize(2);
         assertThat(prices.get(27L)).isEqualByComparingTo("8700");
@@ -865,7 +865,7 @@ class RateManagementServiceClientTest {
                 StandardCharsets.UTF_8
             ));
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("401");
     }
@@ -882,7 +882,7 @@ class RateManagementServiceClientTest {
                 StandardCharsets.UTF_8
             ));
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("403");
     }
@@ -899,7 +899,7 @@ class RateManagementServiceClientTest {
                 StandardCharsets.UTF_8
             ));
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("404");
     }
@@ -921,7 +921,7 @@ class RateManagementServiceClientTest {
                 );
             });
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("5xx");
 

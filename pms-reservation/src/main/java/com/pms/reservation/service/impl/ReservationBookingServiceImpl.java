@@ -11,9 +11,11 @@ import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
+import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
 import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
@@ -36,16 +38,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReservationBookingServiceImpl implements ReservationBookingService {
 
     private static final String RESERVATION_STATUS_CONFIRMED = "CONFIRMED";
@@ -67,6 +72,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
     private final PaymentProcessingService paymentProcessingService;
+    private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
 
     @Override
     @Transactional
@@ -120,7 +126,64 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         ReservationBookingRecord saved = reservationBookingRepository.save(entity);
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
             .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
+        updateStandaloneHousekeeping(saved);
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction);
+    }
+
+    @Override
+    public HousekeepingSyncResponse syncHousekeepingStatuses() {
+        int processed = 0;
+        int updated = 0;
+        int skipped = 0;
+        int failed = 0;
+        for (ReservationBookingRecord booking : reservationBookingRepository.findAll()) {
+            boolean confirmed = RESERVATION_STATUS_CONFIRMED.equalsIgnoreCase(booking.getReservationStatus());
+            boolean checkedIn = STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus());
+            if ((!confirmed && !checkedIn)
+                    || !StringUtils.hasText(booking.getAssignedRoomNo())) {
+                skipped++;
+                continue;
+            }
+            processed++;
+            try {
+                UUID propertyId = UUID.fromString(booking.getPropertyId());
+                if (checkedIn) {
+                    housekeepingRoomStatusClient.updateCheckedInStay(propertyId, booking.getArrivalDate(),
+                            booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                            booking.getConfirmationNumber());
+                } else {
+                    housekeepingRoomStatusClient.updateReservationStay(propertyId, booking.getArrivalDate(),
+                            booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                            booking.getConfirmationNumber());
+                }
+                updated++;
+            } catch (IllegalArgumentException ex) {
+                skipped++;
+                log.warn("Skipping housekeeping sync for confirmation {} because propertyId is not a UUID: {}",
+                        booking.getConfirmationNumber(), booking.getPropertyId());
+            } catch (ExternalServiceException ex) {
+                failed++;
+                log.warn("Housekeeping sync failed for confirmation {}", booking.getConfirmationNumber(), ex);
+            }
+        }
+        return new HousekeepingSyncResponse(processed, updated, skipped, failed);
+    }
+
+    private void updateStandaloneHousekeeping(ReservationBookingRecord booking) {
+        if (!StringUtils.hasText(booking.getAssignedRoomNo())) {
+            return;
+        }
+        try {
+            housekeepingRoomStatusClient.updateReservationStay(
+                    java.util.UUID.fromString(booking.getPropertyId()), booking.getArrivalDate(),
+                    booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                    booking.getConfirmationNumber());
+        } catch (IllegalArgumentException ex) {
+            log.warn("Skipping standalone housekeeping update because propertyId is not a UUID: {}", booking.getPropertyId());
+        } catch (ExternalServiceException ex) {
+            log.warn("Standalone housekeeping update failed for room {} and confirmation {}",
+                    booking.getAssignedRoomNo(), booking.getConfirmationNumber(), ex);
+        }
     }
 
     @Override
@@ -233,6 +296,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .lastName(nameParts[1])
                 .phoneNumber(booking.getPhoneNumber())
                 .email(preferredEmail(booking))
+                .address(booking.getAddress())
                 .loyaltyNumber(booking.getLoyaltyNumber())
                 .build();
     }
@@ -558,6 +622,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
 
+        request.setPropertyId(normalizePropertyId(request.getPropertyId()));
+
         request.setSalutation(defaultIfBlank(request.getSalutation(), "Mr"));
         request.setReservationType(defaultIfBlank(request.getReservationType(), "GTD"));
         request.setCity(defaultIfBlank(request.getCity(), "UNKNOWN"));
@@ -612,6 +678,22 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
         if (!StringUtils.hasText(request.getPaymentType())) {
             request.setPaymentType(PaymentTypes.FULL_PAYMENT);
+        }
+    }
+
+    /**
+     * Reservation tables currently keep propertyId as VARCHAR, but the
+     * property-service contract is a UUID. Store the canonical UUID string so
+     * downstream services (especially housekeeping) can safely parse it.
+     */
+    private String normalizePropertyId(String propertyId) {
+        if (!StringUtils.hasText(propertyId)) {
+            return propertyId;
+        }
+        try {
+            return UUID.fromString(propertyId.trim()).toString();
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("propertyId must be a valid UUID");
         }
     }
 

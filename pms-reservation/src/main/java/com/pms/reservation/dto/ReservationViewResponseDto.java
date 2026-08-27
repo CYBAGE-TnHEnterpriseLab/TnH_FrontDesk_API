@@ -33,6 +33,7 @@ public class ReservationViewResponseDto {
         String lastName;
         String phoneNumber;
         String email;
+        String address;
         String loyaltyNumber;
     }
 

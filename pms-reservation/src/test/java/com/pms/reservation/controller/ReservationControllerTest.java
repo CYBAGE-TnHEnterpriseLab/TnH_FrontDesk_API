@@ -77,7 +77,7 @@ class ReservationControllerTest {
 
         ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
                 .bookingId(1001L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .guestName("Alex Johnson")
                 .reservationStatus("CONFIRMED")
             .confirmationNumber("1234567890")
@@ -134,7 +134,7 @@ class ReservationControllerTest {
             .confirmationNumber("10256CNF569")
             .status("CONFIRMED")
             .createdAt(OffsetDateTime.parse("2026-06-12T10:45:00Z"))
-            .propertyId("demo-property")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .businessDate(LocalDate.of(2026, 6, 12))
             .guest(ReservationViewResponseDto.GuestDto.builder()
                 .salutation("Mr")
@@ -220,7 +220,7 @@ class ReservationControllerTest {
             .reservationId("1234567890")
             .confirmationNumber("1234567890")
             .status("CONFIRMED")
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .guest(ReservationViewResponseDto.GuestDto.builder()
                 .firstName("Alex")
                 .lastName("Johnson")
@@ -245,7 +245,7 @@ class ReservationControllerTest {
         void createBookingShouldAcceptUiObjectTimePayload() throws Exception {
         ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
             .bookingId(1002L)
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .guestName("Alex Johnson")
             .reservationStatus("CONFIRMED")
             .confirmationNumber("1234567891")
@@ -255,7 +255,7 @@ class ReservationControllerTest {
         when(reservationBookingService.createBooking(any())).thenReturn(response);
 
         Map<String, Object> payloadMap = new LinkedHashMap<>();
-        payloadMap.put("propertyId", "PROP001");
+        payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         payloadMap.put("salutation", "Mr");
         payloadMap.put("vipTag", false);
         payloadMap.put("guestName", "Alex Johnson");
@@ -356,7 +356,7 @@ class ReservationControllerTest {
             .reservationId("1234567890")
             .confirmationNumber("1234567890")
             .status("CONFIRMED")
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .build();
 
         when(reservationBookingService.updateBooking(anyString(), any())).thenReturn(response);
@@ -376,7 +376,7 @@ class ReservationControllerTest {
             void createBookingShouldAcceptUiAliasFieldsAndPlaceholderPaymentType() throws Exception {
             ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
                 .bookingId(1003L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .guestName("pk kp")
                 .reservationStatus("CONFIRMED")
                 .confirmationNumber("1234567892")
@@ -386,7 +386,7 @@ class ReservationControllerTest {
             when(reservationBookingService.createBooking(any())).thenReturn(response);
 
             Map<String, Object> payloadMap = new LinkedHashMap<>();
-            payloadMap.put("propertyId", "PROP001");
+            payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
             payloadMap.put("firstName", "pk");
             payloadMap.put("lastName", "kp");
             payloadMap.put("officialEmail", "kumar@mail.com");
@@ -424,7 +424,7 @@ class ReservationControllerTest {
         void createBookingShouldAcceptEmailAliasField() throws Exception {
             ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
                     .bookingId(1004L)
-                    .propertyId("PROP001")
+                    .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                     .guestName("pk kp")
                     .reservationStatus("CONFIRMED")
                     .confirmationNumber("1234567893")
@@ -434,7 +434,7 @@ class ReservationControllerTest {
             when(reservationBookingService.createBooking(any())).thenReturn(response);
 
             Map<String, Object> payloadMap = new LinkedHashMap<>();
-            payloadMap.put("propertyId", "PROP001");
+            payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
             payloadMap.put("firstName", "pk");
             payloadMap.put("lastName", "kp");
             payloadMap.put("email", "kumar@mail.com");
@@ -469,7 +469,7 @@ class ReservationControllerTest {
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");

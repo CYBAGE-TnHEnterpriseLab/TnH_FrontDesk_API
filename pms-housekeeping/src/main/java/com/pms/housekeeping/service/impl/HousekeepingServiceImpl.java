@@ -153,7 +153,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 roomPage.getTotalPages(),
 //                request.fromDate(),
 //                request.toDate(),
-                buildFilters(request.propertyId(), request.businessDate()),
+                buildFilters(request.propertyId() , request.businessDate()),
                 rooms
         );
     }
@@ -271,7 +271,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 .map(roomTypeRecords -> {
 
                     HousekeepingRoomDayStatus first =
-                            roomTypeRecords.get(0);
+                            roomTypeRecords.getFirst();
 
                     Map<String, List<HousekeepingRoomDayStatus>> byRoom =
                             roomTypeRecords.stream()
@@ -287,7 +287,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                     .map(roomRecords -> {
 
                                         HousekeepingRoomDayStatus firstRoom =
-                                                roomRecords.get(0);
+                                                roomRecords.getFirst();
 
                                         List<CalendarRoomDayResponse> days =
                                                 buildRoomDays(
@@ -365,11 +365,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                                     : null,
 
                             record.getGuestDisplayName(),
-
                             record.getArrivalDate(),
-
                             record.getDepartureDate(),
-
                             record.getAttendantName(),
 
                             record.getPriority() != null
@@ -379,7 +376,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                             record.isSellable(),
 
                             record.getConfirmationId() != null
-                                    ? record.getConfirmationId().toString()
+                                    ? record.getConfirmationId()
                                     : null
                     );
                 })
@@ -392,7 +389,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         log.info("HousekeepingService::assignableRooms - Fetching assignable rooms. propertyId={}, businessDate={}, roomTypeId={}, limit={}",
                 propertyId, businessDate, roomTypeId, limit);
 
-        int safeLimit = Math.min(Math.max(limit, 1), 200);
+        int safeLimit = Math.clamp(limit, 1, 200);
         List<HousekeepingRoomDayStatus> rows = dayStatusRepository
                 .findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
                         propertyId,
@@ -524,6 +521,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 saved.getRoomNumber(),
                 saved.getCleaningStatus().name(),
                 saved.getFrontOfficeStatus().name(),
+                saved.getGuestDisplayName(),
                 saved.getReservationStatus().name(),
                 saved.getAttendantName(),
                 saved.getPriority(),
@@ -651,7 +649,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         boolean noAssignment = status.getConfirmationId() == null;
         boolean notOut = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
                 && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
-        return cleanEnough && vacant && noAssignment && notOut;
+        return cleanEnough && vacant && noAssignment;
     }
 
     private String toStringValue(Object value) {

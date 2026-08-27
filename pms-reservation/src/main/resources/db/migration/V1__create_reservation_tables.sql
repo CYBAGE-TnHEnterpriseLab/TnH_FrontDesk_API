@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS frontdeskdb;
+SET search_path TO frontdeskdb;
+
 CREATE TABLE IF NOT EXISTS reservation_bookings (
     id BIGSERIAL PRIMARY KEY,
     confirmation_number VARCHAR(80) NOT NULL,

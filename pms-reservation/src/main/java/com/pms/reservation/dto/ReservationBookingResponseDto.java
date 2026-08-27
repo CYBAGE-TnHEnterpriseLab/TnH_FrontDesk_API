@@ -21,6 +21,7 @@ public class ReservationBookingResponseDto {
     List<String> guestNames;
     String personalEmail;
     String officialEmail;
+    String address;
     String city;
     String country;
     String zipCode;

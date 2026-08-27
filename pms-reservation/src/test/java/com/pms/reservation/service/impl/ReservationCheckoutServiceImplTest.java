@@ -46,7 +46,7 @@ class ReservationCheckoutServiceImplTest {
         booking = ReservationBookingRecord.builder()
                 .id(11L)
                 .confirmationNumber("CONF-101")
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .assignedRoomNo("101")
                 .departureDate(LocalDate.of(2026, 8, 11))
                 .reservationStatus("CHECKED_IN")

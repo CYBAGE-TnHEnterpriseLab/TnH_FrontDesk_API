@@ -6,9 +6,17 @@ spring:
     name: rate-management-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/rate_db
+    url: jdbc:postgresql://localhost:5432/Property_Management_System_db?currentSchema=rate_db
     username: postgres
     password: postgres
+    driver-class-name: org.postgresql.Driver
+
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
@@ -17,15 +25,17 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        default_schema: public
-        hbm2ddl.create_namespaces: true
+        default_schema: rate_db
+      #  hbm2ddl.create_namespaces: true
 
   flyway:
     enabled: true
     validate-on-migrate: false
     baseline-on-migrate: true
     locations: classpath:db/migration
-
+    create-schemas: true
+    schemas: rate_db
+    default-schema: rate_db
        
    
 

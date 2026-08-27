@@ -6,6 +6,7 @@ import com.pms.reservation.constant.PaymentTypes;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
+import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.service.ReservationBookingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -71,6 +72,13 @@ public class ReservationController {
     public ResponseEntity<ApiResponse<List<ReservationBookingResponseDto>>> getBookings() {
         List<ReservationBookingResponseDto> response = reservationBookingService.getBookings();
         return ResponseEntity.ok(ApiResponse.success("Reservations fetched successfully", response));
+    }
+
+    @PostMapping("/housekeeping/sync")
+    @Operation(summary = "Synchronize confirmed reservations with Housekeeping")
+    public ResponseEntity<ApiResponse<HousekeepingSyncResponse>> syncHousekeepingStatuses() {
+        HousekeepingSyncResponse response = reservationBookingService.syncHousekeepingStatuses();
+        return ResponseEntity.ok(ApiResponse.success("Housekeeping synchronization completed", response));
     }
 
     @GetMapping("/payment-types")

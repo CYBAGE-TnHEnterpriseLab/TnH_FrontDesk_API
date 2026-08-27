@@ -1,5 +1,4 @@
 
-    
 package com.frontdesk.pms.rate_management.controller;
 
 import com.frontdesk.pms.rate_management.dto.MasterRoomRequestDTO;
@@ -15,24 +14,25 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-
 @RestController
+
 @RequestMapping("/api/master-rooms")
 public class MasterRoomController {
     @Autowired
     private MasterRoomService masterRoomService;
 
-
     // Create a new master room under a specific property.
     @PostMapping("/create-master-room/property/{propertyId}")
-    public ResponseEntity<MasterRoomResponseDTO> createMasterRoom(@PathVariable String propertyId, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
+    public ResponseEntity<MasterRoomResponseDTO> createMasterRoom(@PathVariable String propertyId,
+            @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
         MasterRoomResponseDTO saved = masterRoomService.createMasterRoom(propertyId, masterRoomRequestDTO);
         return ResponseEntity.ok(saved);
     }
 
     // Update an existing master room within a specific property.
     @PutMapping("/update-master-room/property/{propertyId}/{id}")
-    public ResponseEntity<MasterRoomResponseDTO> updateMasterRoom(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
+    public ResponseEntity<MasterRoomResponseDTO> updateMasterRoom(@PathVariable String propertyId,
+            @PathVariable Long id, @RequestBody MasterRoomRequestDTO masterRoomRequestDTO) {
         MasterRoomResponseDTO saved = masterRoomService.updateMasterRoom(propertyId, id, masterRoomRequestDTO);
         return ResponseEntity.ok(saved);
     }
@@ -52,7 +52,8 @@ public class MasterRoomController {
 
     // Add or update master pricing for a specific occupancy type.
     @PostMapping("/update-pricing-by-occupancy/property/{propertyId}/{id}/pricing")
-    public ResponseEntity<MasterRoomPricingResponseDTO> addOrUpdatePricing(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomPricingRequestDTO pricingRequestDTO) {
+    public ResponseEntity<MasterRoomPricingResponseDTO> addOrUpdatePricing(@PathVariable String propertyId,
+            @PathVariable Long id, @RequestBody MasterRoomPricingRequestDTO pricingRequestDTO) {
         MasterRoomPricingResponseDTO saved = masterRoomService.addOrUpdatePricing(propertyId, id, pricingRequestDTO);
         return ResponseEntity.ok(saved);
     }
@@ -65,8 +66,10 @@ public class MasterRoomController {
 
     // Map a room type to a master room and inherit pricing.
     @PostMapping("/map-room-type/property/{propertyId}/{id}")
-    public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable String propertyId, @PathVariable Long id, @RequestBody MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
-        MasterRoomRoomTypeMappingResponseDTO saved = masterRoomService.upsertRoomTypeMapping(propertyId, mappingRequestDTO.getRoomTypeId(), id);
+    public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable String propertyId,
+            @PathVariable Long id, @RequestBody MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
+        MasterRoomRoomTypeMappingResponseDTO saved = masterRoomService.upsertRoomTypeMapping(propertyId,
+                mappingRequestDTO.getRoomTypeId(), id);
         return ResponseEntity.ok(saved);
     }
 
@@ -91,7 +94,8 @@ public class MasterRoomController {
 
     // Manually override pricing for one room type and occupancy.
     @PostMapping("/room-type/{roomTypeId}/override-pricing")
-    public ResponseEntity<Void> overrideRoomTypePricing(@PathVariable Long roomTypeId, @RequestParam String occupancyType, @RequestParam Double newPrice) {
+    public ResponseEntity<Void> overrideRoomTypePricing(@PathVariable Long roomTypeId,
+            @RequestParam String occupancyType, @RequestParam Double newPrice) {
         masterRoomService.overrideRoomTypePricing(roomTypeId, occupancyType, newPrice);
         return ResponseEntity.ok().build();
     }
@@ -103,5 +107,4 @@ public class MasterRoomController {
         return ResponseEntity.ok().build();
     }
 
-    
 }

@@ -1,4 +1,4 @@
-package com.pms.property.domain.room.service;
+package com.pms.property.domain.room.service.serviceImpl;
 
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.room.dto.InventoryRoomRequest;
@@ -12,6 +12,7 @@ import com.pms.property.domain.room.repository.FloorPropertyAreaRepository;
 import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
+import com.pms.property.domain.room.service.RoomService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import java.util.List;
 import java.util.stream.Collectors;

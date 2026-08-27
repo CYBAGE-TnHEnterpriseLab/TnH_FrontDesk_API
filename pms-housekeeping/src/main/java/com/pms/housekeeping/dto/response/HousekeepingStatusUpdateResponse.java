@@ -11,6 +11,7 @@ public record HousekeepingStatusUpdateResponse(
         String roomNumber,
         String cleaningStatus,
         String frontOfficeStatus,
+        String guestDisplayName,
         String reservationStatus,
         String attendantName,
         HousekeepingPriority priority,
