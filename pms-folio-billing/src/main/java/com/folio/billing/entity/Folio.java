@@ -17,9 +17,8 @@ public class Folio {
     @Column(nullable = false, precision = 19, scale = 2) private BigDecimal outstandingBalance;
     @Column(nullable = false) private Instant createdAt;
     @Column(nullable = false) private Instant lastUpdatedAt;
-    @Column(name = "transactions_json")
+    @Column(name = "transactions_json", columnDefinition = "TEXT")
     private String transactionsJson;
-
     protected Folio() { }
     public Folio(String confirmationNumber, String folioCode, String guestName, String roomNo,
                  BigDecimal totalCharges, BigDecimal totalPayment, BigDecimal outstandingBalance,

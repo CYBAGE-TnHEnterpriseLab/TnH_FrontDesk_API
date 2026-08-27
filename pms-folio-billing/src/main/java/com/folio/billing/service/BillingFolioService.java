@@ -9,6 +9,8 @@ import com.folio.billing.dto.FolioCreateRequest;
 import com.folio.billing.dto.FolioCreateResponse;
 import com.folio.billing.dto.FolioChargePostRequest;
 import com.folio.billing.dto.FolioChargePostResponse;
+import com.folio.billing.dto.FolioTransactionAmountUpdateRequest;
+import com.folio.billing.dto.FolioTransactionAmountUpdateResponse;
 import com.folio.billing.dto.FolioDocumentAuditEntry;
 import com.folio.billing.dto.FolioDocumentContent;
 import com.folio.billing.dto.FolioDocumentGenerateRequest;
@@ -36,6 +38,8 @@ public interface BillingFolioService {
     FolioChargePostResponse addCharge(FolioChargePostRequest request);
 
     FolioChargeAdjustmentResponse adjustCharge(FolioChargeAdjustmentRequest request);
+
+    FolioTransactionAmountUpdateResponse updateTransactionAmount(FolioTransactionAmountUpdateRequest request);
 
     FolioPaymentAllocationResponse allocatePayment(FolioPaymentAllocationRequest request);
 
