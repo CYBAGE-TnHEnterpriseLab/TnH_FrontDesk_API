@@ -1,0 +1,6 @@
+security.jwt.secret=${PMS_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}
+security.jwt.access-token-expiration-seconds=600
+security.jwt.refresh-token-expiration-seconds=1209600
+security.jwt.public-paths=/error,/swagger-ui/**,/v3/api-docs/**,/actuator/**
+security.jwt.token-type-claim=typ
+security.jwt.roles-claim=roles

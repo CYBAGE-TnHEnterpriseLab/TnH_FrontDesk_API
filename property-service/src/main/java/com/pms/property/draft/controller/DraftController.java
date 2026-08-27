@@ -10,7 +10,7 @@ import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.facade.DraftFacade;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.facade.PublishFacade;
-import com.pms.property.security.CurrentUserProvider;
+import com.pms.security.jwt.CurrentUserProvider;
 import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;

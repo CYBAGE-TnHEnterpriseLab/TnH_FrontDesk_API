@@ -1,6 +1,8 @@
 package com.pms.housekeeping.security;
 
-import com.pms.housekeeping.common.exception.BadRequestException;
+import com.pms.security.jwt.CurrentUserProvider;
+import com.pms.security.jwt.RequestCurrentUserProvider;
+import com.pms.security.jwt.RequestUserContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SecuritySupportTest {
 
-    private final RequestCurrentUserProvider currentUserProvider = new RequestCurrentUserProvider();
+    private final CurrentUserProvider currentUserProvider = new RequestCurrentUserProvider();
 
     @AfterEach
     void tearDown() {
@@ -39,19 +41,7 @@ class SecuritySupportTest {
         RequestUserContext.clear();
 
         assertThatThrownBy(currentUserProvider::getCurrentUsername)
-                .isInstanceOf(BadRequestException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Authenticated user context missing");
     }
-
-    @Test
-    void jwtAccessTokenValidator_shouldRejectShortSecretAndInvalidToken() {
-        assertThatThrownBy(() -> new JwtAccessTokenValidator("too-short-secret"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("JWT secret must be at least 32 bytes long");
-
-        JwtAccessTokenValidator validator = new JwtAccessTokenValidator("0123456789abcdef0123456789abcdef");
-        assertThat(validator.validateAccessToken("not-a-real-jwt")).isEmpty();
-    }
 }
-
-

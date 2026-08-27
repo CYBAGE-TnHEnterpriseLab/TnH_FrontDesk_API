@@ -25,7 +25,7 @@
     <dependencies>
         <dependency>
             <groupId>com.pms</groupId>
-            <artifactId>pms-security-common</artifactId>
+            <artifactId>pms-common</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>

@@ -1,6 +1,6 @@
 package com.pms.housekeeping.security;
 
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import com.pms.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -15,7 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthFilter authFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> {})
@@ -31,17 +31,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/**").hasRole("ADMIN")
                 .anyRequest().permitAll()
             )
-            .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-
-    @Bean
-    public FilterRegistrationBean<AuthFilter> authFilterRegistration(AuthFilter authFilter) {
-        FilterRegistrationBean<AuthFilter> registration = new FilterRegistrationBean<>(authFilter);
-        registration.setEnabled(false);
-        return registration;
-    }
 }
-
-

@@ -1,5 +1,6 @@
 package com.folio.billing.security;
 
+import com.pms.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -12,29 +13,22 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
 
-    private static final String ROLE_ADMIN = "ADMIN";
-
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            AuthFilter authFilter,
-            RestAuthenticationEntryPoint authenticationEntryPoint,
-            JwtSecurityProperties securityProperties
+            JwtAuthenticationFilter jwtAuthenticationFilter
     ) throws Exception {
-        String[] publicPaths = securityProperties.getPublicPaths().toArray(String[]::new);
-
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(publicPaths).permitAll()
-                        .anyRequest().hasRole(ROLE_ADMIN)
+                        .requestMatchers("/actuator/health", "/swagger-ui/**", "/swagger-ui.html", "/api-docs/**", "/v3/api-docs/**", "/error").permitAll()
+                        .anyRequest().hasRole("ADMIN")
                 )
-                .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

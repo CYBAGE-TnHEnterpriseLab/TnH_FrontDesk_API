@@ -14,8 +14,8 @@ import com.pms.auth.repository.RefreshTokenRepository;
 import com.pms.auth.repository.RoleRepository;
 import com.pms.auth.repository.UserAccountRepository;
 import com.pms.auth.service.AuthService;
-import com.pms.auth.util.JwtUtils;
 import com.pms.auth.util.TokenHashUtils;
+import com.pms.security.jwt.JwtTokenService;
 import com.pms.auth.validator.PasswordPolicyValidator;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtils jwtUtils;
+    private final JwtTokenService jwtTokenService;
     private final AuthMapper authMapper;
 
     @Override
@@ -87,7 +87,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse refreshAccessToken(RefreshTokenRequest request) {
         Claims refreshClaims;
         try {
-            refreshClaims = jwtUtils.parseRefreshTokenClaims(request.getRefreshToken());
+            refreshClaims = jwtTokenService.parseRefreshTokenClaims(request.getRefreshToken());
         } catch (JwtException | IllegalArgumentException exception) {
             throw new AuthException("Refresh token is invalid");
         }
@@ -114,20 +114,20 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException("Access denied for non-admin user");
         }
 
-        String newRefreshToken = jwtUtils.generateRefreshToken(account.getUsername());
+        String newRefreshToken = jwtTokenService.generateRefreshToken(account.getUsername());
         String newRefreshHash = TokenHashUtils.sha256(newRefreshToken);
         persistedToken.setRevoked(true);
         persistedToken.setRevokedAt(OffsetDateTime.now(ZoneOffset.UTC));
         persistedToken.setReplacedByTokenHash(newRefreshHash);
         refreshTokenRepository.save(persistedToken);
 
-        saveRefreshToken(account, newRefreshToken, jwtUtils.parseRefreshTokenClaims(newRefreshToken));
+        saveRefreshToken(account, newRefreshToken, jwtTokenService.parseRefreshTokenClaims(newRefreshToken));
 
         return AuthResponse.builder()
-                .accessToken(jwtUtils.generateAccessToken(account.getUsername(), roleNames))
+                .accessToken(jwtTokenService.generateAccessToken(account.getUsername(), roleNames))
                 .refreshToken(newRefreshToken)
                 .tokenType("Bearer")
-                .accessTokenExpiresInSeconds(jwtUtils.getAccessTokenExpirationSeconds())
+                .accessTokenExpiresInSeconds(jwtTokenService.getAccessTokenExpirationSeconds())
                 .roles(roleNames)
                 .build();
     }
@@ -152,16 +152,16 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthResponse issueAuthTokens(UserAccount account) {
         Set<String> roleNames = extractRoleNames(account);
-        String accessToken = jwtUtils.generateAccessToken(account.getUsername(), roleNames);
-        String refreshToken = jwtUtils.generateRefreshToken(account.getUsername());
+        String accessToken = jwtTokenService.generateAccessToken(account.getUsername(), roleNames);
+        String refreshToken = jwtTokenService.generateRefreshToken(account.getUsername());
 
-        saveRefreshToken(account, refreshToken, jwtUtils.parseRefreshTokenClaims(refreshToken));
+        saveRefreshToken(account, refreshToken, jwtTokenService.parseRefreshTokenClaims(refreshToken));
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
-                .accessTokenExpiresInSeconds(jwtUtils.getAccessTokenExpirationSeconds())
+                .accessTokenExpiresInSeconds(jwtTokenService.getAccessTokenExpirationSeconds())
                 .roles(roleNames)
                 .build();
     }
@@ -170,7 +170,7 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken tokenRecord = new RefreshToken();
         tokenRecord.setUserAccount(account);
         tokenRecord.setTokenHash(TokenHashUtils.sha256(refreshToken));
-        tokenRecord.setExpiresAt(OffsetDateTime.ofInstant(jwtUtils.extractExpiration(claims), ZoneOffset.UTC));
+        tokenRecord.setExpiresAt(OffsetDateTime.ofInstant(jwtTokenService.extractExpiration(claims), ZoneOffset.UTC));
         tokenRecord.setRevoked(false);
         refreshTokenRepository.save(tokenRecord);
     }

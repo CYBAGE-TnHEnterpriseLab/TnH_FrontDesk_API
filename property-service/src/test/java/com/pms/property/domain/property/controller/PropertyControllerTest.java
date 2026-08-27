@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.pms.property.domain.property.service.PropertyService;
-import com.pms.property.security.CurrentUserProvider;
+import com.pms.security.jwt.CurrentUserProvider;
 import org.junit.jupiter.api.Test;
 
 class PropertyControllerTest {

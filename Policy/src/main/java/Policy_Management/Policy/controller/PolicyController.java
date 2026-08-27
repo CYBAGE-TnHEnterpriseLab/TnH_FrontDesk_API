@@ -3,7 +3,7 @@ import Policy_Management.Policy.dto.APIResponse;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyDto;
 import Policy_Management.Policy.dto.Status;
-import Policy_Management.Policy.security.CurrentUserProvider;
+import com.pms.security.jwt.CurrentUserProvider;
 import Policy_Management.Policy.service.PolicyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

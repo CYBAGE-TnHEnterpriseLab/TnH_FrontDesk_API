@@ -24,7 +24,7 @@ import com.pms.housekeeping.entity.StatusChangeSource;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusHistoryRepository;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
-import com.pms.housekeeping.security.CurrentUserProvider;
+import com.pms.security.jwt.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

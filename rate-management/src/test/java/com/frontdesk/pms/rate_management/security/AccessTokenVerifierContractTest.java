@@ -1,5 +1,6 @@
 package com.frontdesk.pms.rate_management.security;
 
+import com.pms.security.jwt.AccessTokenVerifier;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
@@ -60,10 +61,8 @@ class AccessTokenVerifierContractTest {
     void verify_shouldAllowEmptyRolesClaim() {
         String token = buildToken("admin-user", "access", List.of());
 
-        Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
-
-        assertTrue(verifiedToken.isPresent());
-        assertTrue(verifiedToken.get().roles().isEmpty());
+        assertTrue(accessTokenVerifier.verify(token).isPresent());
+        assertTrue(accessTokenVerifier.verify(token).get().roles().isEmpty());
     }
 
     @Test

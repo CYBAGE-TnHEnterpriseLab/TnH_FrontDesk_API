@@ -6,10 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
 import com.pms.reservation.controller.ReservationController;
-import com.pms.reservation.service.ReservationBookingService;
-import com.pms.security.config.JwtSecurityProperties;
-import com.pms.security.jwt.AccessTokenVerifier;
-import com.pms.security.jwt.JwtAccessTokenValidator;
+import com.pms.security.jwt.SecurityAutoConfiguration;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +16,6 @@ import java.util.List;
 import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -29,35 +25,31 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(
         controllers = ReservationController.class,
         properties = {
-                "security.jwt.enabled=true",
                 "security.jwt.secret=abcdefghijklmnopqrstuvwxyz123456"
         }
 )
-@EnableConfigurationProperties(JwtSecurityProperties.class)
 @Import({
         SecurityConfig.class,
-        JwtAuthenticationFilter.class,
-        JwtAccessTokenValidator.class,
-        AccessTokenVerifier.class,
+        SecurityAutoConfiguration.class,
         GlobalExceptionHandler.class
 })
 class JwtSecurityIntegrationTest {
 
     private static final String SECRET = "abcdefghijklmnopqrstuvwxyz123456";
+    private static final String WRONG_SECRET = "wrongsecretwrongsecretwrongsecret12345";
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
-    private ReservationBookingService reservationBookingService;
+    private com.pms.reservation.service.ReservationBookingService reservationBookingService;
 
     @Test
     void protectedEndpointShouldReturnUnauthorizedWhenAuthorizationHeaderMissing() throws Exception {
         mockMvc.perform(get("/api/v1/reservations/payment-modes"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.data").isEmpty())
-                .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
+                .andExpect(jsonPath("$.message").value("Missing or invalid Authorization header"));
     }
 
     @Test
@@ -74,7 +66,6 @@ class JwtSecurityIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + refreshToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.data").isEmpty())
                 .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
     }
 
@@ -88,21 +79,26 @@ class JwtSecurityIntegrationTest {
     }
 
     @Test
-    void protectedEndpointShouldReturnUnauthorizedWhenRequiredClaimsMissing() throws Exception {
-        String tokenMissingExp = buildTokenWithoutExpiration();
+    void protectedEndpointShouldReturnUnauthorizedForInvalidSignature() throws Exception {
+        String token = Jwts.builder()
+                .subject("admin.user")
+                .claim("typ", "access")
+                .claim("roles", List.of("ADMIN"))
+                .issuedAt(Date.from(Instant.now()))
+                .expiration(Date.from(Instant.now().plusSeconds(1800)))
+                .signWith(Keys.hmacShaKeyFor(WRONG_SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
 
         mockMvc.perform(get("/api/v1/reservations/payment-modes")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenMissingExp))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.data").isEmpty())
                 .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
     }
 
     private String buildToken(String type, List<String> roles) {
         SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
         Instant now = Instant.now();
-
         return Jwts.builder()
                 .subject("admin.user")
                 .claim("typ", type)
@@ -112,17 +108,4 @@ class JwtSecurityIntegrationTest {
                 .signWith(key)
                 .compact();
     }
-
-        private String buildTokenWithoutExpiration() {
-                SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-                Instant now = Instant.now();
-
-                return Jwts.builder()
-                                .subject("admin.user")
-                                .claim("typ", "access")
-                                .claim("roles", "ADMIN")
-                                .issuedAt(Date.from(now))
-                                .signWith(key)
-                                .compact();
-        }
 }

@@ -3,7 +3,7 @@ package com.pms.property.domain.property.controller;
 import com.pms.property.common.response.ApiResponse;
 import com.pms.property.domain.property.dto.PropertyResponse;
 import com.pms.property.domain.property.service.PropertyService;
-import com.pms.property.security.CurrentUserProvider;
+import com.pms.security.jwt.CurrentUserProvider;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;

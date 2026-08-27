@@ -1,4 +1,4 @@
-package com.pms.property.draft.service;
+package com.pms.property.draft.service.serviceImpl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,6 +16,7 @@ import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.mapper.DraftMapper;
 import com.pms.property.draft.repository.PropertyDraftRepository;
+import com.pms.property.draft.service.DraftService;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.time.Instant;
 import java.util.ArrayList;
