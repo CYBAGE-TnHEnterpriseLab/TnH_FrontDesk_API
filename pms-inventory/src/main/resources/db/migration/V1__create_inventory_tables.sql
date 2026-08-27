@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS pms_inventory;
+SET search_path TO pms_inventory;
+
 CREATE TABLE room_type_inventory_daily (
 	id BIGSERIAL PRIMARY KEY,
 	property_id UUID NOT NULL,

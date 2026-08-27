@@ -30,6 +30,7 @@ import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.service.DraftService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.mapper.PublishMapper;
+import com.pms.property.publish.service.serviceImpl.PublishServiceImpl;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.time.Instant;

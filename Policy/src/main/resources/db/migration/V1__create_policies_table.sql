@@ -1,3 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS policy_db;
+SET search_path TO policy_db;
+
 CREATE TABLE IF NOT EXISTS policies (
     id BIGSERIAL PRIMARY KEY,
     policy_name VARCHAR(200) NOT NULL,

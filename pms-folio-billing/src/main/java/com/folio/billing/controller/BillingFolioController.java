@@ -10,6 +10,8 @@ import com.folio.billing.dto.FolioCreateRequest;
 import com.folio.billing.dto.FolioCreateResponse;
 import com.folio.billing.dto.FolioChargePostRequest;
 import com.folio.billing.dto.FolioChargePostResponse;
+import com.folio.billing.dto.FolioTransactionAmountUpdateRequest;
+import com.folio.billing.dto.FolioTransactionAmountUpdateResponse;
 import com.folio.billing.dto.FolioDocumentAuditEntry;
 import com.folio.billing.dto.FolioDocumentContent;
 import com.folio.billing.dto.FolioDocumentGenerateRequest;
@@ -28,6 +30,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -146,6 +149,13 @@ public class BillingFolioController {
             @Valid @RequestBody FolioChargeAdjustmentRequest request
     ) {
         return ResponseEntity.ok(billingFolioService.adjustCharge(request));
+    }
+
+    @PatchMapping("/transaction/amount")
+    public ResponseEntity<FolioTransactionAmountUpdateResponse> updateTransactionAmount(
+            @Valid @RequestBody FolioTransactionAmountUpdateRequest request
+    ) {
+        return ResponseEntity.ok(billingFolioService.updateTransactionAmount(request));
     }
 
     @PostMapping("/allocatePayment")

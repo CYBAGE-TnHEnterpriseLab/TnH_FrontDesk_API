@@ -15,6 +15,7 @@ import com.pms.property.domain.room.repository.FloorPropertyAreaRepository;
 import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
+import com.pms.property.domain.room.service.serviceImpl.RoomServiceImpl;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import java.util.List;
 import java.util.Optional;

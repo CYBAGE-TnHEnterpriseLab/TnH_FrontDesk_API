@@ -2,6 +2,9 @@
 -- ROOM MASTER PROJECTION
 -- Read-only projection synchronized from Property Service
 -- =====================================================
+CREATE SCHEMA IF NOT EXISTS pms_housekeeping;
+SET search_path TO pms_housekeeping;
+
 
 CREATE TABLE room_master_projection (
 
