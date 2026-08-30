@@ -53,5 +53,15 @@ public class InventoryController {
                 ApiResponse.ok(response, "Property deletion check completed")
         );
     }
+
+    @DeleteMapping("/properties/{propertyId}")
+    public ResponseEntity<ApiResponse<Void>> deletePropertyData(
+            @PathVariable UUID propertyId
+    ) {
+        inventoryService.deletePropertyData(propertyId);
+        return ResponseEntity.ok(
+                ApiResponse.ok(null, "Property inventory data deleted")
+        );
+    }
 }
 

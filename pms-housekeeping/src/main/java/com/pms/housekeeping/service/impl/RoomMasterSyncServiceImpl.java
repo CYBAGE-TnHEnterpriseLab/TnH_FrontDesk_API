@@ -45,6 +45,13 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
 
     @Override
     @Transactional
+    public void deletePropertyData(String propertyId) {
+        dayStatusRepository.deleteByPropertyId(propertyId);
+        roomMasterProjectionRepository.deleteByPropertyId(propertyId);
+    }
+
+    @Override
+    @Transactional
     public RoomMasterSyncResponse sync(RoomMasterSyncRequest request) {
         String propertyId = request.propertyId();
         LocalDateTime now = LocalDateTime.now();

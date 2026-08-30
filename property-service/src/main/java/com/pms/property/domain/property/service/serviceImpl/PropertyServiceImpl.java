@@ -4,6 +4,7 @@ import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.common.exception.PropertyDeletionException;
 import com.pms.property.domain.config.InventoryClient;
+import com.pms.property.domain.config.HousekeepingClient;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
@@ -55,6 +56,7 @@ public class PropertyServiceImpl implements PropertyService {
     private final LocalImageStorageService localImageStorageService;
     private final DraftService draftService;
     private final InventoryClient inventoryClient;
+    private final HousekeepingClient housekeepingClient;
 
     public PropertyServiceImpl(
             PropertyRepository propertyRepository,
@@ -73,7 +75,8 @@ public class PropertyServiceImpl implements PropertyService {
             PropertyDraftRepository propertyDraftRepository,
             LocalImageStorageService localImageStorageService,
             DraftService draftService,
-            InventoryClient inventoryClient
+            InventoryClient inventoryClient,
+            HousekeepingClient housekeepingClient
     ) {
         this.propertyRepository = propertyRepository;
         this.propertyOverviewRepository = propertyOverviewRepository;
@@ -92,6 +95,7 @@ public class PropertyServiceImpl implements PropertyService {
         this.localImageStorageService = localImageStorageService;
         this.draftService = draftService;
         this.inventoryClient = inventoryClient;
+        this.housekeepingClient = housekeepingClient;
     }
 
     @Override
@@ -152,6 +156,9 @@ public class PropertyServiceImpl implements PropertyService {
         nearbyLocationAccessibilityRepository.deleteByPropertyId(propertyId);
         guestServiceAmenityRepository.deleteByPropertyId(propertyId);
         propertyOverviewRepository.deleteByPropertyId(propertyId);
+
+        inventoryClient.deletePropertyData(propertyId);
+        housekeepingClient.deletePropertyData(propertyId);
 
         propertyDraftRepository.deleteByPublishedPropertyId(propertyId);
         propertyRepository.delete(property);

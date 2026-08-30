@@ -11,6 +11,8 @@ public interface RoomMasterProjectionRepository extends JpaRepository<RoomMaster
     List<RoomMasterProjection> findAllByPropertyId(String propertyId);
 
     Optional<RoomMasterProjection> findByPropertyIdAndRoomNumber(String propertyId, String roomNumber);
+
+    void deleteByPropertyId(String propertyId);
 }
 
 

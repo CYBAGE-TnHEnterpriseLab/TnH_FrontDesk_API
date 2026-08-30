@@ -49,5 +49,7 @@ public interface RoomTypeInventoryDailyRepository extends JpaRepository<RoomType
 			LocalDate businessDate,
 			Integer reservedCount
 	);
+
+	void deleteByPropertyId(UUID propertyId);
 }
 
