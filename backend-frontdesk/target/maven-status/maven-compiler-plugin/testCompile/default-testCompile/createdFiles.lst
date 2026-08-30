@@ -1,0 +1,4 @@
+com\pms\property\publish\validator\PublishValidatorTest.class
+com\pms\property\publish\mapper\PublishMapperTest.class
+com\pms\property\upload\service\LocalImageStorageServiceTest.class
+com\pms\property\PropertyServiceApplicationTests.class

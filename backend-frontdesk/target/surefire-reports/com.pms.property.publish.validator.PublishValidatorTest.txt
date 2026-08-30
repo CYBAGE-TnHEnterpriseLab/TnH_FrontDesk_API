@@ -1,0 +1,80 @@
+-------------------------------------------------------------------------------
+Test set: com.pms.property.publish.validator.PublishValidatorTest
+-------------------------------------------------------------------------------
+Tests run: 8, Failures: 4, Errors: 0, Skipped: 0, Time elapsed: 0.249 s <<< FAILURE! -- in com.pms.property.publish.validator.PublishValidatorTest
+com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptWithoutRoomConfigurationRoomTypes -- Time elapsed: 0.071 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Unexpected exception thrown: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)
+	at org.junit.jupiter.api.AssertDoesNotThrow.createAssertionFailedError(AssertDoesNotThrow.java:84)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:53)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:36)
+	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3168)
+	at com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptWithoutRoomConfigurationRoomTypes(PublishValidatorTest.java:62)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+Caused by: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at com.pms.property.publish.validator.PublishValidator.validationError(PublishValidator.java:229)
+	at com.pms.property.publish.validator.PublishValidator.validateRoomConfiguration(PublishValidator.java:220)
+	at com.pms.property.publish.validator.PublishValidator.validate(PublishValidator.java:27)
+	at com.pms.property.publish.validator.PublishValidatorTest.lambda$shouldAcceptWithoutRoomConfigurationRoomTypes$6(PublishValidatorTest.java:62)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:49)
+	... 6 more
+
+com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptFloorConfigurationAlias -- Time elapsed: 0.012 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Unexpected exception thrown: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)
+	at org.junit.jupiter.api.AssertDoesNotThrow.createAssertionFailedError(AssertDoesNotThrow.java:84)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:53)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:36)
+	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3168)
+	at com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptFloorConfigurationAlias(PublishValidatorTest.java:68)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+Caused by: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at com.pms.property.publish.validator.PublishValidator.validationError(PublishValidator.java:229)
+	at com.pms.property.publish.validator.PublishValidator.validateRoomConfiguration(PublishValidator.java:220)
+	at com.pms.property.publish.validator.PublishValidator.validate(PublishValidator.java:27)
+	at com.pms.property.publish.validator.PublishValidatorTest.lambda$shouldAcceptFloorConfigurationAlias$7(PublishValidatorTest.java:68)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:49)
+	... 6 more
+
+com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptPendingRevenueMappingWithUnassignedAccount -- Time elapsed: 0.006 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Unexpected exception thrown: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)
+	at org.junit.jupiter.api.AssertDoesNotThrow.createAssertionFailedError(AssertDoesNotThrow.java:84)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:53)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:36)
+	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3168)
+	at com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptPendingRevenueMappingWithUnassignedAccount(PublishValidatorTest.java:37)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+Caused by: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at com.pms.property.publish.validator.PublishValidator.validationError(PublishValidator.java:229)
+	at com.pms.property.publish.validator.PublishValidator.validateRoomConfiguration(PublishValidator.java:220)
+	at com.pms.property.publish.validator.PublishValidator.validate(PublishValidator.java:27)
+	at com.pms.property.publish.validator.PublishValidatorTest.lambda$shouldAcceptPendingRevenueMappingWithUnassignedAccount$3(PublishValidatorTest.java:37)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:49)
+	... 6 more
+
+com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptUiFinancePaymentTaxFields -- Time elapsed: 0.007 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Unexpected exception thrown: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:152)
+	at org.junit.jupiter.api.AssertDoesNotThrow.createAssertionFailedError(AssertDoesNotThrow.java:84)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:53)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:36)
+	at org.junit.jupiter.api.Assertions.assertDoesNotThrow(Assertions.java:3168)
+	at com.pms.property.publish.validator.PublishValidatorTest.shouldAcceptUiFinancePaymentTaxFields(PublishValidatorTest.java:17)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+Caused by: com.pms.property.common.exception.ValidationException: At least one room must be assigned for room type: Standard Deluxe
+	at com.pms.property.publish.validator.PublishValidator.validationError(PublishValidator.java:229)
+	at com.pms.property.publish.validator.PublishValidator.validateRoomConfiguration(PublishValidator.java:220)
+	at com.pms.property.publish.validator.PublishValidator.validate(PublishValidator.java:27)
+	at com.pms.property.publish.validator.PublishValidatorTest.lambda$shouldAcceptUiFinancePaymentTaxFields$0(PublishValidatorTest.java:17)
+	at org.junit.jupiter.api.AssertDoesNotThrow.assertDoesNotThrow(AssertDoesNotThrow.java:49)
+	... 6 more
+
