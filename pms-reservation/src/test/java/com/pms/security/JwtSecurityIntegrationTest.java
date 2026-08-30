@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
 import com.pms.reservation.controller.ReservationController;
-import com.pms.security.jwt.SecurityAutoConfiguration;
+import com.pms.common.config.SecurityAutoConfiguration;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;

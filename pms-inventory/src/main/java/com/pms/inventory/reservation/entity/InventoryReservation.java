@@ -1,5 +1,6 @@
 package com.pms.inventory.reservation.entity;
 
+import com.pms.common.entity.BaseEntity;
 import com.pms.inventory.reservation.enums.InventoryReservationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,13 +11,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -25,8 +25,8 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class InventoryReservation {
+@SuperBuilder
+public class InventoryReservation extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -56,11 +56,5 @@ public class InventoryReservation {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private InventoryReservationStatus status;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }
 

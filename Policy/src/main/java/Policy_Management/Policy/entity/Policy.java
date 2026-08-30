@@ -1,5 +1,6 @@
 package Policy_Management.Policy.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,7 @@ import Policy_Management.Policy.dto.Status;
 @NoArgsConstructor
 @Entity
 @Table(name = "policies")
-public class Policy {
+public class Policy extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,9 +52,6 @@ public class Policy {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private Status status;
-
-    @Column(name = "created_by", nullable = false)
-    private String createdBy;
 
     @Column(name = "action")
     private String action;

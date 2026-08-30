@@ -1,8 +1,8 @@
 package com.pms.housekeeping.security;
 
-import com.pms.security.jwt.CurrentUserProvider;
-import com.pms.security.jwt.RequestCurrentUserProvider;
-import com.pms.security.jwt.RequestUserContext;
+import com.pms.common.security.CurrentUserProvider;
+import com.pms.common.security.RequestCurrentUserProvider;
+import com.pms.common.security.RequestUserContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

@@ -30,6 +30,7 @@ import com.pms.property.upload.service.LocalImageStorageService;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,7 +104,7 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PropertyResponse> listByCreator(String creator) {
+    public List<PropertyResponse> listByCreator(UUID creator) {
         return propertyRepository.findByCreatedBy(creator)
             .stream()
             .map(PropertyMapper::toResponse)
@@ -112,7 +113,7 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     @Transactional
-    public void deleteOwnedProperty(String propertyId, String actor) {
+    public void deleteOwnedProperty(String propertyId, UUID actor) {
         PropertyEntity property = propertyRepository.findById(propertyId)
             .orElseThrow(() -> new NotFoundException("Property not found: " + propertyId));
         if (!actor.equals(property.getCreatedBy())) {

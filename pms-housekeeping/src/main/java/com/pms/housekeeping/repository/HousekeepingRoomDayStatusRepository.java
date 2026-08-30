@@ -121,7 +121,7 @@ order by h.roomTypeName
             @Param("status") CleaningStatus status,
             @Param("lastCleanedAt") LocalDateTime lastCleanedAt,
             @Param("updatedAt") LocalDateTime updatedAt,
-            @Param("updatedBy") String updatedBy
+            @Param("updatedBy") UUID updatedBy
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -141,6 +141,6 @@ order by h.roomTypeName
             @Param("fromDate") LocalDate fromDate,
             @Param("status") CleaningStatus status,
             @Param("updatedAt") LocalDateTime updatedAt,
-            @Param("updatedBy") String updatedBy
+            @Param("updatedBy") UUID updatedBy
     );
 }

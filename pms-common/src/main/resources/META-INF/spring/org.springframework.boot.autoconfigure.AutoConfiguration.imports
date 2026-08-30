@@ -1,1 +1,2 @@
-com.pms.security.jwt.SecurityAutoConfiguration
+com.pms.common.config.SecurityAutoConfiguration
+com.pms.common.config.JpaAuditingConfig

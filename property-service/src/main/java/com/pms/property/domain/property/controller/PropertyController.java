@@ -3,8 +3,10 @@ package com.pms.property.domain.property.controller;
 import com.pms.property.common.response.ApiResponse;
 import com.pms.property.domain.property.dto.PropertyResponse;
 import com.pms.property.domain.property.service.PropertyService;
-import com.pms.security.jwt.CurrentUserProvider;
+import com.pms.common.utils.CurrentUser;
+import com.pms.common.security.CurrentUserProvider;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,14 +35,14 @@ public class PropertyController {
     /** Fetches published properties created by the current user. */
     @GetMapping("/getAllPublishedProperties")
     public ResponseEntity<ApiResponse<List<PropertyResponse>>> listMine() {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         return ResponseEntity.ok(ApiResponse.ok(propertyService.listByCreator(actor), "Published properties fetched"));
     }
 
     /** Deletes a published property owned by the current user. */
     @DeleteMapping("/deletePublishedProperty/{propertyId}")
     public ResponseEntity<ApiResponse<Void>> deleteById(@PathVariable String propertyId) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         propertyService.deleteOwnedProperty(propertyId, actor);
         return ResponseEntity.ok(ApiResponse.ok(null, "Published property deleted"));
     }

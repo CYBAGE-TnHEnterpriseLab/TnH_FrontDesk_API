@@ -14,6 +14,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -32,8 +35,8 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class RoomMasterProjection {
+@SuperBuilder
+public class RoomMasterProjection extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -72,12 +75,6 @@ public class RoomMasterProjection {
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }
 
 

@@ -30,9 +30,13 @@ import com.pms.property.draft.service.DraftService;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class PropertyServiceTest {
+
+    private static final UUID OWNER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final UUID OTHER_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     @Test
     void shouldDeleteOwnedPropertyWithDependencies() {
@@ -76,7 +80,7 @@ class PropertyServiceTest {
 
         PropertyEntity property = new PropertyEntity();
         property.setId("P-200");
-        property.setCreatedBy("owner");
+        property.setCreatedBy(OWNER_ID);
         when(propertyRepository.findById("P-200")).thenReturn(Optional.of(property));
         PropertyDraftEntity linkedDraft = new PropertyDraftEntity();
         linkedDraft.setWizardData("{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/draft-hero.png\"}}}");
@@ -91,7 +95,7 @@ class PropertyServiceTest {
         roomOutletTypeEntity.setImagesCsv("/uploads/room-1.png");
         when(roomOutletTypeRepository.findAllByPropertyId("P-200")).thenReturn(List.of(roomOutletTypeEntity));
 
-        service.deleteOwnedProperty("P-200", "owner");
+        service.deleteOwnedProperty("P-200", OWNER_ID);
 
         verify(taxRuleRepository).deleteByPropertyId("P-200");
         verify(paymentMethodRepository).deleteByPropertyId("P-200");
@@ -155,10 +159,10 @@ class PropertyServiceTest {
 
         PropertyEntity property = new PropertyEntity();
         property.setId("P-201");
-        property.setCreatedBy("another-user");
+        property.setCreatedBy(OTHER_ID);
         when(propertyRepository.findById("P-201")).thenReturn(Optional.of(property));
 
-        assertThrows(BadRequestException.class, () -> service.deleteOwnedProperty("P-201", "owner"));
+        assertThrows(BadRequestException.class, () -> service.deleteOwnedProperty("P-201", OWNER_ID));
 
         verify(propertyRepository, never()).delete(property);
         verify(propertyDraftRepository, never()).deleteByPublishedPropertyId("P-201");

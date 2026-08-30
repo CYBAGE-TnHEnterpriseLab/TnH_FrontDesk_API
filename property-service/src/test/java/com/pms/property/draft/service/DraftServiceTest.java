@@ -19,15 +19,17 @@ import com.pms.property.draft.entity.PropertyDraftEntity;
 import com.pms.property.draft.repository.PropertyDraftRepository;
 import com.pms.property.draft.service.serviceImpl.DraftServiceImpl;
 import com.pms.property.domain.property.repository.PropertyRepository;
-import com.pms.property.draft.service.serviceImpl.DraftServiceImpl;
 import com.pms.property.upload.service.LocalImageStorageService;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class DraftServiceTest {
+
+    private static final UUID ACTOR = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Test
     void shouldNotGenerateRoomNumbersWhenMissing() throws Exception {
@@ -49,7 +51,7 @@ class DraftServiceTest {
             }
             """);
 
-        draftService.createDraft(new CreateDraftRequest(1, wizardData, null, null), "admin");
+        draftService.createDraft(new CreateDraftRequest(1, wizardData, null, null), ACTOR);
 
         PropertyDraftEntity saved = Mockito.mockingDetails(repository)
             .getInvocations()
@@ -79,13 +81,13 @@ class DraftServiceTest {
         draft.setCurrentStep("PROPERTY_DETAILS");
         draft.setCompletedSteps("");
         draft.setWizardData("{}");
-        draft.setCreatedAt(Instant.now());
-        draft.setUpdatedAt(Instant.now());
+        draft.setCreatedAt(LocalDateTime.now());
+        draft.setUpdatedAt(LocalDateTime.now());
 
         when(repository.findByCreatedByAndStatusInOrderByUpdatedAtDesc(any(), any()))
             .thenReturn(List.of(draft));
 
-        assertEquals(1, draftService.getDraftsByStatus(List.of(DraftStatus.DRAFT), "admin").size());
+        assertEquals(1, draftService.getDraftsByStatus(List.of(DraftStatus.DRAFT), ACTOR).size());
     }
 
     @Test
@@ -98,12 +100,12 @@ class DraftServiceTest {
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setStatus(DraftStatus.DRAFT);
-        draft.setCreatedBy("admin");
+        draft.setCreatedBy(ACTOR);
         draft.setWizardData("{\"wizardData\":{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/hero.png\"}}}}");
 
         when(repository.findById(10L)).thenReturn(Optional.of(draft));
 
-        draftService.deleteDraft(10L, "admin");
+        draftService.deleteDraft(10L, ACTOR);
 
         verify(repository).delete(draft);
         verify(imageStorageService).deleteByPublicUrl("/uploads/hero.png");
@@ -119,11 +121,11 @@ class DraftServiceTest {
 
         PropertyDraftEntity draft = new PropertyDraftEntity();
         draft.setStatus(DraftStatus.PUBLISHED);
-        draft.setCreatedBy("admin");
+        draft.setCreatedBy(ACTOR);
 
         when(repository.findById(11L)).thenReturn(Optional.of(draft));
 
-        assertThrows(BadRequestException.class, () -> draftService.deleteDraft(11L, "admin"));
+        assertThrows(BadRequestException.class, () -> draftService.deleteDraft(11L, ACTOR));
     }
 
     @Test
@@ -143,8 +145,8 @@ class DraftServiceTest {
         draft.setCompletedSteps("PROPERTY_DETAILS");
         draft.setSchemaVersion(1);
         draft.setWizardData("{}");
-        draft.setCreatedAt(Instant.now());
-        draft.setUpdatedAt(Instant.now());
+        draft.setCreatedAt(LocalDateTime.now());
+        draft.setUpdatedAt(LocalDateTime.now());
 
         JsonNode updatedWizard = objectMapper.readTree("{\"propertyDetails\":{\"propertyName\":\"Updated\"}}");
         SaveDraftRequest request = new SaveDraftRequest(2, updatedWizard, 5L, "CONTENT", List.of("PROPERTY_DETAILS", "CONTENT"));
@@ -152,7 +154,7 @@ class DraftServiceTest {
         when(repository.findById(12L)).thenReturn(Optional.of(draft));
         when(repository.save(any(PropertyDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = draftService.saveDraft(12L, request, "admin");
+        var response = draftService.saveDraft(12L, request, ACTOR);
 
         assertEquals(DraftStatus.PUBLISHED.name(), response.status());
         assertEquals(2, response.schemaVersion());
@@ -176,8 +178,8 @@ class DraftServiceTest {
         draft.setCompletedSteps("PROPERTY_DETAILS,CONTENT");
         draft.setSchemaVersion(1);
         draft.setWizardData("{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/old-hero.png\"},\"gallery\":[\"/uploads/keep.png\",\"/uploads/remove.png\"]}}");
-        draft.setCreatedAt(Instant.now());
-        draft.setUpdatedAt(Instant.now());
+        draft.setCreatedAt(LocalDateTime.now());
+        draft.setUpdatedAt(LocalDateTime.now());
 
         JsonNode updatedWizard = objectMapper.readTree("{\"content\":{\"propertyOverview\":{\"propertyHeroImage\":\"/uploads/new-hero.png\"},\"gallery\":[\"/uploads/keep.png\"]}}");
         SaveDraftRequest request = new SaveDraftRequest(1, updatedWizard, 2L, "CONTENT", List.of("PROPERTY_DETAILS", "CONTENT"));
@@ -185,7 +187,7 @@ class DraftServiceTest {
         when(repository.findById(13L)).thenReturn(Optional.of(draft));
         when(repository.save(any(PropertyDraftEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        draftService.saveDraft(13L, request, "admin");
+        draftService.saveDraft(13L, request, ACTOR);
 
         verify(imageStorageService).deleteByPublicUrl("/uploads/old-hero.png");
         verify(imageStorageService).deleteByPublicUrl("/uploads/remove.png");
@@ -193,4 +195,3 @@ class DraftServiceTest {
         verify(imageStorageService, never()).deleteByPublicUrl("/uploads/new-hero.png");
     }
 }
-

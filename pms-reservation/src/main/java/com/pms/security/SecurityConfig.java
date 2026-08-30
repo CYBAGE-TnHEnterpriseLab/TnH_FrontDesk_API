@@ -1,6 +1,6 @@
 package com.pms.security;
 
-import com.pms.security.jwt.JwtAuthenticationFilter;
+import com.pms.common.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import org.springframework.context.annotation.Bean;

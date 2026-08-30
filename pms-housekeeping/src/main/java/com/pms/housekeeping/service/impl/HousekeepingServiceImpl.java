@@ -13,7 +13,8 @@ import com.pms.housekeeping.entity.RoomMasterProjection;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusHistoryRepository;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
-import com.pms.security.jwt.CurrentUserProvider;
+import com.pms.common.utils.CurrentUser;
+import com.pms.common.security.CurrentUserProvider;
 import com.pms.housekeeping.service.HousekeepingService;
 import com.pms.housekeeping.specifications.HousekeepingRoomSpecification;
 import org.slf4j.Logger;
@@ -504,7 +505,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         row.setSellable(request.sellable() != null ? request.sellable() : computeSellable(row));
 
-        row.setUpdatedBy(loggedInUser);
+        row.setUpdatedBy(CurrentUser.userId());
         row.setUpdatedAt(now);
 
         HousekeepingRoomDayStatus saved = dayStatusRepository.save(row);

@@ -18,7 +18,7 @@ public record InventoryReconciliationRequest(
         @NotNull(message = "toDate is required")
         LocalDate toDate,
         @Valid
-        @NotEmpty(message = "roomTypes is required")
+        @NotNull(message = "roomTypes is required")
         List<RoomTypeInventoryInput> roomTypes
 ) {
     @AssertTrue(message = "toDate must be after fromDate")

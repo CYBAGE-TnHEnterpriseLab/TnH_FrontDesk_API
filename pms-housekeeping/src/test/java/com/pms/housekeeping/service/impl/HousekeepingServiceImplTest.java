@@ -24,7 +24,10 @@ import com.pms.housekeeping.entity.StatusChangeSource;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusHistoryRepository;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
-import com.pms.security.jwt.CurrentUserProvider;
+import com.pms.common.security.CurrentUserProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -630,9 +633,12 @@ class HousekeepingServiceImplTest {
         row.setConfirmationId(null);
         row.setSellable(false);
 
-        when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "501")).thenReturn(Optional.of(row));
         when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(currentUserProvider.getCurrentUsername()).thenReturn("11111111-1111-1111-1111-111111111111");
+
+        SecurityContextHolder.setContext(
+                new SecurityContextImpl(new UsernamePasswordAuthenticationToken("11111111-1111-1111-1111-111111111111", null, List.of())));
 
         UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
                 propertyId,
@@ -668,7 +674,7 @@ class HousekeepingServiceImplTest {
         ArgumentCaptor<HousekeepingRoomDayStatus> savedCaptor = ArgumentCaptor.forClass(HousekeepingRoomDayStatus.class);
         verify(dayStatusRepository).save(savedCaptor.capture());
         HousekeepingRoomDayStatus saved = savedCaptor.getValue();
-        assertThat(saved.getUpdatedBy()).isEqualTo("alice");
+        assertThat(saved.getUpdatedBy()).isEqualTo(UUID.fromString("11111111-1111-1111-1111-111111111111"));
         assertThat(saved.getCleaningStatus()).isEqualTo(CleaningStatus.CLEAN);
         assertThat(saved.getFrontOfficeStatus()).isEqualTo(FrontOfficeStatus.VACANT);
         assertThat(saved.getReservationStatus()).isEqualTo(ReservationStatus.NOT_RESERVED);
@@ -690,7 +696,7 @@ class HousekeepingServiceImplTest {
                         "attendantName",
                         "priority"
                 );
-        assertThat(histories).allMatch(h -> h.getChangedBy().equals("alice") && h.getSourceModule() == StatusChangeSource.HOUSEKEEPING);
+        assertThat(histories).allMatch(h -> h.getChangedBy().equals("11111111-1111-1111-1111-111111111111") && h.getSourceModule() == StatusChangeSource.HOUSEKEEPING);
     }
 
     @Test
@@ -703,9 +709,11 @@ class HousekeepingServiceImplTest {
         row.setConfirmationId("CONF-EXISTING");
         row.setSellable(true);
 
-        when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "601")).thenReturn(Optional.of(row));
         when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SecurityContextHolder.setContext(
+                new SecurityContextImpl(new UsernamePasswordAuthenticationToken("11111111-1111-1111-1111-111111111111", null, List.of())));
 
         UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
                 propertyId,
@@ -742,9 +750,11 @@ class HousekeepingServiceImplTest {
         row.setPriority(HousekeepingPriority.NORMAL);
         row.setSellable(false);
 
-        when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "602")).thenReturn(Optional.of(row));
         when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SecurityContextHolder.setContext(
+                new SecurityContextImpl(new UsernamePasswordAuthenticationToken("11111111-1111-1111-1111-111111111111", null, List.of())));
 
         UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
                 propertyId,

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -71,9 +70,8 @@ public class InventoryReconciliationService {
             Map<LocalDate, RoomTypeInventoryDaily> existingByDate
     ) {
         List<RoomTypeInventoryDaily> toSave = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
         for (LocalDate date = fromDate; date.isBefore(toDate); date = date.plusDays(1)) {
-            toSave.add(upsertRowForDate(propertyId, roomTypeId, totalInventory, date, now, existingByDate));
+            toSave.add(upsertRowForDate(propertyId, roomTypeId, totalInventory, date, existingByDate));
         }
         return toSave;
     }
@@ -83,13 +81,12 @@ public class InventoryReconciliationService {
             UUID roomTypeId,
             int totalInventory,
             LocalDate date,
-            LocalDateTime now,
             Map<LocalDate, RoomTypeInventoryDaily> existingByDate
     ) {
         RoomTypeInventoryDaily existing = existingByDate.get(date);
         return (existing == null)
-                ? newDailyRow(propertyId, roomTypeId, date, totalInventory, now)
-                : updateExistingRow(existing, totalInventory, date, now);
+                ? newDailyRow(propertyId, roomTypeId, date, totalInventory)
+                : updateExistingRow(existing, totalInventory, date);
     }
 
     private void validateDateRange(LocalDate fromDate, LocalDate toDate) {
@@ -118,8 +115,7 @@ public class InventoryReconciliationService {
             UUID propertyId,
             UUID roomTypeId,
             LocalDate date,
-            int totalInventory,
-            LocalDateTime now
+            int totalInventory
     ) {
         return RoomTypeInventoryDaily.builder()
                 .propertyId(propertyId)
@@ -128,23 +124,19 @@ public class InventoryReconciliationService {
                 .totalInventory(totalInventory)
                 .reservedCount(0)
                 .blockedCount(0)
-                .createdAt(now)
-                .updatedAt(now)
                 .build();
     }
 
     private RoomTypeInventoryDaily updateExistingRow(
             RoomTypeInventoryDaily row,
             int totalInventory,
-            LocalDate date,
-            LocalDateTime now
+            LocalDate date
     ) {
         int minimumRequired = row.getReservedCount() + row.getBlockedCount();
         if (totalInventory < minimumRequired) {
             throw new InventoryException("Cannot reduce total inventory below reserved + blocked on " + date);
         }
         row.setTotalInventory(totalInventory);
-        row.setUpdatedAt(now);
         return row;
     }
 }

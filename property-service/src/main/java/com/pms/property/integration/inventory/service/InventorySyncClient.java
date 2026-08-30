@@ -32,24 +32,26 @@ public class InventorySyncClient {
         this.timeout = Duration.ofSeconds(Math.max(timeoutSeconds, 1));
     }
 
-    public int reconcile(InventoryReconciliationRequest request, String requestId) {
+    public int reconcile(InventoryReconciliationRequest request, String requestId, String authHeader) {
         Map<String, Integer> response = postWithRetry(
             inventoryWebClient,
             "/api/v1/inventory/reconciliation",
             request,
             requestId,
+            authHeader,
             "Inventory reconciliation failed: ",
             "Inventory reconciliation request failed"
         );
         return response == null ? 0 : response.getOrDefault("affectedRows", 0);
     }
 
-    public int syncRoomMaster(RoomMasterSyncRequest request, String requestId) {
+    public int syncRoomMaster(RoomMasterSyncRequest request, String requestId, String authHeader) {
         Map<String, Integer> response = postWithRetry(
             housekeepingWebClient,
             "/api/v1/housekeeping/room-master/sync",
             request,
             requestId,
+            authHeader,
             "Room master sync failed: ",
             "Room master sync request failed"
         );
@@ -61,6 +63,7 @@ public class InventorySyncClient {
         String uri,
         Object body,
         String requestId,
+        String authHeader,
         String errorPrefix,
         String requestFailureMessage
     ) {
@@ -69,14 +72,22 @@ public class InventorySyncClient {
                 .uri(uri)
                 .header("X-Request-Id", requestId);
 
-            authHeaderProvider.resolveAuthorizationHeader()
-                .ifPresent(header -> requestSpec.header("Authorization", header));
+            String effectiveAuthHeader = authHeader != null && !authHeader.isBlank()
+                    ? authHeader
+                    : authHeaderProvider.resolveAuthorizationHeader().orElse(null);
+            if (effectiveAuthHeader != null && !effectiveAuthHeader.isBlank()) {
+                requestSpec.header("Authorization", effectiveAuthHeader);
+            }
 
             Map<String, Integer> response = requestSpec
                 .bodyValue(body)
                 .retrieve()
-                .onStatus(HttpStatusCode::isError, clientResponse -> clientResponse.bodyToMono(String.class)
-                    .map(bodyText -> new InventorySyncException(errorPrefix + bodyText)))
+                .onStatus(HttpStatusCode::isError, clientResponse -> {
+                    String status = String.valueOf(clientResponse.statusCode().value());
+                    return clientResponse.bodyToMono(String.class)
+                        .doOnNext(raw -> System.err.println(errorPrefix + "HTTP " + status + " body=" + raw))
+                        .map(bodyText -> new InventorySyncException(errorPrefix + "HTTP " + status + ": " + bodyText));
+                })
                 .bodyToMono(new org.springframework.core.ParameterizedTypeReference<Map<String, Integer>>() {
                 })
                 .retryWhen(Retry.backoff(2, Duration.ofMillis(250)))
@@ -84,9 +95,12 @@ public class InventorySyncClient {
 
             return response;
         } catch (InventorySyncException ex) {
+            System.err.println(errorPrefix + "failed after retries: " + ex.getMessage());
             throw ex;
         } catch (Exception ex) {
-            throw new InventorySyncException(requestFailureMessage, ex);
+            String msg = ex.getClass().getSimpleName() + ": " + ex.getMessage();
+            System.err.println(errorPrefix + "unexpected failure: " + msg);
+            throw new InventorySyncException(requestFailureMessage + ": " + msg, ex);
         }
     }
 }

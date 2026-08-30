@@ -12,7 +12,7 @@ public record RoomMasterSyncRequest(
         @NotNull String propertyId,
         @NotNull LocalDate fromDate,
         @NotNull LocalDate toDate,
-        @Valid @NotEmpty List<RoomMasterUnit> rooms
+        @Valid @NotNull List<RoomMasterUnit> rooms
 ) {
     public record RoomMasterUnit(
             @NotNull UUID roomTypeId,

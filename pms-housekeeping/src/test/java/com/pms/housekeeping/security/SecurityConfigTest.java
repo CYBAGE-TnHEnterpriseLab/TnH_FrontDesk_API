@@ -1,6 +1,6 @@
 package com.pms.housekeeping.security;
 
-import com.pms.security.jwt.JwtAuthenticationFilter;
+import com.pms.common.security.JwtAuthenticationFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.DefaultSecurityFilterChain;

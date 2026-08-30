@@ -1,5 +1,6 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.pms.common.entity.BaseEntity;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
@@ -27,7 +28,7 @@ import java.util.Set;
 @Getter
 @Setter
 @NoArgsConstructor
-public class RatePlan {
+public class RatePlan extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
