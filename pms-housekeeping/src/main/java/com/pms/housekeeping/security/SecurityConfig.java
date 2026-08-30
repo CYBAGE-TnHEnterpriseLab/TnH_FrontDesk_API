@@ -28,6 +28,9 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/error"
                 ).permitAll()
+                .requestMatchers(
+                    "/api/v1/housekeeping/room-master/sync"
+                ).permitAll()
                 .requestMatchers("/api/**").hasRole("ADMIN")
                 .anyRequest().permitAll()
             )

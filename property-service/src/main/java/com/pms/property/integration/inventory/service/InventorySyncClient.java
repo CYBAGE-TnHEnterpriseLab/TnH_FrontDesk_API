@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.util.retry.Retry;
 
 @Component
 public class InventorySyncClient {
@@ -90,12 +89,11 @@ public class InventorySyncClient {
                 })
                 .bodyToMono(new org.springframework.core.ParameterizedTypeReference<Map<String, Integer>>() {
                 })
-                .retryWhen(Retry.backoff(2, Duration.ofMillis(250)))
                 .block(timeout);
 
             return response;
         } catch (InventorySyncException ex) {
-            System.err.println(errorPrefix + "failed after retries: " + ex.getMessage());
+            System.err.println(errorPrefix + "failed: " + ex.getMessage());
             throw ex;
         } catch (Exception ex) {
             String msg = ex.getClass().getSimpleName() + ": " + ex.getMessage();

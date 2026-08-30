@@ -16,7 +16,7 @@ public class JpaAuditingConfig {
         return () -> {
             try {
                 return Optional.of(CurrentUser.userId());
-            } catch (IllegalStateException ex) {
+            } catch (RuntimeException ex) {
                 return Optional.empty();
             }
         };
