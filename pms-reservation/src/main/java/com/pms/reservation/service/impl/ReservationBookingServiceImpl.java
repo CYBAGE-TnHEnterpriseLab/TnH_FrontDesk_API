@@ -212,6 +212,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             throw new BadRequestException("Checked-out reservations cannot be changed. Cancel the same-day check-out to re-check in the guest first");
         }
 
+        validateDnmRoomLock(existing, request);
+
         request.setPayment(existing.getPayment());
         request.setPaymentType(existing.getPaymentType());
 
@@ -221,6 +223,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
         ReservationBookingRecord updated = reservationBookingMapper.toEntity(request);
         preserveSystemFields(existing, updated);
+        if (!Boolean.TRUE.equals(existing.getDnm()) && StringUtils.hasText(request.getAssignedRoomNo())) {
+            updated.setAssignedRoomNo(request.getAssignedRoomNo().trim());
+            populateRoomFloor(updated);
+        }
         applyPropertyTaxOnBooking(updated);
 
         ReservationBookingRecord saved = reservationBookingRepository.save(updated);
@@ -256,6 +262,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .createdAt(booking.getCreatedAt() == null ? null : booking.getCreatedAt().atOffset(ZoneOffset.UTC))
                 .propertyId(booking.getPropertyId())
                 .businessDate(businessDate)
+                .vipTag(booking.getVipTag())
+                .dnm(booking.getDnm())
                 .guest(buildPrimaryGuest(booking))
                 .additionalGuests(buildAdditionalGuests(
                         baseResponse.getGuestNames(),
@@ -307,6 +315,9 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .phoneNumber(booking.getPhoneNumber())
                 .email(preferredEmail(booking))
                 .address(booking.getAddress())
+                .city(booking.getCity())
+                .country(booking.getCountry())
+                .zipCode(booking.getZipCode())
                 .loyaltyNumber(booking.getLoyaltyNumber())
                 .build();
     }
@@ -905,5 +916,20 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         updated.setPayment(existing.getPayment());
         updated.setPaymentType(existing.getPaymentType());
         updated.setCreatedAt(existing.getCreatedAt());
+    }
+
+    private void validateDnmRoomLock(
+            ReservationBookingRecord existing,
+            ReservationBookingRequestDto request
+    ) {
+        if (!Boolean.TRUE.equals(existing.getDnm())
+                || !StringUtils.hasText(request.getAssignedRoomNo())
+                || !StringUtils.hasText(existing.getAssignedRoomNo())) {
+            return;
+        }
+
+        if (!existing.getAssignedRoomNo().trim().equalsIgnoreCase(request.getAssignedRoomNo().trim())) {
+            throw new BadRequestException("Room cannot be changed because DNM is enabled for this reservation");
+        }
     }
 }
