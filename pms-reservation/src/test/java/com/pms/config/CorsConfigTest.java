@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.pms.common.config.CorsConfig;
 
 @WebMvcTest(controllers = CorsConfigTest.CorsTestController.class, properties = {
         "security.jwt.enabled=false",

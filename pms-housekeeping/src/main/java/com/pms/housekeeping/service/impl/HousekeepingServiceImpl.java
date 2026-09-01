@@ -644,13 +644,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     }
 
     private boolean computeSellable(HousekeepingRoomDayStatus status) {
-        boolean cleanEnough = status.getCleaningStatus() == CleaningStatus.CLEAN
-                || status.getCleaningStatus() == CleaningStatus.INSPECTED;
-        boolean vacant = status.getFrontOfficeStatus() == FrontOfficeStatus.VACANT;
-        boolean noAssignment = status.getConfirmationId() == null;
-        boolean notOut = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
+        return status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
                 && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
-        return cleanEnough && vacant && noAssignment;
     }
 
     private String toStringValue(Object value) {

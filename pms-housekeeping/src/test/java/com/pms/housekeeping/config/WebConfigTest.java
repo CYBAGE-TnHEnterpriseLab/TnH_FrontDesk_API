@@ -1,5 +1,6 @@
 package com.pms.housekeeping.config;
 
+import com.pms.common.config.CorsConfig;
 import io.swagger.v3.oas.models.OpenAPI;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;

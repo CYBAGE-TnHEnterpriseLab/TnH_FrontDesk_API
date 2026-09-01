@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.dashboard.config.DashboardProperties;
 import com.pms.dashboard.service.model.DashboardModels;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -26,10 +28,10 @@ public class PropertyDashboardClient extends DashboardWebClientSupport {
                 webClient.get(),
                 uri -> uri.path(config.getPrimaryPath()).build(propertyId.toString()),
                 "property.roomTypes"
-        ).map(this::toRoomTypes);
+        ).map(node -> toRoomTypes(node, propertyId));
     }
 
-    private List<DashboardModels.PropertyRoomTypeData> toRoomTypes(JsonNode node) {
+    private List<DashboardModels.PropertyRoomTypeData> toRoomTypes(JsonNode node, UUID propertyId) {
         if (node == null || node.isNull() || !node.isArray()) {
             return List.of();
         }
@@ -43,6 +45,16 @@ public class PropertyDashboardClient extends DashboardWebClientSupport {
                 } catch (IllegalArgumentException ignored) {
                     roomTypeId = null;
                 }
+            }
+            if (roomTypeId == null) {
+                String code = item.path("roomCode").asText("");
+                String name = item.path("roomName").asText("");
+                String roomKey = code.isBlank() ? name : code;
+                if (roomKey.isBlank()) {
+                    roomKey = "unknown";
+                }
+                String payload = (propertyId.toString() + ":" + roomKey).toLowerCase(Locale.ROOT);
+                roomTypeId = UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8));
             }
             String code = item.path("roomCode").asText("");
             String name = item.path("roomName").asText("");

@@ -46,7 +46,6 @@ public record HousekeepingRoomFilterRequest(
         Integer page,
 
         @Min(1)
-        @Max(200)
         Integer size,
 
         String sortBy,

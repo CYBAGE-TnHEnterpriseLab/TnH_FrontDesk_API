@@ -1,4 +1,4 @@
-package com.pms.auth.config;
+package com.pms.common.config;
 
 import java.util.Arrays;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +18,7 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(Arrays.stream(allowedOriginPatterns.split(","))
                         .map(String::trim)
                         .toArray(String[]::new))
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);

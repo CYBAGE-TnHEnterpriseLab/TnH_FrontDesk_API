@@ -15,7 +15,7 @@ public record FrontdeskDashboardResponse(
         RoomInventoryMetrics roomInventory,
         HousekeepingRoomStatus housekeeping,
         List<RoomTypeOverview> roomStatusOverview,
-        TomorrowStatus tomorrowStatus,
+        TurndownStatus turndownStatus,
         DailyGuestActivity dailyGuestActivity,
         Map<String, String> sources
 ) {
@@ -50,7 +50,7 @@ public record FrontdeskDashboardResponse(
     public record RoomTypeOverview(String type, long total, long booked, long available) {
     }
 
-    public record TomorrowStatus(long required, long notRequired, long completed) {
+    public record TurndownStatus(long required, long notRequired, long completed) {
     }
 
     public record DailyGuestActivity(Today today, Arrivals arrivals, OtherActivity otherActivity) {

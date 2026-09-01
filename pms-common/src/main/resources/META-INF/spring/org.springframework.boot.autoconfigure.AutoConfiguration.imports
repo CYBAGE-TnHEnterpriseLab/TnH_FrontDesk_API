@@ -1,2 +1,3 @@
 com.pms.common.config.SecurityAutoConfiguration
 com.pms.common.config.JpaAuditingConfig
+com.pms.common.config.CorsConfig
