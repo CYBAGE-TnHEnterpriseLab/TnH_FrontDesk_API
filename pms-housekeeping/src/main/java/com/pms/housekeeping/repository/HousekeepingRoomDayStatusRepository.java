@@ -115,7 +115,7 @@ order by h.roomTypeName
        AND r.businessDate >= :fromDate
 """)
     int updateCleaningStatusFromDate(
-            @Param("propertyId") UUID propertyId,
+            @Param("propertyId") String propertyId,
             @Param("roomNumber") String roomNumber,
             @Param("fromDate") LocalDate fromDate,
             @Param("status") CleaningStatus status,
@@ -136,7 +136,7 @@ order by h.roomTypeName
        AND r.businessDate >= :fromDate
 """)
     int updateCleaningStatusFromDateAfterCheckout(
-            @Param("propertyId") UUID propertyId,
+            @Param("propertyId") String propertyId,
             @Param("roomNumber") String roomNumber,
             @Param("fromDate") LocalDate fromDate,
             @Param("status") CleaningStatus status,

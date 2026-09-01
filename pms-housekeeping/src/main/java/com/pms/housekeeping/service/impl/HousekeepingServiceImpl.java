@@ -455,10 +455,26 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                             "Housekeeping status not found for room: " + roomNumber);
                 });
         LocalDateTime now = LocalDateTime.now();
+        CleaningStatus oldCleaningStatus = row.getCleaningStatus();
 
         applyCleaningStatusChange(row, request, now, loggedInUser);
         applyFrontOfficeStatusChange(row, request, now, loggedInUser);
         applyReservationStatusChange(row, request, now, loggedInUser);
+
+        if (request.cleaningStatus() != null && request.cleaningStatus() != oldCleaningStatus) {
+            LocalDateTime lastCleanedAt = request.cleaningStatus() == CleaningStatus.CLEAN ? now : null;
+            dayStatusRepository.updateCleaningStatusFromDate(
+                    request.propertyId(),
+                    roomNumber,
+                    request.businessDate(),
+                    request.cleaningStatus(),
+                    lastCleanedAt,
+                    now,
+                    CurrentUser.userId()
+            );
+            log.info("HousekeepingService::updateRoomStatus - Propagated cleaningStatus={} to future dates for room {} from {}",
+                    request.cleaningStatus(), roomNumber, request.businessDate());
+        }
 
         if (request.confirmationId() != null || row.getConfirmationId() != null) {
             String oldValue = row.getConfirmationId();
