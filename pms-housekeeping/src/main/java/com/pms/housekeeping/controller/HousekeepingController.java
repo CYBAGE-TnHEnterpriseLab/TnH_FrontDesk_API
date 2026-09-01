@@ -47,6 +47,15 @@ public class HousekeepingController {
         return housekeepingService.rooms(request);
     }
 
+    @GetMapping("/rooms/{roomNumber}")
+    @Operation(summary = "Get room floor by property and room number")
+    public RoomFloorResponse roomFloor(
+            @PathVariable String roomNumber,
+            @RequestParam @NotNull String propertyId
+    ) {
+        return housekeepingService.roomFloor(propertyId, roomNumber);
+    }
+
     @GetMapping("/rooms/calendar")
     @Operation(summary = "Get housekeeping rooms for calendar view")
     public HousekeepingCalendarResponse calendar(

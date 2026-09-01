@@ -1,6 +1,7 @@
 package com.folio.billing.service.impl;
 
 import com.folio.billing.client.ReservationServiceClient;
+import com.folio.billing.dto.BillingComments;
 import com.folio.billing.dto.BillingDetailsResponse;
 import com.folio.billing.dto.BillingTotals;
 import com.folio.billing.dto.ChargeAdjustmentType;
@@ -220,7 +221,12 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 summary.checkInDate(),
                 summary.checkOutDate(),
                 summary.nights(),
-                defaultString(summary.comments())
+                summary.comments() == null
+                    ? new BillingComments(List.of(), "")
+                    : new BillingComments(
+                        summary.comments().guestRequests() == null ? List.of() : summary.comments().guestRequests(),
+                        defaultString(summary.comments().billingComments())
+                    )
         );
     }
 
@@ -1397,7 +1403,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 null,
                 null,
                 0,
-                "",
+                new BillingComments(List.of(), ""),
                 BigDecimal.ZERO
         );
     }

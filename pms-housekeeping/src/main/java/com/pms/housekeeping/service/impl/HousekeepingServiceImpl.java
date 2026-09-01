@@ -427,6 +427,16 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         return out;
     }
 
+        @Override
+        @Transactional(readOnly = true)
+        public RoomFloorResponse roomFloor(String propertyId, String roomNumber) {
+                RoomMasterProjection room = roomMasterProjectionRepository
+                                .findByPropertyIdAndRoomNumber(propertyId, roomNumber)
+                                .orElseThrow(() -> new HousekeepingNotFoundException(
+                                                "Room not found for property: " + propertyId + ", roomNumber: " + roomNumber));
+                return new RoomFloorResponse(room.getRoomNumber(), room.getFloor());
+        }
+
     @Override
     @Transactional
     public HousekeepingStatusUpdateResponse updateRoomStatus(

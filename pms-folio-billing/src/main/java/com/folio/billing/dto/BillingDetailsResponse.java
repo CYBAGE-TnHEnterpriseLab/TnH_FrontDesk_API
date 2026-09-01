@@ -26,7 +26,7 @@ public record BillingDetailsResponse(
         LocalDate checkInDate,
         LocalDate checkOutDate,
         int nights,
-        String comments
+        BillingComments comments
 ) {
 }
 

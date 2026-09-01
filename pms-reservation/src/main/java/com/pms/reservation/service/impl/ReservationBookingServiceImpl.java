@@ -117,6 +117,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
+        populateRoomFloor(entity);
         applyPropertyTaxOnBooking(entity);
         entity.setConfirmationNumber(confirmationNumber);
         entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
@@ -184,6 +185,15 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             log.warn("Standalone housekeeping update failed for room {} and confirmation {}",
                     booking.getAssignedRoomNo(), booking.getConfirmationNumber(), ex);
         }
+    }
+
+    private void populateRoomFloor(ReservationBookingRecord booking) {
+        if (!StringUtils.hasText(booking.getAssignedRoomNo())) {
+            booking.setFloor(null);
+            return;
+        }
+        booking.setFloor(housekeepingRoomStatusClient.getRoomFloor(
+                booking.getPropertyId(), booking.getAssignedRoomNo()));
     }
 
     @Override

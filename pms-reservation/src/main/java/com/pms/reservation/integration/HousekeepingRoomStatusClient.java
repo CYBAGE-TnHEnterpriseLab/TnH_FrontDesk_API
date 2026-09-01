@@ -29,6 +29,29 @@ public class HousekeepingRoomStatusClient {
                 guestDisplayName, confirmationId, "VACANT", "ARRIVAL");
     }
 
+    public Integer getRoomFloor(String propertyId, String roomNumber) {
+        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .path("/api/v1/housekeeping/rooms/{roomNumber}")
+                .queryParam("propertyId", propertyId)
+                .buildAndExpand(roomNumber)
+                .toUriString();
+        try {
+            var response = restTemplate.exchange(url, HttpMethod.GET,
+                    new HttpEntity<>(copyAuthorizationHeader(new HttpHeaders())), RoomFloorResponse.class);
+            String floor = response.getBody() == null ? null : response.getBody().floor();
+            if (floor == null || floor.isBlank()) {
+                throw new ExternalServiceException("Room floor is not configured in Housekeeping service");
+            }
+            try {
+                return Integer.valueOf(floor.trim());
+            } catch (NumberFormatException ex) {
+                throw new ExternalServiceException("Room floor must be numeric in Housekeeping service", ex);
+            }
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to fetch room floor from Housekeeping service", ex);
+        }
+    }
+
     public void updateCheckedInStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
                                       LocalDate departureDate, String roomNumber,
                                       String guestDisplayName, String confirmationId) {
@@ -96,4 +119,6 @@ public class HousekeepingRoomStatusClient {
             UUID propertyId, LocalDate businessDate, String frontOfficeStatus,
             String guestDisplayName, LocalDate arrivalDate, LocalDate departureDate,
             String reservationStatus, String confirmationId, String sourceModule) {}
+
+    private record RoomFloorResponse(String roomNumber, String floor) {}
 }
