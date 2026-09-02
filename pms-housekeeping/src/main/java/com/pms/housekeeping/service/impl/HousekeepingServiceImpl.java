@@ -452,8 +452,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         if (request.cleaningStatus() != null && request.cleaningStatus() != oldCleaningStatus) {
             LocalDateTime lastCleanedAt = request.cleaningStatus() == CleaningStatus.CLEAN ? now : null;
-            boolean sellable = request.cleaningStatus() != CleaningStatus.OUT_OF_ORDER
-                    && request.cleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
+            boolean sellable = request.cleaningStatus() != CleaningStatus.OUT_OF_ORDER;
             dayStatusRepository.updateCleaningStatusFromDate(
                     request.propertyId(),
                     roomNumber,
@@ -652,8 +651,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     }
 
     private boolean computeSellable(HousekeepingRoomDayStatus status) {
-        return status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
-                && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
+        return status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER;
     }
 
     private String toStringValue(Object value) {
