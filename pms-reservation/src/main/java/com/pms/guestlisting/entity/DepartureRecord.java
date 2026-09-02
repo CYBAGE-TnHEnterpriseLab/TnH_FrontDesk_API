@@ -16,6 +16,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "departure_records", indexes = {
@@ -29,10 +32,10 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DepartureRecord {
+@SuperBuilder
+public class DepartureRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

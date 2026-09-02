@@ -14,6 +14,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "reservation_payment_transactions", indexes = {
@@ -22,10 +25,10 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReservationPaymentTransactionRecord {
+@SuperBuilder
+public class ReservationPaymentTransactionRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,7 +63,4 @@ public class ReservationPaymentTransactionRecord {
 
     @Column(nullable = false)
     private LocalDateTime processedAt;
-
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 }

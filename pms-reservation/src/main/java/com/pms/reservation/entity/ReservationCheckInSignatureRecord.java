@@ -14,6 +14,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "reservation_checkin_signatures", indexes = {
@@ -22,10 +25,10 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReservationCheckInSignatureRecord {
+@SuperBuilder
+public class ReservationCheckInSignatureRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,10 +52,4 @@ public class ReservationCheckInSignatureRecord {
 
     @Column(nullable = false)
     private LocalDateTime signedAt;
-
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
 }

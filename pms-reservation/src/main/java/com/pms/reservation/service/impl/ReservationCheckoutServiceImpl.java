@@ -101,7 +101,6 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 .eventMessage(message)
                 .changedFields("reservationStatus, roomOccupancy")
                 .actor(StringUtils.hasText(actor) ? actor.trim() : "system")
-                .createdAt(LocalDateTime.now())
                 .build());
     }
 
