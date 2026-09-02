@@ -42,58 +42,23 @@ public interface HousekeepingRoomDayStatusRepository
             List<CleaningStatus> cleaningStatuses,
             FrontOfficeStatus frontOfficeStatus);
 
-    @Query("""
-select distinct new com.pms.housekeeping.dto.response.RoomTypeOptionResponse(
-       h.roomTypeId,
-       h.roomTypeName
-)
-from HousekeepingRoomDayStatus h
-where h.propertyId = :propertyId
-and h.businessDate = :businessDate
-order by h.roomTypeName
-""")
+    @Query(value = QueryConstants.FIND_DISTINCT_ROOM_TYPES)
     List<RoomTypeOptionResponse> findDistinctRoomTypes(
             @Param("propertyId") String propertyId,
             @Param("businessDate") LocalDate businessDate);
 
-    @Query("""
-        select distinct h.floor
-        from HousekeepingRoomDayStatus h
-        where h.propertyId=:propertyId
-        and h.businessDate=:businessDate
-        and h.floor is not null
-        and trim(h.floor) <> ''
-        order by h.floor
-        """)
+    @Query(value = QueryConstants.FIND_DISTINCT_FLOORS)
     List<String> findDistinctFloors(
             @Param("propertyId") String propertyId,
             @Param("businessDate") LocalDate businessDate);
 
-    @Query("""
-    select distinct h.attendantName
-    from HousekeepingRoomDayStatus h
-    where h.propertyId = :propertyId
-      and h.businessDate = :businessDate
-      and h.attendantName is not null
-    order by h.attendantName
-    """)
+    @Query(value = QueryConstants.FIND_DISTINCT_ATTENDANTS)
     List<String> findDistinctAttendants(
             @Param("propertyId") String propertyId,
             @Param("businessDate") LocalDate businessDate);
 
 
-    //Calender data query
-    @Query("""
-    SELECT r
-    FROM HousekeepingRoomDayStatus r
-    WHERE r.propertyId = :propertyId
-      AND r.businessDate BETWEEN :fromDate AND :toDate
-      AND (
-            :roomTypes IS NULL
-            OR r.roomTypeName IN :roomTypes
-      )
-    ORDER BY r.roomTypeName, r.roomNumber, r.businessDate
-    """)
+    @Query(value = QueryConstants.FIND_CALENDAR_DATA)
     List<HousekeepingRoomDayStatus> findCalendarData(
             @Param("propertyId") String propertyId,
             @Param("fromDate") LocalDate fromDate,
