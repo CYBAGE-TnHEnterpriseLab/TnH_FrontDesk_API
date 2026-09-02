@@ -29,8 +29,7 @@ public class SecurityConfig {
                     "/error"
                 ).permitAll()
                 .requestMatchers(
-                    "/api/v1/inventory/reconciliation",
-                    "/api/v1/inventory/properties/**"
+                    "/api/v1/inventory/reconciliation"
                 ).permitAll()
                 .requestMatchers("/api/**").hasRole("ADMIN")
                 .anyRequest().permitAll()

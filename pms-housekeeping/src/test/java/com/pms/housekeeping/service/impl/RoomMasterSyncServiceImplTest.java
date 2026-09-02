@@ -51,7 +51,7 @@ class RoomMasterSyncServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new RoomMasterSyncServiceImpl(
-                roomMasterProjectionRepository, dayStatusRepository, Runnable::run);
+                roomMasterProjectionRepository, dayStatusRepository);
     }
 
     @Test

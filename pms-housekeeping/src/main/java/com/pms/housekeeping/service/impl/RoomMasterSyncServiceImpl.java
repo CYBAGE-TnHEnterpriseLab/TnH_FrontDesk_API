@@ -11,7 +11,6 @@ import com.pms.housekeeping.entity.RoomMasterProjection;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
 import com.pms.housekeeping.service.RoomMasterSyncService;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,8 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,16 +28,13 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
 
     private final RoomMasterProjectionRepository roomMasterProjectionRepository;
     private final HousekeepingRoomDayStatusRepository dayStatusRepository;
-    private final Executor roomSyncExecutor;
 
     public RoomMasterSyncServiceImpl(
             RoomMasterProjectionRepository roomMasterProjectionRepository,
-            HousekeepingRoomDayStatusRepository dayStatusRepository,
-            @Qualifier("roomSyncExecutor") Executor roomSyncExecutor
+            HousekeepingRoomDayStatusRepository dayStatusRepository
     ) {
         this.roomMasterProjectionRepository = roomMasterProjectionRepository;
         this.dayStatusRepository = dayStatusRepository;
-        this.roomSyncExecutor = roomSyncExecutor;
     }
 
     @Override
@@ -73,27 +67,21 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
         Map<LocalDate, Map<String, HousekeepingRoomDayStatus>> existingDayByDateRoom =
                 loadExistingDayStatus(propertyId, request.fromDate(), request.toDate());
 
-        // Build the upsert entities for each room in parallel. These tasks only read
-        // the shared (immutable) maps and construct detached entities, so they are
-        // safe to run off the transaction thread. The actual persistence happens on
-        // the calling thread below, inside the transaction.
-        List<CompletableFuture<RoomSyncResult>> futures = request.rooms().stream()
-                .map(room -> CompletableFuture.supplyAsync(() -> buildRoomSyncResult(
-                        room,
-                        existingByRoom,
-                        existingDayByDateRoom,
-                        propertyId,
-                        request.fromDate(),
-                        request.toDate(),
-                        now), roomSyncExecutor))
-                .toList();
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
+        // Build the upsert entities for each room sequentially on the transaction
+        // thread. The maps above contain JPA-managed entities from the current
+        // persistence context, which is not thread-safe, so mutating them must
+        // happen on the calling/transaction thread.
         List<RoomMasterProjection> projectionsToSave = new ArrayList<>();
         List<HousekeepingRoomDayStatus> dayStatusesToSave = new ArrayList<>();
-        for (CompletableFuture<RoomSyncResult> future : futures) {
-            RoomSyncResult result = future.join();
+        for (RoomMasterSyncRequest.RoomMasterUnit room : request.rooms()) {
+            RoomSyncResult result = buildRoomSyncResult(
+                    room,
+                    existingByRoom,
+                    existingDayByDateRoom,
+                    propertyId,
+                    request.fromDate(),
+                    request.toDate(),
+                    now);
             projectionsToSave.add(result.projection());
             dayStatusesToSave.addAll(result.dayStatuses());
         }

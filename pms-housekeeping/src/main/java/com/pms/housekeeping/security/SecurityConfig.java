@@ -29,8 +29,7 @@ public class SecurityConfig {
                     "/error"
                 ).permitAll()
                 .requestMatchers(
-                    "/api/v1/housekeeping/room-master/sync",
-                    "/api/v1/housekeeping/room-master/properties/**"
+                    "/api/v1/housekeeping/room-master/sync"
                 ).permitAll()
                 .requestMatchers("/api/**").hasRole("ADMIN")
                 .anyRequest().permitAll()
