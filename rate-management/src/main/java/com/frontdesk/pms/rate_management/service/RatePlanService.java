@@ -47,15 +47,9 @@ public class RatePlanService {
         if (ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(propertyId, requestDTO.getCode())) {
             throw new InvalidRatePlanException("Rate code already exists: " + requestDTO.getCode());
         }
-
-        validateNoOverlapForActivePlan(
-                propertyId,
-                requestDTO.getApplicableRoomTypeIds(),
-                extractSupportedOccupancies(requestDTO),
-                requestDTO.getMealOption(),
-                requestDTO.getStartDate(),
-                requestDTO.getEndDate(),
-                null);
+        if (ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(propertyId, requestDTO.getName())) {
+            throw new InvalidRatePlanException("Rate plan name already exists: " + requestDTO.getName());
+        }
 
         RatePlan ratePlan = toEntity(propertyId, requestDTO);
         ratePlan.setStatus(RatePlanStatus.ACTIVE);
@@ -72,6 +66,10 @@ public class RatePlanService {
         if (!existing.getCode().equalsIgnoreCase(requestDTO.getCode())
                 && ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(propertyId, requestDTO.getCode())) {
             throw new InvalidRatePlanException("Rate code already exists: " + requestDTO.getCode());
+        }
+        if (!existing.getName().equalsIgnoreCase(requestDTO.getName())
+                && ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(propertyId, requestDTO.getName())) {
+            throw new InvalidRatePlanException("Rate plan name already exists: " + requestDTO.getName());
         }
 
         existing.setName(requestDTO.getName());
@@ -90,17 +88,6 @@ public class RatePlanService {
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
         existing.setPolicyId(requestDTO.getPolicyId()); // Update the policy ID in the entity
-
-        if (existing.getStatus() == RatePlanStatus.ACTIVE) {
-            validateNoOverlapForActivePlan(
-                    propertyId,
-                    existing.getApplicableRoomTypeIds(),
-                    extractSupportedOccupancies(existing),
-                    existing.getMealOption(),
-                    existing.getStartDate(),
-                    existing.getEndDate(),
-                    existing.getId());
-        }
 
         return toResponseDTO(ratePlanRepository.save(existing));
     }
@@ -132,17 +119,6 @@ public class RatePlanService {
         validateProperty(propertyId);
         RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(id, propertyId)
                 .orElseThrow(() -> new RatePlanNotFoundException(id));
-
-        if (status == RatePlanStatus.ACTIVE) {
-            validateNoOverlapForActivePlan(
-                    propertyId,
-                    ratePlan.getApplicableRoomTypeIds(),
-                    extractSupportedOccupancies(ratePlan),
-                    ratePlan.getMealOption(),
-                    ratePlan.getStartDate(),
-                    ratePlan.getEndDate(),
-                    ratePlan.getId());
-        }
 
         ratePlan.setStatus(status);
         return toResponseDTO(ratePlanRepository.save(ratePlan));

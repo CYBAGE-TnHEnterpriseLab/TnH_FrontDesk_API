@@ -16,6 +16,8 @@ public class ReservationViewResponseDto {
     OffsetDateTime createdAt;
     String propertyId;
     LocalDate businessDate;
+    Boolean vipTag;
+    Boolean dnm;
     GuestDto guest;
     List<AdditionalGuestDto> additionalGuests;
     StayDto stay;
@@ -34,6 +36,9 @@ public class ReservationViewResponseDto {
         String phoneNumber;
         String email;
         String address;
+        String city;
+        String country;
+        String zipCode;
         String loyaltyNumber;
     }
 

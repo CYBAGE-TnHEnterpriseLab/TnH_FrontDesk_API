@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.folio.billing.client.ReservationServiceClient;
 import com.folio.billing.config.IntegrationProperties;
+import com.folio.billing.dto.BillingComments;
 import com.folio.billing.dto.FolioBillingFilter;
 import com.folio.billing.dto.FolioBillingRow;
 import com.folio.billing.dto.GuestDetail;
@@ -360,9 +361,9 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 parseDate(text(guestListingRow, "checkOutDate"))
         );
 
-        String commentsText = firstNonBlank(
-                text(comments, "billingComments"),
-                joinTextArray(comments != null ? comments.path("guestRequests") : null)
+        BillingComments reservationComments = new BillingComments(
+            textList(comments != null ? comments.path("guestRequests") : null),
+            text(comments, "billingComments")
         );
 
         return new ReservationSummary(
@@ -382,7 +383,7 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 checkInDate,
                 checkOutDate,
                 intValue(stay, "nights", intValue(guestListingRow, "nights", 0)),
-                commentsText,
+                reservationComments,
                 reservationAmount
         );
     }
@@ -550,8 +551,12 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
     }
 
     private String joinTextArray(JsonNode values) {
+        return String.join(", ", textList(values));
+    }
+
+    private List<String> textList(JsonNode values) {
         if (values == null || !values.isArray() || values.isEmpty()) {
-            return "";
+            return List.of();
         }
 
         List<String> parts = new ArrayList<>();
@@ -561,8 +566,7 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 parts.add(value);
             }
         });
-
-        return String.join(", ", parts);
+        return List.copyOf(parts);
     }
 
     private String firstNonBlank(String... values) {

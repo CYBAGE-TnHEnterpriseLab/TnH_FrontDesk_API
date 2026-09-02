@@ -47,6 +47,7 @@ public class HousekeepingRoomCalendarClient {
                     PropertyRoomInventoryDto item = new PropertyRoomInventoryDto();
                     item.setRoomType(type.path("roomTypeName").asText(null));
                     item.setRoomNumber(room.path("roomNumber").asText(null));
+                    item.setFloor(room.path("floor").asText(null));
                     item.setAvailableRooms(1);
                     rooms.add(item);
                 }
@@ -54,6 +55,30 @@ public class HousekeepingRoomCalendarClient {
             return rooms;
         } catch (RestClientException | java.io.IOException ex) {
             throw new ExternalServiceException("Failed to fetch room calendar from Housekeeping service", ex);
+        }
+    }
+
+    public Integer findRoomFloor(String propertyId, String roomNumber, LocalDate from, LocalDate to) {
+        if (roomNumber == null || roomNumber.isBlank()) {
+            return null;
+        }
+
+        return fetchRooms(propertyId, from, to).stream()
+                .filter(room -> roomNumber.trim().equalsIgnoreCase(room.getRoomNumber()))
+                .map(PropertyRoomInventoryDto::getFloor)
+                .filter(floor -> floor != null && !floor.isBlank())
+                .findFirst()
+                .map(String::trim)
+                .map(this::parseFloor)
+                .orElseThrow(() -> new ExternalServiceException(
+                        "Room floor is not available in Housekeeping calendar for room " + roomNumber));
+    }
+
+    private Integer parseFloor(String floor) {
+        try {
+            return Integer.valueOf(floor);
+        } catch (NumberFormatException ex) {
+            throw new ExternalServiceException("Room floor must be numeric in Housekeeping calendar service", ex);
         }
     }
 

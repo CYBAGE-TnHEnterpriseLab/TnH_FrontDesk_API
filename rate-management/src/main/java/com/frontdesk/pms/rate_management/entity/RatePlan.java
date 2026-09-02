@@ -22,7 +22,8 @@ import java.util.Set;
 @Table(
         name = "rate_plan",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_rate_plan_code", columnNames = {"code"})
+            @UniqueConstraint(name = "uk_rate_plan_property_name", columnNames = {"property_id", "name"}),
+            @UniqueConstraint(name = "uk_rate_plan_property_code", columnNames = {"property_id", "code"})
         }
 )
 @Getter

@@ -1,4 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS folio_db;
+SET SCHEMA folio_db;
 
 CREATE TABLE IF NOT EXISTS folio_db.folios (
     id BIGSERIAL PRIMARY KEY,

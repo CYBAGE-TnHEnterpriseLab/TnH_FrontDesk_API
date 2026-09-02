@@ -20,7 +20,7 @@ public record ReservationSummary(
         LocalDate checkInDate,
         LocalDate checkOutDate,
         int nights,
-        String comments,
+        BillingComments comments,
         BigDecimal reservationAmount
 ) {
 }

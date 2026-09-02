@@ -35,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
 
 @Service
 public class MasterRoomService {
@@ -57,6 +58,7 @@ public class MasterRoomService {
         if (!propertyWizardClient.propertyExists(propertyId)) {
             throw new PropertyNotFoundException(propertyId);
         }
+        validateDateRange(masterRoomRequestDTO.getStartDate(), masterRoomRequestDTO.getEndDate());
 
         MasterRoom masterRoom = masterRoomMapper.toEntity(masterRoomRequestDTO);
         masterRoom.setPropertyId(propertyId);
@@ -76,6 +78,13 @@ public class MasterRoomService {
         }
         if (masterRoomRequestDTO.getInclusion() != null) {
             existing.setInclusion(masterRoomRequestDTO.getInclusion());
+        }
+        validateDateRange(masterRoomRequestDTO.getStartDate(), masterRoomRequestDTO.getEndDate());
+        if (masterRoomRequestDTO.getStartDate() != null) {
+            existing.setStartDate(masterRoomRequestDTO.getStartDate());
+        }
+        if (masterRoomRequestDTO.getEndDate() != null) {
+            existing.setEndDate(masterRoomRequestDTO.getEndDate());
         }
 
         if (masterRoomRequestDTO.getPricingList() != null) {
@@ -105,6 +114,12 @@ public class MasterRoomService {
                 .sorted(Comparator.comparing(MasterRoom::getId, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
                 .map(masterRoomMapper::toResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("endDate must be on or after startDate");
+        }
     }
 
     @Transactional

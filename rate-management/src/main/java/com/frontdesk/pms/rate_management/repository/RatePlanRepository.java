@@ -14,6 +14,8 @@ import java.util.Set;
 public interface RatePlanRepository extends JpaRepository<RatePlan, Long> {
     boolean existsByPropertyIdAndCodeIgnoreCase(String propertyId, String code);
 
+        boolean existsByPropertyIdAndNameIgnoreCase(String propertyId, String name);
+
     java.util.Optional<RatePlan> findByIdAndPropertyId(Long id, String propertyId);
 
         List<RatePlan> findByPropertyId(String propertyId);
