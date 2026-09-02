@@ -23,7 +23,12 @@ public class HousekeepingClient {
     public void deletePropertyData(String propertyId) {
         housekeepingWebClient.delete()
                 .uri("/api/v1/housekeeping/room-master/properties/{propertyId}", propertyId)
-                .header(HttpHeaders.AUTHORIZATION, request.getHeader(HttpHeaders.AUTHORIZATION))
+                .headers(headers -> {
+                    String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
+                    if (auth != null && !auth.isBlank()) {
+                        headers.set(HttpHeaders.AUTHORIZATION, auth);
+                    }
+                })
                 .retrieve()
                 .toBodilessEntity()
                 .block();

@@ -36,10 +36,12 @@ public class InventoryClient {
                                 .path("/api/v1/inventory/properties/{propertyId}/deletion-check")
                                 .queryParam("businessDate", businessDate)
                                 .build(propertyId))
-                        .header(
-                                HttpHeaders.AUTHORIZATION,
-                                request.getHeader(HttpHeaders.AUTHORIZATION)
-                        )
+                        .headers(headers -> {
+                            String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
+                            if (auth != null && !auth.isBlank()) {
+                                headers.set(HttpHeaders.AUTHORIZATION, auth);
+                            }
+                        })
                         .retrieve()
                         .bodyToMono(
                                 new ParameterizedTypeReference<
