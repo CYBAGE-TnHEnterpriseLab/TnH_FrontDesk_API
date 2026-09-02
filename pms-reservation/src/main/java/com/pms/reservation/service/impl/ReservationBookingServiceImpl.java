@@ -15,6 +15,7 @@ import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
@@ -73,6 +74,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final ReservationBookingMapper reservationBookingMapper;
     private final PaymentProcessingService paymentProcessingService;
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
+    private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
 
     @Override
     @Transactional
@@ -192,8 +194,11 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             booking.setFloor(null);
             return;
         }
-        booking.setFloor(housekeepingRoomStatusClient.getRoomFloor(
-                booking.getPropertyId(), booking.getAssignedRoomNo()));
+        booking.setFloor(housekeepingRoomCalendarClient.findRoomFloor(
+            booking.getPropertyId(),
+            booking.getAssignedRoomNo(),
+            booking.getArrivalDate(),
+            booking.getDepartureDate()));
     }
 
     @Override

@@ -3,9 +3,6 @@ package com.pms.housekeeping.controller;
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
 import com.pms.housekeeping.dto.response.*;
-import com.pms.housekeeping.entity.CleaningStatus;
-import com.pms.housekeeping.entity.FrontOfficeStatus;
-import com.pms.housekeeping.entity.ReservationStatus;
 import com.pms.housekeeping.service.HousekeepingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,15 +42,6 @@ public class HousekeepingController {
     public HousekeepingRoomsPageResponse rooms(@Valid @ModelAttribute HousekeepingRoomFilterRequest request
     ) {
         return housekeepingService.rooms(request);
-    }
-
-    @GetMapping("/rooms/{roomNumber}")
-    @Operation(summary = "Get room floor by property and room number")
-    public RoomFloorResponse roomFloor(
-            @PathVariable String roomNumber,
-            @RequestParam @NotNull String propertyId
-    ) {
-        return housekeepingService.roomFloor(propertyId, roomNumber);
     }
 
     @GetMapping("/rooms/calendar")

@@ -23,8 +23,6 @@ public interface HousekeepingService {
 
     List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, UUID roomTypeId, int limit);
 
-    RoomFloorResponse roomFloor(String propertyId, String roomNumber);
-
     HousekeepingStatusUpdateResponse updateRoomStatus(String roomNumber, UpdateHousekeepingStatusRequest request);
 
 }

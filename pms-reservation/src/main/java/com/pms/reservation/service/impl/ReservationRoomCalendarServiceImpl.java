@@ -149,10 +149,13 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             String roomNo = inventoryItem.getRoomNumber().trim();
             roomMetaByNo.compute(roomNo, (ignored, existing) -> {
                 if (existing == null) {
-                    return new RoomMeta(roomNo, inventoryRoomType, null);
+                    return new RoomMeta(roomNo, inventoryRoomType, parseFloor(inventoryItem.getFloor()));
                 }
                 if (!StringUtils.hasText(existing.roomType) && StringUtils.hasText(inventoryRoomType)) {
                     existing.roomType = inventoryRoomType;
+                }
+                if (existing.floor == null) {
+                    existing.floor = parseFloor(inventoryItem.getFloor());
                 }
                 return existing;
             });
@@ -194,6 +197,17 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         }
 
         return roomMetaByNo;
+    }
+
+    private Integer parseFloor(String floor) {
+        if (!StringUtils.hasText(floor)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(floor.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private Map<String, BookingRef> buildBookingReferenceMap(List<ReservationBookingRecord> overlappingBookings) {
