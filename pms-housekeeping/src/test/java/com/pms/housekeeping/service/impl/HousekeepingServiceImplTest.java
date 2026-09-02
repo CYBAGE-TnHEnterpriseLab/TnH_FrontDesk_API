@@ -667,7 +667,7 @@ class HousekeepingServiceImplTest {
         assertThat(response.attendantName()).isEqualTo("New Attendant");
         assertThat(response.priority()).isEqualTo(HousekeepingPriority.HIGH);
         assertThat(response.confirmationId()).isEqualTo("CONF-123");
-        assertThat(response.sellable()).isFalse();
+        assertThat(response.sellable()).isTrue();
         assertThat(response.updatedAt()).isNotNull();
         assertThat(response.lastCleanedAt()).isNotNull();
 
@@ -684,7 +684,7 @@ class HousekeepingServiceImplTest {
         assertThat(saved.getGuestDisplayName()).isEqualTo("New Guest");
         assertThat(saved.getArrivalDate()).isEqualTo(LocalDate.of(2026, 8, 18));
         assertThat(saved.getDepartureDate()).isEqualTo(LocalDate.of(2026, 8, 20));
-        assertThat(saved.isSellable()).isFalse();
+        assertThat(saved.isSellable()).isTrue();
         assertThat(saved.getLastCleanedAt()).isNotNull();
 
         verify(historyRepository, org.mockito.Mockito.times(4)).save(historyCaptor.capture());
@@ -700,7 +700,7 @@ class HousekeepingServiceImplTest {
     }
 
     @Test
-    void updateRoomStatus_shouldRespectExplicitSellableAndSkipNoOpChanges() {
+    void updateRoomStatus_shouldComputeSellableAndSkipNoOpChanges() {
         String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "601", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
@@ -735,7 +735,7 @@ class HousekeepingServiceImplTest {
 
         HousekeepingStatusUpdateResponse response = service.updateRoomStatus("601", request);
 
-        assertThat(response.sellable()).isFalse();
+        assertThat(response.sellable()).isTrue();
         assertThat(response.cleaningStatus()).isEqualTo("CLEAN");
         assertThat(response.confirmationId()).isEqualTo("CONF-EXISTING");
         verify(historyRepository, never()).save(any());

@@ -1,12 +1,10 @@
 package com.pms.housekeeping.repository;
 
+import com.pms.housekeeping.constant.QueryConstants;
 import com.pms.housekeeping.dto.response.RoomTypeOptionResponse;
 import com.pms.housekeeping.entity.CleaningStatus;
 import com.pms.housekeeping.entity.FrontOfficeStatus;
 import com.pms.housekeeping.entity.HousekeepingRoomDayStatus;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -103,44 +101,28 @@ order by h.roomTypeName
             @Param("roomTypes") List<String> roomTypes
     );
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-    UPDATE HousekeepingRoomDayStatus r
-       SET r.cleaningStatus = :status,
-           r.lastCleanedAt = :lastCleanedAt,
-           r.updatedAt = :updatedAt,
-           r.updatedBy = :updatedBy
-     WHERE r.propertyId = :propertyId
-       AND r.roomNumber = :roomNumber
-       AND r.businessDate >= :fromDate
-""")
+    @Modifying(clearAutomatically = true)
+    @Query(value = QueryConstants.UPDATE_CLEANING_STATUS_FROM_DATE, nativeQuery = true)
     int updateCleaningStatusFromDate(
             @Param("propertyId") String propertyId,
             @Param("roomNumber") String roomNumber,
             @Param("fromDate") LocalDate fromDate,
-            @Param("status") CleaningStatus status,
+            @Param("status") String status,
             @Param("lastCleanedAt") LocalDateTime lastCleanedAt,
+            @Param("sellable") boolean sellable,
             @Param("updatedAt") LocalDateTime updatedAt,
             @Param("updatedBy") UUID updatedBy
     );
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-    UPDATE HousekeepingRoomDayStatus r
-       SET r.cleaningStatus = :status,
-           r.lastCleanedAt = null,
-           r.updatedAt = :updatedAt,
-           r.updatedBy = :updatedBy
-     WHERE r.propertyId = :propertyId
-       AND r.roomNumber = :roomNumber
-       AND r.businessDate >= :fromDate
-""")
+    @Modifying(clearAutomatically = true)
+    @Query(value = QueryConstants.UPDATE_CLEANING_STATUS_FROM_DATE_AFTER_CHECKOUT, nativeQuery = true)
     int updateCleaningStatusFromDateAfterCheckout(
             @Param("propertyId") String propertyId,
             @Param("roomNumber") String roomNumber,
             @Param("fromDate") LocalDate fromDate,
-            @Param("status") CleaningStatus status,
+            @Param("status") String status,
             @Param("lastCleanedAt") LocalDateTime lastCleanedAt,
+            @Param("sellable") boolean sellable,
             @Param("updatedAt") LocalDateTime updatedAt,
             @Param("updatedBy") UUID updatedBy
     );
