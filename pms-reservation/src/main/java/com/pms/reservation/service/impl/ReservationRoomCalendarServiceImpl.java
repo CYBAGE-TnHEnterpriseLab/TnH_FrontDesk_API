@@ -9,6 +9,7 @@ import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.service.ReservationRoomCalendarService;
 import java.time.LocalDate;
@@ -75,10 +76,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                 );
 
         List<String> effectiveRoomTypes = sanitizeRoomTypes(roomTypes);
-        Set<String> requestedRoomTypes = normalizeRoomTypes(effectiveRoomTypes);
-        String upstreamRoomTypeFilter = requestedRoomTypes.size() == 1
-            ? requestedRoomTypes.iterator().next()
-            : null;
+        Set<String> requestedRoomTypes = resolveRequestedRoomTypes(propertyId, effectiveRoomTypes);
 
         List<PropertyRoomInventoryDto> liveInventory = housekeepingRoomCalendarClient.fetchRooms(
                 propertyId, arrivalDate, departureDate);
@@ -126,6 +124,32 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                 .rooms(roomRows)
                 .summary(summary)
                 .build();
+    }
+
+    private Set<String> resolveRequestedRoomTypes(String propertyId, List<String> roomTypes) {
+        Set<String> requestedRoomTypes = new LinkedHashSet<>(normalizeRoomTypes(roomTypes));
+        if (requestedRoomTypes.isEmpty()) {
+            return Set.of();
+        }
+
+        for (PropertyRoomOutletTypeDto roomType : propertyInventoryPort.fetchRoomOutletTypes(propertyId)) {
+            if (roomType == null) {
+                continue;
+            }
+
+            String normalizedCode = normalize(roomType.getRoomCode());
+            String normalizedName = normalize(roomType.getRoomName());
+            if (requestedRoomTypes.contains(normalizedCode) || requestedRoomTypes.contains(normalizedName)) {
+                if (StringUtils.hasText(normalizedCode)) {
+                    requestedRoomTypes.add(normalizedCode);
+                }
+                if (StringUtils.hasText(normalizedName)) {
+                    requestedRoomTypes.add(normalizedName);
+                }
+            }
+        }
+
+        return requestedRoomTypes;
     }
 
     private Map<String, RoomMeta> collectRoomMeta(

@@ -38,7 +38,7 @@ public interface HousekeepingRoomDayStatusRepository
     List<HousekeepingRoomDayStatus> findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
             String propertyId,
             LocalDate businessDate,
-            UUID roomTypeId,
+            String roomTypeId,
             List<CleaningStatus> cleaningStatuses,
             FrontOfficeStatus frontOfficeStatus);
 

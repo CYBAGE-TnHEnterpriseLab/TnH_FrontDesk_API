@@ -92,7 +92,7 @@ class HousekeepingWindowSchedulerTest {
         return RoomMasterProjection.builder()
                 .propertyId(propertyId)
                 .roomNumber(roomNumber)
-                .roomTypeId(UUID.randomUUID())
+                .roomTypeId("13")
                 .roomTypeName("Deluxe")
                 .floor("1")
                 .zone("A")

@@ -11,7 +11,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 public record HousekeepingRoomFilterRequest(
 
@@ -33,7 +32,7 @@ public record HousekeepingRoomFilterRequest(
 
         List<ReservationStatus> reservationStatus,
 
-        UUID roomTypeId,
+        String roomTypeId,
 
         String floor,
 

@@ -30,6 +30,18 @@ class ReservationAvailabilityMapperTest {
     }
 
     @Test
+    void toRoomAvailabilityShouldDisplayRoomTypeNameInsteadOfCode() {
+        PropertyRoomInventoryDto inventory = baseInventory();
+        inventory.setRoomCode("DLX");
+        inventory.setRoomType("Deluxe");
+
+        RoomAvailabilityPricingDto response = mapper.toRoomAvailability(baseQuote(), inventory);
+
+        assertThat(response.getRoomType()).isEqualTo("Deluxe");
+        assertThat(response.getRoomCode()).isEqualTo("DLX");
+    }
+
+    @Test
     void toRoomAvailabilityShouldNormalizeSimpleNumericOccupancy() {
         RatePlanPricingQuoteDto quote = baseQuote();
         quote.setOccupancy("1 Adults");
@@ -51,6 +63,15 @@ class ReservationAvailabilityMapperTest {
         RoomAvailabilityPricingDto response = mapper.toRoomAvailability(quote, inventory);
 
         assertThat(response.getOccupancy()).isEqualTo("3");
+    }
+
+    @Test
+    void toRoomAvailabilityShouldKeepRateWhenInventoryIsMissing() {
+        RoomAvailabilityPricingDto response = mapper.toRoomAvailability(baseQuote(), null);
+
+        assertThat(response.getRateCode()).isEqualTo("BAR001");
+        assertThat(response.getBaseRate()).isEqualByComparingTo("5000.00");
+        assertThat(response.getAvailableRooms()).isZero();
     }
 
     @Test
