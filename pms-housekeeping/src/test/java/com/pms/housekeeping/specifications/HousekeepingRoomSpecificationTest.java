@@ -37,7 +37,7 @@ class HousekeepingRoomSpecificationTest {
                 List.of(CleaningStatus.CLEAN, CleaningStatus.INSPECTED),
                 List.of(FrontOfficeStatus.VACANT),
                 List.of(ReservationStatus.NOT_RESERVED),
-                UUID.randomUUID(),
+                "13",
                 "1",
                 "Anna",
                 HousekeepingPriority.VIP,

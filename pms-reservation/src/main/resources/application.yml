@@ -49,12 +49,15 @@ property-wizard-service:
   failOpenOnValidationError: true
   failOpenOnWriteError: true
   base-url: http://localhost:8082
-  inventory-validation-path: /api/v1/property-wizard/inventory/validate
-  inventory-availability-path: /api/rooms/properties/{propertyId}/inventory-rooms
   room-outlet-types-path: /api/rooms/properties/{propertyId}/room-outlet-types
   tax-rules-path: /api/taxes/properties/{propertyId}/rules
-  inventory-deduction-path: /api/v1/property-wizard/inventory/deduct
-  inventory-sync-path: /api/v1/property-wizard/inventory/sync
+
+inventory-service:
+  base-url: http://localhost:8085
+  availability-path: /api/v1/inventory/availability
+  reservations-path: /api/v1/inventory/reservations
+  connect-timeout-ms: 3000
+  read-timeout-ms: 6000
 
 rate-management:
   baseUrl: http://localhost:8087

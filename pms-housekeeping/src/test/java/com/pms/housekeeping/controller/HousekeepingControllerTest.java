@@ -63,7 +63,7 @@ class HousekeepingControllerTest {
                 List.of(CleaningStatus.CLEAN),
                 List.of(FrontOfficeStatus.VACANT),
                 List.of(ReservationStatus.NOT_RESERVED),
-                UUID.randomUUID(),
+                "13",
                 "1",
                 "Anna",
                 HousekeepingPriority.VIP,
@@ -131,7 +131,7 @@ class HousekeepingControllerTest {
     @Test
     void assignableRooms_shouldDelegateToService() {
         String propertyId = UUID.randomUUID().toString();
-        UUID roomTypeId = UUID.randomUUID();
+        String roomTypeId = "13";
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         List<AssignableRoomResponse> expected = List.of(new AssignableRoomResponse("101", roomTypeId, "Deluxe", "1", "CLASS-A", "NORTH", "CLEAN"));
         when(housekeepingService.assignableRooms(propertyId, businessDate, roomTypeId, 10)).thenReturn(expected);

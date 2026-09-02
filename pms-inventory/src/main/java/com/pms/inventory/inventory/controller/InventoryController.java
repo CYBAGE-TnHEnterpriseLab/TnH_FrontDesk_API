@@ -12,7 +12,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/inventory")
@@ -28,8 +27,8 @@ public class InventoryController {
     @GetMapping("/daily")
     @Operation(summary = "Get one daily inventory row")
     public DailyInventoryResponse getDailyInventory(
-            @RequestParam @NotNull UUID propertyId,
-            @RequestParam @NotNull UUID roomTypeId,
+            @RequestParam @NotNull String propertyId,
+            @RequestParam @NotNull String roomTypeId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate
     ) {
         return inventoryService.getDailyInventory(propertyId, roomTypeId, businessDate);
@@ -37,7 +36,7 @@ public class InventoryController {
 
     @GetMapping("/properties/{propertyId}/deletion-check")
     public ResponseEntity<ApiResponse<PropertyDeletionCheckResponse>> checkPropertyDeletion(
-            @PathVariable UUID propertyId,
+            @PathVariable String propertyId,
             @RequestParam
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate businessDate

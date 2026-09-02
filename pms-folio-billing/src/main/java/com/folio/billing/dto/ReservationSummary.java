@@ -21,7 +21,9 @@ public record ReservationSummary(
         LocalDate checkOutDate,
         int nights,
         BillingComments comments,
-        BigDecimal reservationAmount
+        BigDecimal reservationAmount,
+        BigDecimal taxPercent,
+        BigDecimal taxAmount
 ) {
 }
 

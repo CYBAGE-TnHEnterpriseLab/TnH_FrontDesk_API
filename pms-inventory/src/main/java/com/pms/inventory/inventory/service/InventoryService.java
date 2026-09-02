@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class InventoryService {
@@ -31,7 +30,7 @@ public class InventoryService {
     }
 
     @Transactional(readOnly = true)
-    public DailyInventoryResponse getDailyInventory(UUID propertyId, UUID roomTypeId, LocalDate businessDate) {
+    public DailyInventoryResponse getDailyInventory(String propertyId, String roomTypeId, LocalDate businessDate) {
         RoomTypeInventoryDaily daily = dailyRepository
                 .findByPropertyIdAndRoomTypeIdAndBusinessDate(propertyId, roomTypeId, businessDate)
                 .orElseThrow(() -> new InventoryNotFoundException("Daily inventory not found"));
@@ -39,7 +38,7 @@ public class InventoryService {
     }
 
     @Transactional(readOnly = true)
-    public List<RoomTypeInventoryDaily> getInventoryRange(UUID propertyId, UUID roomTypeId, LocalDate fromDate, LocalDate toDate) {
+    public List<RoomTypeInventoryDaily> getInventoryRange(String propertyId, String roomTypeId, LocalDate fromDate, LocalDate toDate) {
         return dailyRepository
                 .findByPropertyIdAndRoomTypeIdAndBusinessDateGreaterThanEqualAndBusinessDateLessThanOrderByBusinessDate(
                         propertyId,
@@ -50,7 +49,7 @@ public class InventoryService {
     }
 
     @Transactional
-    public List<RoomTypeInventoryDaily> lockInventoryRange(UUID propertyId, UUID roomTypeId, LocalDate fromDate, LocalDate toDate) {
+    public List<RoomTypeInventoryDaily> lockInventoryRange(String propertyId, String roomTypeId, LocalDate fromDate, LocalDate toDate) {
         List<RoomTypeInventoryDaily> rows = dailyRepository.findForUpdate(propertyId, roomTypeId, fromDate, toDate);
         long expectedDays = fromDate.datesUntil(toDate).count();
         if (rows.size() != expectedDays) {
@@ -119,7 +118,7 @@ public class InventoryService {
     }
 
     public PropertyDeletionCheckResponse hasAnyActiveReservations(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate,
             Integer reservedCount
     ) {

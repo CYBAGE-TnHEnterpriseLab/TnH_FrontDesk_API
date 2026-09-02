@@ -8,11 +8,10 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 public record InventoryReconciliationRequest(
         @NotNull(message = "propertyId is required")
-        UUID propertyId,
+        String propertyId,
         @NotNull(message = "fromDate is required")
         LocalDate fromDate,
         @NotNull(message = "toDate is required")
@@ -28,7 +27,7 @@ public record InventoryReconciliationRequest(
 
     public record RoomTypeInventoryInput(
             @NotNull(message = "roomTypeId is required")
-            UUID roomTypeId,
+            String roomTypeId,
             @NotNull(message = "totalInventory is required")
             @PositiveOrZero(message = "totalInventory must be >= 0")
             Integer totalInventory

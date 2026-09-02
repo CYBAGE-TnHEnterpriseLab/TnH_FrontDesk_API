@@ -12,6 +12,7 @@ import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
+import com.pms.reservation.integration.dto.InventoryAvailabilityDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.mapper.ReservationAvailabilityMapper;
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.pms.reservation.integration.InventoryServiceClient;
 import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
     private final RateManagementPort rateManagementPort;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationAvailabilityMapper reservationAvailabilityMapper;
+    private final InventoryServiceClient inventoryServiceClient;
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     @Override
@@ -100,12 +103,8 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             LocalDate departureDate,
             List<PropertyTaxRuleResponseDto> taxRules
         ) {
-        List<PropertyRoomInventoryDto> inventory = propertyInventoryPort.fetchLiveInventory(
-            request.getPropertyId(),
-            arrivalDate,
-            departureDate,
-            null
-        );
+        List<PropertyRoomInventoryDto> inventory = fetchInventoryFromInventoryService(
+            request.getPropertyId(), arrivalDate, departureDate);
         if (inventory == null) {
             inventory = List.of();
         }
@@ -140,19 +139,11 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     inventoryByRoomType,
                     finalInventory
                 );
-                if (matchedInventory == null) {
-                    return null;
-                }
                 return reservationAvailabilityMapper.toRoomAvailability(item, matchedInventory);
             })
-            .filter(java.util.Objects::nonNull)
             .toList();
 
-        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType.stream()
-            .filter(item -> item.getAvailableRooms() != null
-                && request.getNumberOfRooms() != null
-                && item.getAvailableRooms() >= request.getNumberOfRooms())
-            .toList();
+        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType;
 
         List<RoomAvailabilityPricingDto> afterRateCodeFilter = applyRateCodeFilter(
             request.getRateCode(),
@@ -182,6 +173,30 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
         return new AvailabilityRangeResult(finalAvailability, rateQuotes);
         }
+
+    private List<PropertyRoomInventoryDto> fetchInventoryFromInventoryService(
+            String propertyId, LocalDate arrivalDate, LocalDate departureDate) {
+        List<PropertyRoomInventoryDto> result = new ArrayList<>();
+        for (PropertyRoomOutletTypeDto roomType : propertyInventoryPort.fetchRoomOutletTypes(propertyId)) {
+            if (roomType.getId() == null) {
+                continue;
+            }
+            List<InventoryAvailabilityDto> rows = inventoryServiceClient.availability(
+                    propertyId, String.valueOf(roomType.getId()), arrivalDate, departureDate);
+            int availableRooms = rows.stream()
+                    .map(InventoryAvailabilityDto::getAvailableCount)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Integer::compareTo)
+                    .orElse(0);
+            PropertyRoomInventoryDto item = new PropertyRoomInventoryDto();
+            item.setRoomTypeId(roomType.getId());
+            item.setRoomCode(roomType.getRoomCode());
+            item.setRoomType(roomType.getRoomName());
+            item.setAvailableRooms(availableRooms);
+            result.add(item);
+        }
+        return result;
+    }
 
     private List<String> extractAvailableRateCodes(List<RatePlanPricingQuoteDto> rateQuotes) {
         if (rateQuotes == null || rateQuotes.isEmpty()) {

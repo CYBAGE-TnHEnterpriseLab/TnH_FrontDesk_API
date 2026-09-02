@@ -28,7 +28,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -73,9 +72,9 @@ class InventoryIntegrationTest {
     @Autowired
     private InventoryBlockRepository blockRepository;
 
-    private UUID propertyId;
-    private UUID deluxeRoomType;
-    private UUID suiteRoomType;
+    private String propertyId;
+    private String deluxeRoomType;
+    private String suiteRoomType;
 
     @BeforeEach
     void cleanAndSeed() {
@@ -83,9 +82,9 @@ class InventoryIntegrationTest {
         blockRepository.deleteAll();
         dailyRepository.deleteAll();
 
-        propertyId = UUID.randomUUID();
-        deluxeRoomType = UUID.randomUUID();
-        suiteRoomType = UUID.randomUUID();
+        propertyId = "property-1";
+        deluxeRoomType = "room-type-deluxe";
+        suiteRoomType = "room-type-suite";
 
         reconciliationService.reconcile(new InventoryReconciliationRequest(
                 propertyId,
@@ -100,7 +99,7 @@ class InventoryIntegrationTest {
 
     @Test
     void reserveAndReleaseFlowWithIdempotency() {
-        UUID reservationId = UUID.randomUUID();
+        String reservationId = "confirmation-1";
         ReserveInventoryRequest request = new ReserveInventoryRequest(
                 reservationId,
                 propertyId,
@@ -128,11 +127,11 @@ class InventoryIntegrationTest {
     @Test
     void reserveFailsWhenInsufficient() {
         ReserveInventoryRequest first = new ReserveInventoryRequest(
-                UUID.randomUUID(), propertyId, deluxeRoomType, deluxeRoomType,
+                "confirmation-2", propertyId, deluxeRoomType, deluxeRoomType,
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1
         );
         ReserveInventoryRequest second = new ReserveInventoryRequest(
-                UUID.randomUUID(), propertyId, deluxeRoomType, deluxeRoomType,
+                "confirmation-3", propertyId, deluxeRoomType, deluxeRoomType,
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1
         );
 
@@ -144,11 +143,11 @@ class InventoryIntegrationTest {
     void roomTypeReassignmentFailsWhenNewInventoryUnavailable() {
         // consume suite first so reassignment to suite cannot be satisfied.
         reservationService.reserve(new ReserveInventoryRequest(
-                UUID.randomUUID(), propertyId, suiteRoomType, suiteRoomType,
+                "confirmation-4", propertyId, suiteRoomType, suiteRoomType,
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1
         ));
 
-        UUID deluxeReservationId = UUID.randomUUID();
+        String deluxeReservationId = "confirmation-5";
         reservationService.reserve(new ReserveInventoryRequest(
                 deluxeReservationId, propertyId, deluxeRoomType, deluxeRoomType,
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1
@@ -211,7 +210,7 @@ class InventoryIntegrationTest {
 
     @Test
     void concurrentReservationScenarioOnlyOneSucceeds() throws Exception {
-        UUID roomType = UUID.randomUUID();
+        String roomType = "room-type-concurrent";
         reconciliationService.reconcile(new InventoryReconciliationRequest(
                 propertyId,
                 LocalDate.of(2026, 8, 1),
@@ -222,8 +221,8 @@ class InventoryIntegrationTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
-        Callable<Boolean> task1 = reserveCallable(startLatch, roomType, UUID.randomUUID());
-        Callable<Boolean> task2 = reserveCallable(startLatch, roomType, UUID.randomUUID());
+        Callable<Boolean> task1 = reserveCallable(startLatch, roomType, "confirmation-concurrent-1");
+        Callable<Boolean> task2 = reserveCallable(startLatch, roomType, "confirmation-concurrent-2");
 
         Future<Boolean> f1 = executor.submit(task1);
         Future<Boolean> f2 = executor.submit(task2);
@@ -240,7 +239,7 @@ class InventoryIntegrationTest {
         assertEquals(1, reservationRepository.findAll().size());
     }
 
-    private Callable<Boolean> reserveCallable(CountDownLatch startLatch, UUID roomType, UUID reservationId) {
+    private Callable<Boolean> reserveCallable(CountDownLatch startLatch, String roomType, String reservationId) {
         return () -> {
             startLatch.await();
             try {

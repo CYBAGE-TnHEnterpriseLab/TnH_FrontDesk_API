@@ -24,7 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.*;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -248,7 +253,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             LocalDate toDate
     ) {
 
-        Map<UUID, List<HousekeepingRoomDayStatus>> byRoomType =
+        Map<String, List<HousekeepingRoomDayStatus>> byRoomType =
                 records.stream()
                         .collect(Collectors.groupingBy(
                                 HousekeepingRoomDayStatus::getRoomTypeId,
@@ -375,7 +380,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, UUID roomTypeId, int limit) {
+        public List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, String roomTypeId, int limit) {
         log.info("HousekeepingService::assignableRooms - Fetching assignable rooms. propertyId={}, businessDate={}, roomTypeId={}, limit={}",
                 propertyId, businessDate, roomTypeId, limit);
 

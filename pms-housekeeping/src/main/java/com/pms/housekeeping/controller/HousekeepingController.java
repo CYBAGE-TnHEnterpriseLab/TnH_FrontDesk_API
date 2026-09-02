@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/housekeeping")
@@ -72,7 +71,7 @@ public class HousekeepingController {
     @Operation(summary = "Get assignable room numbers for dropdown")
     public List<AssignableRoomResponse> assignableRooms(
             @RequestParam @NotNull String propertyId,
-            @RequestParam @NotNull UUID roomTypeId,
+            @RequestParam @NotNull String roomTypeId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate,
             @RequestParam(defaultValue = "50") int limit
     ) {
