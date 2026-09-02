@@ -55,6 +55,7 @@ public class GuestListingController {
     private static final String VIEW_ALL = "all";
     private static final int FIXED_PAGE_SIZE = 10;
     private static final Set<String> SUPPORTED_ROOM_STATUSES = Set.of("OCCUPIED", "DIRTY", "CLEANED");
+    private static final Set<String> SUPPORTED_RESERVATION_STATUSES = Set.of("CONFIRMED", "CHECKED_IN", "CHECKED_OUT");
 
     private record RoomStatusSnapshot(String roomStatus, String roomNo) {
     }
@@ -199,9 +200,8 @@ public class GuestListingController {
         Set<Integer> floors = new TreeSet<>(Comparator.nullsLast(Integer::compareTo));
 
         for (ReservationBookingRecord record : records) {
-            if (Boolean.TRUE.equals(record.getDnm())) {
-                reservationStatuses.add("DNM");
-            } else if (StringUtils.hasText(record.getReservationStatus())) {
+            if (StringUtils.hasText(record.getReservationStatus())
+                    && SUPPORTED_RESERVATION_STATUSES.contains(record.getReservationStatus().toUpperCase(Locale.ROOT))) {
                 reservationStatuses.add(record.getReservationStatus());
             }
 
@@ -279,11 +279,7 @@ public class GuestListingController {
             }
 
             if (StringUtils.hasText(status)) {
-                if ("dnm".equalsIgnoreCase(status) || "do not move".equalsIgnoreCase(status)) {
-                    predicates.add(cb.isTrue(root.get("dnm")));
-                } else {
-                    predicates.add(cb.equal(cb.lower(root.get("reservationStatus")), status.toLowerCase(Locale.ROOT)));
-                }
+                predicates.add(cb.equal(cb.lower(root.get("reservationStatus")), status.toLowerCase(Locale.ROOT)));
             }
             if (StringUtils.hasText(reservationType)) {
                 predicates.add(cb.equal(cb.lower(root.get("reservationType")), reservationType.toLowerCase(Locale.ROOT)));
@@ -392,7 +388,7 @@ public class GuestListingController {
                 .listingType(listingType)
                 .id(booking.getId())
                 .propertyId(booking.getPropertyId())
-                .status(Boolean.TRUE.equals(booking.getDnm()) ? "DNM" : booking.getReservationStatus())
+                .status(booking.getReservationStatus())
                 .dnm(Boolean.TRUE.equals(booking.getDnm()))
                 .msg(false)
                 .salutation(booking.getSalutation())

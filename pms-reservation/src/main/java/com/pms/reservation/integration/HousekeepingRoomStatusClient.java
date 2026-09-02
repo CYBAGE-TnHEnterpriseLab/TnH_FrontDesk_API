@@ -96,4 +96,5 @@ public class HousekeepingRoomStatusClient {
             UUID propertyId, LocalDate businessDate, String frontOfficeStatus,
             String guestDisplayName, LocalDate arrivalDate, LocalDate departureDate,
             String reservationStatus, String confirmationId, String sourceModule) {}
+
 }

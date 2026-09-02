@@ -405,24 +405,6 @@ class RatePlanServiceTest {
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, requestDTO.getCode())).thenReturn(false);
-        when(ratePlanRepository.countOverlappingActivePlans(
-                PROPERTY_ID,
-                requestDTO.getApplicableRoomTypeIds(),
-                "1 Guest",
-                requestDTO.getMealOption(),
-                requestDTO.getStartDate(),
-                requestDTO.getEndDate(),
-                RatePlanStatus.ACTIVE,
-                null)).thenReturn(0L);
-        when(ratePlanRepository.countOverlappingActivePlans(
-                PROPERTY_ID,
-                requestDTO.getApplicableRoomTypeIds(),
-                "2 Guest",
-                requestDTO.getMealOption(),
-                requestDTO.getStartDate(),
-                requestDTO.getEndDate(),
-                RatePlanStatus.ACTIVE,
-                null)).thenReturn(0L);
         when(ratePlanRepository.save(org.mockito.ArgumentMatchers.any(RatePlan.class))).thenReturn(saved);
 
         RatePlanResponseDTO result = ratePlanService.createRatePlan(PROPERTY_ID, requestDTO);
@@ -432,30 +414,22 @@ class RatePlanServiceTest {
     }
 
         @Test
-        void createRatePlan_shouldFailWhenOverlappingActivePlanExists() {
+        void createRatePlan_shouldAllowOverlappingActivePlan() {
         RatePlanRequestDTO requestDTO = validRequest();
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, "BAR10")).thenReturn(false);
-        when(ratePlanRepository.countOverlappingActivePlans(
-            PROPERTY_ID,
-            requestDTO.getApplicableRoomTypeIds(),
-            requestDTO.getOccupancyType(),
-            requestDTO.getMealOption(),
-            requestDTO.getStartDate(),
-            requestDTO.getEndDate(),
-            RatePlanStatus.ACTIVE,
-            null)).thenReturn(1L);
+        RatePlan saved = new RatePlan();
+        saved.setId(100L);
+        saved.setName(requestDTO.getName());
+        saved.setCode(requestDTO.getCode());
+        when(ratePlanRepository.save(org.mockito.ArgumentMatchers.any(RatePlan.class))).thenReturn(saved);
 
-        InvalidRatePlanException exception =
-            assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
-
-        assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
-        verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
+        assertEquals(100L, ratePlanService.createRatePlan(PROPERTY_ID, requestDTO).getId());
         }
 
         @Test
-        void updateRatePlanStatus_shouldFailWhenActivatingOverlappingPlan() {
+        void updateRatePlanStatus_shouldAllowActivatingOverlappingPlan() {
         RatePlan existing = new RatePlan();
         existing.setId(22L);
         existing.setStatus(RatePlanStatus.INACTIVE);
@@ -468,23 +442,26 @@ class RatePlanServiceTest {
 
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByIdAndPropertyId(22L, PROPERTY_ID)).thenReturn(Optional.of(existing));
-        when(ratePlanRepository.countOverlappingActivePlans(
-            PROPERTY_ID,
-            existing.getApplicableRoomTypeIds(),
-            existing.getOccupancyType(),
-            existing.getMealOption(),
-            existing.getStartDate(),
-            existing.getEndDate(),
-            RatePlanStatus.ACTIVE,
-            existing.getId())).thenReturn(1L);
+        when(ratePlanRepository.save(existing)).thenReturn(existing);
 
-        InvalidRatePlanException exception = assertThrows(
-            InvalidRatePlanException.class,
-            () -> ratePlanService.updateRatePlanStatus(PROPERTY_ID, 22L, RatePlanStatus.ACTIVE));
-
-        assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
-        verify(ratePlanRepository, never()).save(existing);
+        assertEquals(RatePlanStatus.ACTIVE,
+                ratePlanService.updateRatePlanStatus(PROPERTY_ID, 22L, RatePlanStatus.ACTIVE).getStatus());
         }
+
+    @Test
+    void createRatePlan_shouldFailWhenNameAlreadyExists() {
+        RatePlanRequestDTO requestDTO = validRequest();
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, requestDTO.getCode())).thenReturn(false);
+        when(ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(PROPERTY_ID, requestDTO.getName())).thenReturn(true);
+
+        InvalidRatePlanException exception = assertThrows(InvalidRatePlanException.class,
+                () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
+
+        assertTrue(exception.getMessage().contains("Rate plan name already exists"));
+        verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
+    }
 
     @Test
     void deleteRatePlan_shouldDeleteWhenExists() {

@@ -23,4 +23,7 @@ public class PropertyRoomInventoryDto {
 
     @JsonAlias({"roomNumber", "roomNo"})
     private String roomNumber;
+
+    @JsonAlias({"floor", "floorNumber"})
+    private String floor;
 }

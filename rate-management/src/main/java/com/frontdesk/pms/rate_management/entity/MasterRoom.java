@@ -2,6 +2,7 @@ package com.frontdesk.pms.rate_management.entity;
 
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.util.List;
 
 @Entity
@@ -25,6 +26,12 @@ public class MasterRoom {
 
     @Column(name = "inclusion")
     private String inclusion;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @OneToMany(mappedBy = "masterRoom", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<MasterRoomPricing> pricingList;
@@ -78,6 +85,22 @@ public class MasterRoom {
 
     public void setInclusion(String inclusion) {
         this.inclusion = inclusion;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 
     public List<MasterRoomRoomTypeMapping> getRoomTypeMappings() {

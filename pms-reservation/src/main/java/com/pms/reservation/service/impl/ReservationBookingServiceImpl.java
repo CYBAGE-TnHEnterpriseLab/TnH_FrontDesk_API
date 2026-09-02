@@ -15,6 +15,7 @@ import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.dto.InventoryDeductionRequest;
 import com.pms.reservation.integration.dto.InventorySyncRequest;
@@ -73,6 +74,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final ReservationBookingMapper reservationBookingMapper;
     private final PaymentProcessingService paymentProcessingService;
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
+    private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
 
     @Override
     @Transactional
@@ -117,6 +119,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
+        populateRoomFloor(entity);
         applyPropertyTaxOnBooking(entity);
         entity.setConfirmationNumber(confirmationNumber);
         entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
@@ -186,6 +189,18 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
     }
 
+    private void populateRoomFloor(ReservationBookingRecord booking) {
+        if (!StringUtils.hasText(booking.getAssignedRoomNo())) {
+            booking.setFloor(null);
+            return;
+        }
+        booking.setFloor(housekeepingRoomCalendarClient.findRoomFloor(
+            booking.getPropertyId(),
+            booking.getAssignedRoomNo(),
+            booking.getArrivalDate(),
+            booking.getDepartureDate()));
+    }
+
     @Override
     @Transactional
     public ReservationViewResponseDto updateBooking(String confirmationNumber, ReservationBookingRequestDto request) {
@@ -202,6 +217,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             throw new BadRequestException("Checked-out reservations cannot be changed. Cancel the same-day check-out to re-check in the guest first");
         }
 
+        validateDnmRoomLock(existing, request);
+
         request.setPayment(existing.getPayment());
         request.setPaymentType(existing.getPaymentType());
 
@@ -211,6 +228,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
         ReservationBookingRecord updated = reservationBookingMapper.toEntity(request);
         preserveSystemFields(existing, updated);
+        if (!Boolean.TRUE.equals(existing.getDnm()) && StringUtils.hasText(request.getAssignedRoomNo())) {
+            updated.setAssignedRoomNo(request.getAssignedRoomNo().trim());
+            populateRoomFloor(updated);
+        }
         applyPropertyTaxOnBooking(updated);
 
         ReservationBookingRecord saved = reservationBookingRepository.save(updated);
@@ -246,6 +267,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .createdAt(booking.getCreatedAt() == null ? null : booking.getCreatedAt().atOffset(ZoneOffset.UTC))
                 .propertyId(booking.getPropertyId())
                 .businessDate(businessDate)
+                .vipTag(booking.getVipTag())
+                .dnm(booking.getDnm())
                 .guest(buildPrimaryGuest(booking))
                 .additionalGuests(buildAdditionalGuests(
                         baseResponse.getGuestNames(),
@@ -297,6 +320,9 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .phoneNumber(booking.getPhoneNumber())
                 .email(preferredEmail(booking))
                 .address(booking.getAddress())
+                .city(booking.getCity())
+                .country(booking.getCountry())
+                .zipCode(booking.getZipCode())
                 .loyaltyNumber(booking.getLoyaltyNumber())
                 .build();
     }
@@ -895,5 +921,20 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         updated.setPayment(existing.getPayment());
         updated.setPaymentType(existing.getPaymentType());
         updated.setCreatedAt(existing.getCreatedAt());
+    }
+
+    private void validateDnmRoomLock(
+            ReservationBookingRecord existing,
+            ReservationBookingRequestDto request
+    ) {
+        if (!Boolean.TRUE.equals(existing.getDnm())
+                || !StringUtils.hasText(request.getAssignedRoomNo())
+                || !StringUtils.hasText(existing.getAssignedRoomNo())) {
+            return;
+        }
+
+        if (!existing.getAssignedRoomNo().trim().equalsIgnoreCase(request.getAssignedRoomNo().trim())) {
+            throw new BadRequestException("Room cannot be changed because DNM is enabled for this reservation");
+        }
     }
 }
