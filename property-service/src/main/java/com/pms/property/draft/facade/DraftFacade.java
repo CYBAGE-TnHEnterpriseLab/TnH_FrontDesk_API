@@ -7,6 +7,7 @@ import com.pms.property.draft.dto.WizardPropertyOptionResponse;
 import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.service.DraftService;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -18,11 +19,11 @@ public class DraftFacade {
         this.draftService = draftService;
     }
 
-    public DraftResponse create(CreateDraftRequest request, String actor) {
+    public DraftResponse create(CreateDraftRequest request, UUID actor) {
         return draftService.createDraft(request, actor);
     }
 
-    public DraftResponse update(Long draftId, SaveDraftRequest request, String actor) {
+    public DraftResponse update(Long draftId, SaveDraftRequest request, UUID actor) {
         return draftService.saveDraft(draftId, request, actor);
     }
 
@@ -30,19 +31,19 @@ public class DraftFacade {
         return draftService.getDraft(draftId);
     }
 
-    public List<DraftResponse> list(List<DraftStatus> statuses, String actor) {
+    public List<DraftResponse> list(List<DraftStatus> statuses, UUID actor) {
         return draftService.getDraftsByStatus(statuses, actor);
     }
 
-    public List<WizardPropertyOptionResponse> listMyWizardProperties(String actor) {
+    public List<WizardPropertyOptionResponse> listMyWizardProperties(UUID actor) {
         return draftService.getMyPublishedWizardProperties(actor);
     }
 
-    public DraftResponse getPublishedDraftByProperty(String propertyId, String actor) {
+    public DraftResponse getPublishedDraftByProperty(String propertyId, UUID actor) {
         return draftService.getPublishedDraftByPropertyId(propertyId, actor);
     }
 
-    public void delete(Long draftId, String actor) {
+    public void delete(Long draftId, UUID actor) {
         draftService.deleteDraft(draftId, actor);
     }
 }

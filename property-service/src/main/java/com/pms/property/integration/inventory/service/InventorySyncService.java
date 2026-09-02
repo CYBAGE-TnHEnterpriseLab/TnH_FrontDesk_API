@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -32,49 +35,52 @@ public class InventorySyncService {
     private final InventorySyncPayloadMapper payloadMapper;
     private final InventorySyncClient inventorySyncClient;
     private final InventorySyncStateRepository syncStateRepository;
+    private final Executor inventorySyncExecutor;
 
     public InventorySyncService(
         RoomOutletTypeRepository roomOutletTypeRepository,
         InventoryRoomRepository inventoryRoomRepository,
         InventorySyncPayloadMapper payloadMapper,
         InventorySyncClient inventorySyncClient,
-        InventorySyncStateRepository syncStateRepository
+        InventorySyncStateRepository syncStateRepository,
+        @Qualifier("inventorySyncExecutor") Executor inventorySyncExecutor
     ) {
         this.roomOutletTypeRepository = roomOutletTypeRepository;
         this.inventoryRoomRepository = inventoryRoomRepository;
         this.payloadMapper = payloadMapper;
         this.inventorySyncClient = inventorySyncClient;
         this.syncStateRepository = syncStateRepository;
+        this.inventorySyncExecutor = inventorySyncExecutor;
     }
 
-    public void requestSyncAfterCommit(String propertyId) {
+    public void requestSyncAfterCommit(String propertyId, String authHeader) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            registerAfterCommitSync(propertyId);
+            registerAfterCommitSync(propertyId, authHeader);
             markPending(propertyId);
             return;
         }
 
-        syncSilently(propertyId);
+        syncSilently(propertyId, authHeader);
     }
 
-    public InventorySyncStatusResponse syncNow(String propertyId) {
-        return toStatusResponse(synchronizeProperty(propertyId));
+    public InventorySyncStatusResponse syncNow(String propertyId, String authHeader) {
+        return toStatusResponse(synchronizeProperty(propertyId, authHeader));
     }
 
     public InventorySyncStatusResponse getStatus(String propertyId) {
         return toStatusResponse(loadStateOrThrow(propertyId));
     }
 
-    private void syncSilently(String propertyId) {
+    private void syncSilently(String propertyId, String authHeader) {
         try {
-            synchronizeProperty(propertyId);
+            synchronizeProperty(propertyId, authHeader);
         } catch (InventorySyncException ex) {
             // Sync state is already persisted with FAILED status.
             log.warn("Inventory sync failed for property {}: {}", propertyId, ex.getMessage());
         }
     }
 
-    private InventorySyncStateEntity synchronizeProperty(String propertyId) {
+    private InventorySyncStateEntity synchronizeProperty(String propertyId, String authHeader) {
         List<InventoryRoomEntity> inventoryRooms = inventoryRoomRepository.findAllByPropertyId(propertyId);
         List<RoomOutletTypeEntity> roomTypes = loadRoomTypesOrThrow(propertyId);
         String requestId = newRequestId();
@@ -82,17 +88,18 @@ public class InventorySyncService {
         InventoryReconciliationRequest request = payloadMapper.toRequest(propertyId, roomTypes);
 
         RuntimeException roomMasterError = null;
+        RuntimeException reconcileError = null;
+
         if (!inventoryRooms.isEmpty()) {
             try {
-                syncRoomMaster(propertyId, inventoryRooms, roomTypes, requestId);
+                syncRoomMaster(propertyId, inventoryRooms, roomTypes, requestId, authHeader);
             } catch (RuntimeException ex) {
                 roomMasterError = toSyncException("Room master sync failed", ex);
             }
         }
 
-        RuntimeException reconcileError = null;
         try {
-            inventorySyncClient.reconcile(request, requestId);
+            inventorySyncClient.reconcile(request, requestId, authHeader);
         } catch (RuntimeException ex) {
             reconcileError = toSyncException("Inventory reconciliation failed", ex);
         }
@@ -114,10 +121,11 @@ public class InventorySyncService {
         String propertyId,
         List<InventoryRoomEntity> rooms,
         List<RoomOutletTypeEntity> roomTypes,
-        String requestId
+        String requestId,
+        String authHeader
     ) {
         RoomMasterSyncRequest roomMasterRequest = payloadMapper.toRoomMasterSyncRequest(propertyId, rooms, roomTypes);
-        inventorySyncClient.syncRoomMaster(roomMasterRequest, requestId);
+        inventorySyncClient.syncRoomMaster(roomMasterRequest, requestId, authHeader);
     }
 
     private InventorySyncStateEntity markSuccess(String propertyId, String requestId) {
@@ -207,24 +215,28 @@ public class InventorySyncService {
     }
 
     private String buildFailureMessage(RuntimeException roomMasterError, RuntimeException reconcileError) {
-        if (roomMasterError != null && reconcileError != null) {
-            return "Room master sync and inventory reconciliation both failed";
+        String roomMasterMsg = roomMasterError == null ? null : roomMasterError.getClass().getSimpleName() + ": " + roomMasterError.getMessage();
+        String reconcileMsg = reconcileError == null ? null : reconcileError.getClass().getSimpleName() + ": " + reconcileError.getMessage();
+        if (roomMasterMsg != null && reconcileMsg != null) {
+            return "Room master sync and inventory reconciliation both failed: roomMaster=" + roomMasterMsg + "; reconcile=" + reconcileMsg;
         }
-        if (roomMasterError != null) {
-            return "Room master sync failed";
+        if (roomMasterMsg != null) {
+            return "Room master sync failed: " + roomMasterMsg;
         }
-        return "Inventory reconciliation failed";
+        return "Inventory reconciliation failed: " + reconcileMsg;
     }
 
     private String newRequestId() {
         return UUID.randomUUID().toString();
     }
 
-    private void registerAfterCommitSync(String propertyId) {
+    private void registerAfterCommitSync(String propertyId, String authHeader) {
+        String capturedPropertyId = propertyId;
+        String capturedAuthHeader = authHeader;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                syncSilently(propertyId);
+                inventorySyncExecutor.execute(() -> syncSilently(capturedPropertyId, capturedAuthHeader));
             }
         });
     }

@@ -22,11 +22,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,16 +41,17 @@ class RoomMasterSyncServiceImplTest {
     private HousekeepingRoomDayStatusRepository dayStatusRepository;
 
     @Captor
-    private ArgumentCaptor<RoomMasterProjection> projectionCaptor;
+    private ArgumentCaptor<List<RoomMasterProjection>> projectionListCaptor;
 
     @Captor
-    private ArgumentCaptor<HousekeepingRoomDayStatus> statusCaptor;
+    private ArgumentCaptor<List<HousekeepingRoomDayStatus>> statusListCaptor;
 
     private RoomMasterSyncServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new RoomMasterSyncServiceImpl(roomMasterProjectionRepository, dayStatusRepository);
+        service = new RoomMasterSyncServiceImpl(
+                roomMasterProjectionRepository, dayStatusRepository);
     }
 
     @Test
@@ -63,24 +63,23 @@ class RoomMasterSyncServiceImplTest {
 
         RoomMasterProjection activeExisting = roomProjection(propertyId, "101", roomTypeId, true);
         RoomMasterProjection inactiveExisting = roomProjection(propertyId, "103", roomTypeId, false);
-        when(roomMasterProjectionRepository.findAllByPropertyId(propertyId)).thenReturn(List.of(activeExisting, roomProjection(propertyId, "102", roomTypeId, true), inactiveExisting));
-        when(roomMasterProjectionRepository.save(any(RoomMasterProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roomMasterProjectionRepository.findAllByPropertyId(propertyId)).thenReturn(List.of(
+                activeExisting,
+                roomProjection(propertyId, "102", roomTypeId, true),
+                inactiveExisting));
 
-        HousekeepingRoomDayStatus existingDay = housekeepingStatus(propertyId, fromDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
+        HousekeepingRoomDayStatus existingDay = housekeepingStatus(
+                propertyId, fromDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         existingDay.setConfirmationId(null);
         existingDay.setRoomTypeId(roomTypeId);
         existingDay.setRoomTypeName("Deluxe");
         existingDay.setFloor("1");
         existingDay.setSellable(true);
-        when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(eq(propertyId), org.mockito.ArgumentMatchers.<LocalDate>any(), eq("101")))
-                .thenAnswer(invocation -> {
-                    LocalDate date = invocation.getArgument(1);
-                    if (date.equals(fromDate)) {
-                        return Optional.of(existingDay);
-                    }
-                    return Optional.empty();
-                });
-        when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(dayStatusRepository.findAllByPropertyIdAndBusinessDateBetween(eq(propertyId), eq(fromDate), eq(toDate)))
+                .thenReturn(List.of(existingDay));
+
+        when(roomMasterProjectionRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+        when(dayStatusRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
 
         RoomMasterSyncRequest request = new RoomMasterSyncRequest(
                 propertyId,
@@ -104,21 +103,20 @@ class RoomMasterSyncServiceImplTest {
         assertThat(response.syncedRooms()).isEqualTo(1);
         assertThat(response.deactivatedRooms()).isEqualTo(1);
 
-        verify(roomMasterProjectionRepository, org.mockito.Mockito.times(2)).save(projectionCaptor.capture());
-        List<RoomMasterProjection> savedProjections = projectionCaptor.getAllValues();
-        assertThat(savedProjections).extracting(RoomMasterProjection::getRoomNumber).containsExactly("101", "102");
-        assertThat(savedProjections.get(0).getRoomTypeName()).isEqualTo("Deluxe");
-        assertThat(savedProjections.get(0).isActive()).isTrue();
-        assertThat(savedProjections.get(1).isActive()).isFalse();
+        verify(roomMasterProjectionRepository, org.mockito.Mockito.times(2)).saveAll(projectionListCaptor.capture());
+        List<RoomMasterProjection> savedProjections = new ArrayList<>();
+        projectionListCaptor.getAllValues().forEach(savedProjections::addAll);
+        assertThat(savedProjections).extracting(RoomMasterProjection::getRoomNumber).containsExactlyInAnyOrder("101", "102");
+        assertThat(savedProjections).extracting(RoomMasterProjection::isActive).containsExactlyInAnyOrder(true, false);
 
-        verify(dayStatusRepository, org.mockito.Mockito.times(2)).save(statusCaptor.capture());
-        List<HousekeepingRoomDayStatus> savedStatuses = new ArrayList<>(statusCaptor.getAllValues());
+        verify(dayStatusRepository, org.mockito.Mockito.times(1)).saveAll(statusListCaptor.capture());
+        List<HousekeepingRoomDayStatus> savedStatuses = statusListCaptor.getValue();
         assertThat(savedStatuses).hasSize(2);
-        assertThat(savedStatuses.get(0).getRoomNumber()).isEqualTo("101");
-        assertThat(savedStatuses.get(0).isSellable()).isTrue();
-        assertThat(savedStatuses.get(1).getRoomNumber()).isEqualTo("101");
-        assertThat(savedStatuses.get(1).getBusinessDate()).isEqualTo(toDate);
-        assertThat(savedStatuses.get(1).isSellable()).isFalse();
+        assertThat(savedStatuses).extracting(HousekeepingRoomDayStatus::getRoomNumber).containsOnly("101");
+        assertThat(savedStatuses).filteredOn(s -> s.getBusinessDate().equals(fromDate))
+                .singleElement().satisfies(s -> assertThat(s.isSellable()).isTrue());
+        assertThat(savedStatuses).filteredOn(s -> s.getBusinessDate().equals(toDate))
+                .singleElement().satisfies(s -> assertThat(s.isSellable()).isFalse());
     }
 
     @Test
@@ -129,7 +127,7 @@ class RoomMasterSyncServiceImplTest {
         LocalDate toDate = LocalDate.of(2026, 8, 18);
 
         when(roomMasterProjectionRepository.findAllByPropertyId(propertyId)).thenReturn(List.of());
-        when(roomMasterProjectionRepository.save(any(RoomMasterProjection.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roomMasterProjectionRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
 
         RoomMasterSyncRequest request = new RoomMasterSyncRequest(
                 propertyId,
@@ -152,7 +150,7 @@ class RoomMasterSyncServiceImplTest {
 
         assertThat(response.syncedRooms()).isEqualTo(1);
         assertThat(response.deactivatedRooms()).isEqualTo(0);
-        verify(dayStatusRepository, never()).save(any());
+        verify(dayStatusRepository, never()).saveAll(anyList());
     }
 
     private static RoomMasterProjection roomProjection(String propertyId, String roomNumber, UUID roomTypeId, boolean active) {
@@ -197,8 +195,3 @@ class RoomMasterSyncServiceImplTest {
                 .build();
     }
 }
-
-
-
-
-

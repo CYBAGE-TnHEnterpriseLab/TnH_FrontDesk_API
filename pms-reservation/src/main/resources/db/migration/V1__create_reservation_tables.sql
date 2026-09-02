@@ -1,7 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS frontdeskdb;
-SET search_path TO frontdeskdb;
 
-CREATE TABLE IF NOT EXISTS reservation_bookings (
+CREATE TABLE IF NOT EXISTS frontdeskdb.reservation_bookings (
     id BIGSERIAL PRIMARY KEY,
     confirmation_number VARCHAR(80) NOT NULL,
     reservation_status VARCHAR(30) NOT NULL,
@@ -56,7 +55,7 @@ CREATE TABLE IF NOT EXISTS reservation_bookings (
     CONSTRAINT uk_reservation_bookings_confirmation_number UNIQUE (confirmation_number)
 );
 
-CREATE TABLE IF NOT EXISTS reservation_checkin_audit (
+CREATE TABLE IF NOT EXISTS frontdeskdb.reservation_checkin_audit (
     id BIGSERIAL PRIMARY KEY,
     booking_id BIGINT NOT NULL,
     confirmation_number VARCHAR(80) NOT NULL,
@@ -68,7 +67,7 @@ CREATE TABLE IF NOT EXISTS reservation_checkin_audit (
     created_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS reservation_checkin_signatures (
+CREATE TABLE IF NOT EXISTS frontdeskdb.reservation_checkin_signatures (
     id BIGSERIAL PRIMARY KEY,
     booking_id BIGINT NOT NULL,
     confirmation_number VARCHAR(80) NOT NULL,
@@ -81,7 +80,7 @@ CREATE TABLE IF NOT EXISTS reservation_checkin_signatures (
     CONSTRAINT uk_checkin_signature_booking_id UNIQUE (booking_id)
 );
 
-CREATE TABLE IF NOT EXISTS reservation_checkin_workflow (
+CREATE TABLE IF NOT EXISTS frontdeskdb.reservation_checkin_workflow (
     id BIGSERIAL PRIMARY KEY,
     booking_id BIGINT NOT NULL,
     confirmation_number VARCHAR(80) NOT NULL,
@@ -97,7 +96,7 @@ CREATE TABLE IF NOT EXISTS reservation_checkin_workflow (
     CONSTRAINT uk_checkin_workflow_booking_id UNIQUE (booking_id)
 );
 
-CREATE TABLE IF NOT EXISTS reservation_payment_transactions (
+CREATE TABLE IF NOT EXISTS frontdeskdb.reservation_payment_transactions (
     id BIGSERIAL PRIMARY KEY,
     booking_id BIGINT NOT NULL,
     confirmation_number VARCHAR(80) NOT NULL,
@@ -112,7 +111,7 @@ CREATE TABLE IF NOT EXISTS reservation_payment_transactions (
     created_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS arrival_records (
+CREATE TABLE IF NOT EXISTS frontdeskdb.arrival_records (
     id BIGSERIAL PRIMARY KEY,
     business_date DATE NOT NULL,
     property_id VARCHAR(40) NOT NULL,
@@ -141,7 +140,7 @@ CREATE TABLE IF NOT EXISTS arrival_records (
         UNIQUE (property_id, business_date, confirmation_number)
 );
 
-CREATE TABLE IF NOT EXISTS departure_records (
+CREATE TABLE IF NOT EXISTS frontdeskdb.departure_records (
     id BIGSERIAL PRIMARY KEY,
     business_date DATE NOT NULL,
     property_id VARCHAR(40) NOT NULL,
@@ -170,7 +169,7 @@ CREATE TABLE IF NOT EXISTS departure_records (
         UNIQUE (property_id, business_date, confirmation_number)
 );
 
-CREATE TABLE IF NOT EXISTS housekeeping_room_status (
+CREATE TABLE IF NOT EXISTS frontdeskdb.housekeeping_room_status (
     id BIGSERIAL PRIMARY KEY,
     property_id VARCHAR(40) NOT NULL,
     business_date DATE NOT NULL,
@@ -181,60 +180,60 @@ CREATE TABLE IF NOT EXISTS housekeeping_room_status (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reservation_property_arrival
-    ON reservation_bookings(property_id, arrival_date);
+    ON frontdeskdb.reservation_bookings(property_id, arrival_date);
 CREATE INDEX IF NOT EXISTS idx_reservation_arrival_departure
-    ON reservation_bookings(arrival_date, departure_date);
+    ON frontdeskdb.reservation_bookings(arrival_date, departure_date);
 CREATE INDEX IF NOT EXISTS idx_reservation_guest_name
-    ON reservation_bookings(guest_name);
+    ON frontdeskdb.reservation_bookings(guest_name);
 CREATE INDEX IF NOT EXISTS idx_reservation_confirmation
-    ON reservation_bookings(confirmation_number);
+    ON frontdeskdb.reservation_bookings(confirmation_number);
 
 CREATE INDEX IF NOT EXISTS idx_checkin_audit_booking
-    ON reservation_checkin_audit(booking_id);
+    ON frontdeskdb.reservation_checkin_audit(booking_id);
 CREATE INDEX IF NOT EXISTS idx_checkin_audit_confirmation
-    ON reservation_checkin_audit(confirmation_number);
+    ON frontdeskdb.reservation_checkin_audit(confirmation_number);
 CREATE INDEX IF NOT EXISTS idx_checkin_audit_created_at
-    ON reservation_checkin_audit(created_at);
+    ON frontdeskdb.reservation_checkin_audit(created_at);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_checkin_signature_booking
-    ON reservation_checkin_signatures(booking_id);
+    ON frontdeskdb.reservation_checkin_signatures(booking_id);
 CREATE INDEX IF NOT EXISTS idx_checkin_signature_confirmation
-    ON reservation_checkin_signatures(confirmation_number);
+    ON frontdeskdb.reservation_checkin_signatures(confirmation_number);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_checkin_workflow_booking
-    ON reservation_checkin_workflow(booking_id);
+    ON frontdeskdb.reservation_checkin_workflow(booking_id);
 CREATE INDEX IF NOT EXISTS idx_checkin_workflow_confirmation
-    ON reservation_checkin_workflow(confirmation_number);
+    ON frontdeskdb.reservation_checkin_workflow(confirmation_number);
 
 CREATE INDEX IF NOT EXISTS idx_payment_txn_booking
-    ON reservation_payment_transactions(booking_id);
+    ON frontdeskdb.reservation_payment_transactions(booking_id);
 CREATE INDEX IF NOT EXISTS idx_payment_txn_confirmation
-    ON reservation_payment_transactions(confirmation_number);
+    ON frontdeskdb.reservation_payment_transactions(confirmation_number);
 
 CREATE INDEX IF NOT EXISTS idx_arrival_property_business_date
-    ON arrival_records(property_id, business_date);
+    ON frontdeskdb.arrival_records(property_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_arrival_property_business_checkin
-    ON arrival_records(property_id, business_date, check_in_date);
+    ON frontdeskdb.arrival_records(property_id, business_date, check_in_date);
 CREATE INDEX IF NOT EXISTS idx_arrival_business_date
-    ON arrival_records(business_date);
+    ON frontdeskdb.arrival_records(business_date);
 CREATE INDEX IF NOT EXISTS idx_arrival_confirmation
-    ON arrival_records(confirmation_number);
+    ON frontdeskdb.arrival_records(confirmation_number);
 CREATE INDEX IF NOT EXISTS idx_arrival_guest_name
-    ON arrival_records(first_name, last_name);
+    ON frontdeskdb.arrival_records(first_name, last_name);
 
 CREATE INDEX IF NOT EXISTS idx_departure_property_business_date
-    ON departure_records(property_id, business_date);
+    ON frontdeskdb.departure_records(property_id, business_date);
 CREATE INDEX IF NOT EXISTS idx_departure_property_business_checkout
-    ON departure_records(property_id, business_date, check_out_date);
+    ON frontdeskdb.departure_records(property_id, business_date, check_out_date);
 CREATE INDEX IF NOT EXISTS idx_departure_business_date
-    ON departure_records(business_date);
+    ON frontdeskdb.departure_records(business_date);
 CREATE INDEX IF NOT EXISTS idx_departure_confirmation
-    ON departure_records(confirmation_number);
+    ON frontdeskdb.departure_records(confirmation_number);
 CREATE INDEX IF NOT EXISTS idx_departure_guest_name
-    ON departure_records(first_name, last_name);
+    ON frontdeskdb.departure_records(first_name, last_name);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hk_property_date_confirmation
-    ON housekeeping_room_status(property_id, business_date, confirmation_number);
+    ON frontdeskdb.housekeeping_room_status(property_id, business_date, confirmation_number);
 CREATE INDEX IF NOT EXISTS idx_hk_property_date_status
-    ON housekeeping_room_status(property_id, business_date, room_status);
+    ON frontdeskdb.housekeeping_room_status(property_id, business_date, room_status);
 

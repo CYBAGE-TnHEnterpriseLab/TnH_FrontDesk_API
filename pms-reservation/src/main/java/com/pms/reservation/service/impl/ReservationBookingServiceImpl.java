@@ -747,7 +747,6 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .processorName(paymentResult.getProcessorName())
                 .failureReason(paymentResult.getFailureReason())
                 .processedAt(paymentResult.getProcessedAt() == null ? LocalDateTime.now() : paymentResult.getProcessedAt())
-                .createdAt(LocalDateTime.now())
                 .build();
     }
 

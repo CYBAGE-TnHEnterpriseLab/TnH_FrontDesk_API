@@ -13,6 +13,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "reservation_checkin_audit", indexes = {
@@ -22,10 +25,10 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReservationCheckInAuditRecord {
+@SuperBuilder
+public class ReservationCheckInAuditRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,7 +54,4 @@ public class ReservationCheckInAuditRecord {
 
     @Column(nullable = false, length = 160)
     private String actor;
-
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
 }

@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.pms.common.entity.BaseEntity;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -13,7 +14,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @Table(name = "floor_property_area")
-public class FloorPropertyAreaEntity {
+public class FloorPropertyAreaEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

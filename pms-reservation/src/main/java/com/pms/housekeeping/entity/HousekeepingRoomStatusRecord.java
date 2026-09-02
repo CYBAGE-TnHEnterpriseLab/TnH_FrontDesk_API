@@ -1,5 +1,6 @@
 package com.pms.housekeeping.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -8,11 +9,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import lombok.Getter;
 import lombok.Setter;
 
 @Entity
@@ -22,10 +22,10 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class HousekeepingRoomStatusRecord {
+@SuperBuilder
+public class HousekeepingRoomStatusRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -45,7 +45,4 @@ public class HousekeepingRoomStatusRecord {
 
     @Column(nullable = false, length = 20)
     private String roomStatus;
-
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
 }

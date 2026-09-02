@@ -1,5 +1,6 @@
 package com.pms.property.domain.property.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -7,7 +8,6 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.validation.constraints.DecimalMax;
@@ -19,7 +19,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @Table(name = "property")
-public class PropertyEntity {
+public class PropertyEntity extends BaseEntity {
 
     @Id
     @Column(length = 36)
@@ -82,21 +82,8 @@ public class PropertyEntity {
     @Column(name = "check_out_time", nullable = false)
     private String checkOutTime;
 
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false)
     private String status;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "created_by", nullable = false)
-    private String createdBy;
-
-//    @Column(name = "latitude", precision = 10, scale = 7)
-//    private BigDecimal latitude;
-//
-//    @Column(name = "longitude", precision = 10, scale = 7)
-//    private BigDecimal longitude;
-
 
     @PrePersist
     void assignIdIfMissing() {

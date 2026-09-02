@@ -14,6 +14,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,8 +32,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class HousekeepingRoomDayStatusHistory {
+@SuperBuilder
+public class HousekeepingRoomDayStatusHistory extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

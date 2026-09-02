@@ -1,5 +1,6 @@
 package com.pms.housekeeping.config;
 
+import com.pms.common.config.CorsConfig;
 import io.swagger.v3.oas.models.OpenAPI;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -36,7 +37,7 @@ class WebConfigTest {
         CorsRegistration registration = mock(CorsRegistration.class);
         when(registry.addMapping("/**")).thenReturn(registration);
         when(registration.allowedOriginPatterns("http://localhost:3000", "https://app.example.com")).thenReturn(registration);
-        when(registration.allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")).thenReturn(registration);
+        when(registration.allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")).thenReturn(registration);
         when(registration.allowedHeaders("*")).thenReturn(registration);
         when(registration.allowCredentials(true)).thenReturn(registration);
         when(registration.maxAge(3600)).thenReturn(registration);
@@ -45,7 +46,7 @@ class WebConfigTest {
 
         verify(registry).addMapping("/**");
         verify(registration).allowedOriginPatterns("http://localhost:3000", "https://app.example.com");
-        verify(registration).allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS");
+        verify(registration).allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
         verify(registration).allowedHeaders("*");
         verify(registration).allowCredentials(true);
         verify(registration).maxAge(3600);

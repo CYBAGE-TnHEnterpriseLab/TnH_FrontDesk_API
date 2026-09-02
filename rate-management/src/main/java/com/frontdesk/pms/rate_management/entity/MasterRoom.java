@@ -1,5 +1,6 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.pms.common.entity.BaseEntity;
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -9,7 +10,7 @@ import java.util.List;
 @Table(
     uniqueConstraints = @UniqueConstraint(name = "uk_master_room_property_name", columnNames = {"property_id", "name"})
 )
-public class MasterRoom {
+public class MasterRoom extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -1,6 +1,6 @@
 package com.frontdesk.pms.rate_management.config;
 
-import com.pms.security.jwt.JwtAuthenticationFilter;
+import com.pms.common.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;

@@ -65,7 +65,7 @@ class DomainModelSmokeTest {
                 .reservationStatus(ReservationStatus.NOT_RESERVED)
                 .priority(HousekeepingPriority.NORMAL)
                 .sellable(true)
-                .updatedBy("tester")
+                .updatedBy(java.util.UUID.fromString("00000000-0000-0000-0000-0000000000aa"))
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

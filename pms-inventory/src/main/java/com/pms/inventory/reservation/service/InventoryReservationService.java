@@ -15,7 +15,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,7 +55,6 @@ public class InventoryReservationService {
         inventoryService.ensureSufficientInventory(rows, request.quantity());
         inventoryService.increaseReserved(rows, request.quantity());
 
-        LocalDateTime now = LocalDateTime.now();
         InventoryReservation reservation = InventoryReservation.builder()
                 .reservationId(request.reservationId())
                 .propertyId(request.propertyId())
@@ -66,8 +64,6 @@ public class InventoryReservationService {
                 .checkOutDate(request.checkOutDate())
                 .quantity(request.quantity())
                 .status(InventoryReservationStatus.RESERVED)
-                .createdAt(now)
-                .updatedAt(now)
                 .build();
 
         try {
@@ -103,7 +99,6 @@ public class InventoryReservationService {
         inventoryService.decreaseReserved(rows, reservation.getQuantity());
 
         reservation.setStatus(InventoryReservationStatus.RELEASED);
-        reservation.setUpdatedAt(LocalDateTime.now());
 
         return reservationMapper.toResponse(reservation, false);
     }
@@ -141,7 +136,6 @@ public class InventoryReservationService {
         inventoryService.increaseReserved(newRows, reservation.getQuantity());
 
         reservation.setAssignedRoomTypeId(request.assignedRoomTypeId());
-        reservation.setUpdatedAt(LocalDateTime.now());
 
         return reservationMapper.toResponse(reservation, false);
     }

@@ -38,6 +38,7 @@ import com.pms.property.publish.service.PublishService;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -105,7 +106,7 @@ public class PublishServiceImpl implements PublishService {
 
     @Override
     @Transactional
-    public PublishResponse publish(Long draftId, String actor) {
+    public PublishResponse publish(Long draftId, UUID actor, String authHeader) {
         PropertyDraftEntity draft = draftService.getById(draftId);
         PublishMapper.NormalizedPublishData normalized = publishMapper.toNormalized(draft.getWizardData());
         publishValidator.validate(normalized.root());
@@ -117,13 +118,13 @@ public class PublishServiceImpl implements PublishService {
             propertyId = publishNewProperty(normalized, actor);
         }
 
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader);
 
         draftService.markPublished(draft, propertyId, actor);
         return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());
     }
 
-    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, String actor) {
+    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, UUID actor) {
         normalized.property().setCreatedBy(actor);
         PropertyEntity property = propertyRepository.save(normalized.property());
         String propertyId = property.getId();

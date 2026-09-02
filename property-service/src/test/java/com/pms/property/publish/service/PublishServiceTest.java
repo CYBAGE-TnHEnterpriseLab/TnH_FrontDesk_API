@@ -33,12 +33,15 @@ import com.pms.property.publish.mapper.PublishMapper;
 import com.pms.property.publish.service.serviceImpl.PublishServiceImpl;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 class PublishServiceTest {
+
+    private static final UUID OWNER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @Test
     void shouldRepublishIntoSamePropertyIdAndReplaceNormalizedRows() {
@@ -90,12 +93,12 @@ class PublishServiceTest {
 
         PropertyEntity existingProperty = new PropertyEntity();
         existingProperty.setId("P-100");
-        existingProperty.setCreatedBy("owner");
-        existingProperty.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        existingProperty.setCreatedBy(OWNER_ID);
+        existingProperty.setCreatedAt(LocalDateTime.parse("2026-01-01T00:00:00"));
 
         PropertyEntity mappedProperty = new PropertyEntity();
         mappedProperty.setTitle("Updated title");
-        mappedProperty.setCreatedAt(Instant.now());
+        mappedProperty.setCreatedAt(LocalDateTime.now());
 
         PropertyOverviewEntity overview = new PropertyOverviewEntity();
         overview.setPropertyDescription("updated overview");
@@ -140,7 +143,7 @@ class PublishServiceTest {
         existingRoomType.setImagesCsv("/uploads/old-room.png");
         when(roomOutletTypeRepository.findAllByPropertyId("P-100")).thenReturn(List.of(existingRoomType));
 
-        var response = service.publish(41L, "owner");
+        var response = service.publish(41L, OWNER_ID, "Bearer test-token");
 
         assertEquals("P-100", response.propertyId());
         assertEquals("PUBLISHED", response.status());
@@ -148,7 +151,7 @@ class PublishServiceTest {
         ArgumentCaptor<PropertyEntity> propertyCaptor = ArgumentCaptor.forClass(PropertyEntity.class);
         verify(propertyRepository).save(propertyCaptor.capture());
         assertEquals("P-100", propertyCaptor.getValue().getId());
-        assertEquals("owner", propertyCaptor.getValue().getCreatedBy());
+        assertEquals(OWNER_ID, propertyCaptor.getValue().getCreatedBy());
         assertEquals(existingProperty.getCreatedAt(), propertyCaptor.getValue().getCreatedAt());
         assertEquals("Updated title", propertyCaptor.getValue().getTitle());
 
@@ -158,7 +161,7 @@ class PublishServiceTest {
         verify(localImageStorageService).deleteByPublicUrl("/uploads/old-area.png");
         verify(localImageStorageService).deleteByPublicUrl("/uploads/old-room.png");
         verify(propertyOverviewRepository).flush();
-        verify(draftService).markPublished(eq(draft), eq("P-100"), eq("owner"));
+        verify(inventorySyncService).requestSyncAfterCommit(eq("P-100"), eq("Bearer test-token"));
+        verify(draftService).markPublished(eq(draft), eq("P-100"), eq(OWNER_ID));
     }
 }
-

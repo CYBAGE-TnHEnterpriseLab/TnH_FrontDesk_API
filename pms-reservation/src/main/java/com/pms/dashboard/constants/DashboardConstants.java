@@ -9,7 +9,7 @@ public final class DashboardConstants {
     public static final long MIN_TIMEOUT_MS = 500L;
 
     public static final int DEFAULT_PAGE = 0;
-    public static final int DEFAULT_PAGE_SIZE = 200;
+    public static final int DEFAULT_PAGE_SIZE = 500;
 
     public static final String SORT_BY_ROOM_NUMBER = "roomNumber";
     public static final String SORT_ASC = "asc";

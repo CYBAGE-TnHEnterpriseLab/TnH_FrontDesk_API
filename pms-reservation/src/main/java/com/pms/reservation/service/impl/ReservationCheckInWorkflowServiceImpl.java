@@ -110,7 +110,6 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
                 .eventMessage(message)
                 .changedFields(changedFields)
                 .actor(StringUtils.hasText(actor) ? actor.trim() : "system")
-                .createdAt(LocalDateTime.now())
                 .build());
     }
 

@@ -1,6 +1,6 @@
 package com.frontdesk.pms.rate_management.security;
 
-import com.pms.security.jwt.AccessTokenVerifier;
+import com.pms.common.utils.AccessTokenVerifier;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;

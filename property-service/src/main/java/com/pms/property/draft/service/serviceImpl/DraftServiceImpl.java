@@ -18,7 +18,7 @@ import com.pms.property.draft.mapper.DraftMapper;
 import com.pms.property.draft.repository.PropertyDraftRepository;
 import com.pms.property.draft.service.DraftService;
 import com.pms.property.upload.service.LocalImageStorageService;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,7 +54,7 @@ public class DraftServiceImpl implements DraftService {
 
     @Override
     @Transactional
-    public DraftResponse createDraft(CreateDraftRequest request, String actor) {
+    public DraftResponse createDraft(CreateDraftRequest request, UUID actor) {
         PropertyDraftEntity entity = new PropertyDraftEntity();
         entity.setSchemaVersion(request.schemaVersion());
         entity.setStatus(DraftStatus.DRAFT);
@@ -61,17 +62,13 @@ public class DraftServiceImpl implements DraftService {
         entity.setCurrentStep(defaultStep(request.currentStep()));
         entity.setCompletedSteps(joinSteps(request.completedSteps()));
         entity.setWizardData(writeJson(request.wizardData()));
-        entity.setCreatedBy(actor);
-        entity.setUpdatedBy(actor);
-        entity.setCreatedAt(Instant.now());
-        entity.setUpdatedAt(Instant.now());
         PropertyDraftEntity saved = draftRepository.save(entity);
         return DraftMapper.toResponse(saved, objectMapper);
     }
 
     @Override
     @Transactional
-    public DraftResponse saveDraft(Long draftId, SaveDraftRequest request, String actor) {
+    public DraftResponse saveDraft(Long draftId, SaveDraftRequest request, UUID actor) {
         PropertyDraftEntity entity = getById(draftId);
         if (request.expectedVersion() != null && !request.expectedVersion().equals(entity.getVersion())) {
             throw new BadRequestException("Draft version mismatch");
@@ -88,8 +85,6 @@ public class DraftServiceImpl implements DraftService {
             entity.setLifecycleState(DraftLifecycleState.CONFIGURED);
         }
         entity.setWizardData(updatedWizardData);
-        entity.setUpdatedBy(actor);
-        entity.setUpdatedAt(Instant.now());
         return DraftMapper.toResponse(draftRepository.save(entity), objectMapper);
     }
 
@@ -101,7 +96,7 @@ public class DraftServiceImpl implements DraftService {
 
     @Override
     @Transactional(readOnly = true)
-    public DraftResponse getPublishedDraftByPropertyId(String propertyId, String actor) {
+    public DraftResponse getPublishedDraftByPropertyId(String propertyId, UUID actor) {
         PropertyEntity property = getOwnedProperty(propertyId, actor);
         PropertyDraftEntity draft = draftRepository
             .findFirstByPublishedPropertyIdAndStatusOrderByUpdatedAtDesc(property.getId(), DraftStatus.PUBLISHED)
@@ -111,7 +106,7 @@ public class DraftServiceImpl implements DraftService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<WizardPropertyOptionResponse> getMyPublishedWizardProperties(String actor) {
+    public List<WizardPropertyOptionResponse> getMyPublishedWizardProperties(UUID actor) {
         List<PropertyEntity> properties = propertyRepository.findByCreatedBy(actor);
         if (properties.isEmpty()) {
             return List.of();
@@ -127,13 +122,13 @@ public class DraftServiceImpl implements DraftService {
             DraftStatus.PUBLISHED
         );
         Map<String, Long> latestDraftByProperty = new HashMap<>();
-        Map<String, Instant> latestDraftUpdatedAt = new HashMap<>();
+        Map<String, LocalDateTime> latestDraftUpdatedAt = new HashMap<>();
         for (PropertyDraftEntity draft : publishedDrafts) {
             String publishedPropertyId = draft.getPublishedPropertyId();
             if (publishedPropertyId == null || publishedPropertyId.isBlank()) {
                 continue;
             }
-            Instant existing = latestDraftUpdatedAt.get(publishedPropertyId);
+            LocalDateTime existing = latestDraftUpdatedAt.get(publishedPropertyId);
             if (existing == null || draft.getUpdatedAt().isAfter(existing)) {
                 latestDraftUpdatedAt.put(publishedPropertyId, draft.getUpdatedAt());
                 latestDraftByProperty.put(publishedPropertyId, draft.getId());
@@ -156,7 +151,7 @@ public class DraftServiceImpl implements DraftService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DraftResponse> getDraftsByStatus(Collection<DraftStatus> requestedStatuses, String actor) {
+    public List<DraftResponse> getDraftsByStatus(Collection<DraftStatus> requestedStatuses, UUID actor) {
         EnumSet<DraftStatus> statuses = EnumSet.of(DraftStatus.DRAFT, DraftStatus.PUBLISHED);
         if (requestedStatuses != null && !requestedStatuses.isEmpty()) {
             statuses = EnumSet.copyOf(requestedStatuses);
@@ -179,7 +174,7 @@ public class DraftServiceImpl implements DraftService {
 
     @Override
     @Transactional
-    public void deleteDraft(Long draftId, String actor) {
+    public void deleteDraft(Long draftId, UUID actor) {
         PropertyDraftEntity draft = getById(draftId);
         if (draft.getStatus() == DraftStatus.PUBLISHED) {
             throw new BadRequestException("Published draft cannot be deleted");
@@ -198,17 +193,15 @@ public class DraftServiceImpl implements DraftService {
 
     @Override
     @Transactional
-    public void markPublished(PropertyDraftEntity draft, String propertyId, String actor) {
+    public void markPublished(PropertyDraftEntity draft, String propertyId, UUID actor) {
         draft.setStatus(DraftStatus.PUBLISHED);
         draft.setLifecycleState(DraftLifecycleState.ACTIVE);
         draft.setPublishedPropertyId(propertyId);
         draft.setPublishedBy(actor);
-        draft.setUpdatedBy(actor);
-        draft.setUpdatedAt(Instant.now());
         draftRepository.save(draft);
     }
 
-    private PropertyEntity getOwnedProperty(String propertyId, String actor) {
+    private PropertyEntity getOwnedProperty(String propertyId, UUID actor) {
         if (propertyId == null || propertyId.isBlank()) {
             throw new BadRequestException("propertyId is required");
         }
@@ -296,5 +289,3 @@ public class DraftServiceImpl implements DraftService {
         }
     }
 }
-
-

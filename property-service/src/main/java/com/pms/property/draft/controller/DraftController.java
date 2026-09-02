@@ -10,10 +10,12 @@ import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.facade.DraftFacade;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.facade.PublishFacade;
-import com.pms.security.jwt.CurrentUserProvider;
+import com.pms.common.utils.CurrentUser;
+import com.pms.common.security.CurrentUserProvider;
 import jakarta.validation.Valid;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,7 +48,7 @@ public class DraftController {
     /** Creates a new draft property for the current user. */
     @PostMapping("/createDraft")
     public ResponseEntity<ApiResponse<DraftResponse>> createPropertyDraft(@Valid @RequestBody CreateDraftRequest request) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         return ResponseEntity.ok(ApiResponse.ok(draftFacade.create(request, actor), "Draft property created"));
     }
 
@@ -56,7 +58,7 @@ public class DraftController {
         @PathVariable Long draftId,
         @Valid @RequestBody SaveDraftRequest request
     ) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         return ResponseEntity.ok(ApiResponse.ok(draftFacade.update(draftId, request, actor), "Draft property saved"));
     }
 
@@ -65,7 +67,7 @@ public class DraftController {
     public ResponseEntity<ApiResponse<List<DraftResponse>>> list(
         @RequestParam(name = "status", required = false) List<String> statusFilters
     ) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         List<DraftStatus> statuses = new ArrayList<>();
         if (statusFilters != null) {
             for (String rawStatus : statusFilters) {
@@ -90,7 +92,7 @@ public class DraftController {
     /** Fetches published property options that can be used in the wizard flow. */
     @GetMapping("/wizard/properties")
     public ResponseEntity<ApiResponse<List<WizardPropertyOptionResponse>>> listMyWizardProperties() {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         return ResponseEntity.ok(
             ApiResponse.ok(draftFacade.listMyWizardProperties(actor), "Published properties for wizard fetched")
         );
@@ -99,7 +101,7 @@ public class DraftController {
     /** Fetches the latest draft property version derived from a selected published property. */
     @GetMapping("/wizard/properties/{propertyId}")
     public ResponseEntity<ApiResponse<DraftResponse>> getWizardDraftByProperty(@PathVariable String propertyId) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         return ResponseEntity.ok(
             ApiResponse.ok(draftFacade.getPublishedDraftByProperty(propertyId, actor), "Draft property from published property fetched")
         );
@@ -108,14 +110,13 @@ public class DraftController {
     /** Publishes a draft property and returns the published property payload. */
     @PostMapping("/{draftId}/publish")
     public ResponseEntity<ApiResponse<PublishResponse>> publish(@PathVariable Long draftId) {
-        String actor = currentUserProvider.getCurrentUsername();
-        return ResponseEntity.ok(ApiResponse.ok(publishFacade.publish(draftId, actor), "Draft property published"));
+        return ResponseEntity.ok(ApiResponse.ok(publishFacade.publish(draftId), "Draft property published"));
     }
 
     /** Deletes a draft property that is still in editable state. */
     @DeleteMapping("/deleteDraft/{draftId}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long draftId) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         draftFacade.delete(draftId, actor);
         return ResponseEntity.ok(ApiResponse.ok(null, "Draft property deleted"));
     }

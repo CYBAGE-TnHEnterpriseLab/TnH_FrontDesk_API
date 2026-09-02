@@ -1,6 +1,7 @@
 package com.pms.property.domain.property.dto;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record PropertyResponse(
     String id,
@@ -22,8 +23,8 @@ public record PropertyResponse(
     String checkInTime,
     String checkOutTime,
     String status,
-    Instant createdAt,
-    String createdBy
+    LocalDateTime createdAt,
+    UUID createdBy
 ) {
 }
 

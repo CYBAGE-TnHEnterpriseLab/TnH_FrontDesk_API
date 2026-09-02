@@ -1,9 +1,10 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.*;
 
 @Entity
-public class MasterRoomRoomTypeMapping {
+public class MasterRoomRoomTypeMapping extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -5,7 +5,6 @@ import com.pms.housekeeping.dto.HousekeepingRoomStatusResponseDto;
 import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.housekeeping.service.HousekeepingRoomStatusService;
-import java.time.LocalDateTime;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -48,7 +47,6 @@ public class HousekeepingRoomStatusServiceImpl implements HousekeepingRoomStatus
             record.setRoomNo(request.getRoomNo().trim());
         }
         record.setRoomStatus(roomStatus);
-        record.setUpdatedAt(LocalDateTime.now());
 
         HousekeepingRoomStatusRecord saved = housekeepingRoomStatusRepository.save(record);
         return HousekeepingRoomStatusResponseDto.builder()

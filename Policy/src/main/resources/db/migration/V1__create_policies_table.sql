@@ -1,7 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS policy_db;
-SET search_path TO policy_db;
 
-CREATE TABLE IF NOT EXISTS policies (
+CREATE TABLE IF NOT EXISTS policy_db.policies (
     id BIGSERIAL PRIMARY KEY,
     policy_name VARCHAR(200) NOT NULL,
     policy_type VARCHAR(255) NOT NULL,
@@ -21,8 +20,8 @@ CREATE TABLE IF NOT EXISTS policies (
     property_code VARCHAR(255)
 );
 
-CREATE INDEX IF NOT EXISTS idx_policies_policy_code ON policies(policy_code);
-CREATE INDEX IF NOT EXISTS idx_policies_property_id ON policies(property_id);
-CREATE INDEX IF NOT EXISTS idx_policies_service_type ON policies(service_type);
-CREATE INDEX IF NOT EXISTS idx_policies_status ON policies(status);
+CREATE INDEX IF NOT EXISTS idx_policies_policy_code ON policy_db.policies(policy_code);
+CREATE INDEX IF NOT EXISTS idx_policies_property_id ON policy_db.policies(property_id);
+CREATE INDEX IF NOT EXISTS idx_policies_service_type ON policy_db.policies(service_type);
+CREATE INDEX IF NOT EXISTS idx_policies_status ON policy_db.policies(status);
 

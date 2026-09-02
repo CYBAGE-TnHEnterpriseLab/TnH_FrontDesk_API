@@ -62,6 +62,10 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                 Math.max(MIN_TIMEOUT_MS, properties.getTimeoutMs())
         );
 
+        Duration housekeepingRoomsTimeout = Duration.ofMillis(
+                Math.max(MIN_TIMEOUT_MS, properties.getTimeoutMs() * 2)
+        );
+
         Mono<SourceResult<DashboardModels.HousekeepingDashboardData>> housekeepingSummary = wrap(
                 "housekeepingSummary",
                 housekeepingClient.fetchDashboard(propertyId, businessDate),
@@ -73,14 +77,14 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                 "housekeepingRoomsToday",
                 housekeepingClient.fetchRooms(propertyId, businessDate),
                 List.of(),
-                timeout
+                housekeepingRoomsTimeout
         ).cache();
 
         Mono<SourceResult<List<DashboardModels.HousekeepingRoomData>>> housekeepingRoomsTomorrow = wrap(
                 "housekeepingRoomsTomorrow",
                 housekeepingClient.fetchRooms(propertyId, businessDate.plusDays(1)),
                 List.of(),
-                timeout
+                housekeepingRoomsTimeout
         ).cache();
 
         Mono<SourceResult<List<DashboardModels.PropertyRoomTypeData>>> propertyRoomTypes = wrap(
@@ -145,9 +149,20 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                     resolvedRoomOverview
             );
 
-            long availableTonight = resolvedRoomOverview.stream().mapToLong(FrontdeskDashboardResponse.RoomTypeOverview::available).sum();
-            if (availableTonight == 0L) {
-                availableTonight = hkSummary.payload().vacantClean() + hkSummary.payload().inspected();
+            long totalRooms = hkSummary.payload().totalRooms();
+            long outOfOrder = hkSummary.payload().outOfOrder();
+            long outOfService = hkSummary.payload().outOfService();
+            long occupied = hkSummary.payload().occupiedClean() + hkSummary.payload().occupiedDirty();
+
+            long availableTonight = totalRooms - outOfOrder - outOfService - occupied;
+            if (availableTonight < 0) {
+                availableTonight = 0;
+            }
+
+            if (availableTonight == 0 && !resolvedRoomOverview.isEmpty()) {
+                availableTonight = resolvedRoomOverview.stream()
+                        .mapToLong(FrontdeskDashboardResponse.RoomTypeOverview::available)
+                        .sum();
             }
 
             long occupiedTonight = hkSummary.payload().occupiedClean() + hkSummary.payload().occupiedDirty();
@@ -176,7 +191,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                     inventoryMetrics,
                     housekeepingStatus,
                     resolvedRoomOverview,
-                    summarizeTomorrowStatus(hkTomorrow.payload()),
+                    summarizeTurndownStatus(hkTomorrow.payload()),
                     summarizeGuestActivity(arrivals, departures, stayovers, occupiedTonight),
                     sources
             );
@@ -230,7 +245,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
     ) {
         long total = Math.max(daily.totalInventory(), 0);
         long booked = Math.max(daily.reservedCount(), 0) + Math.max(daily.blockedCount(), 0);
-        long available = Math.max(daily.availableCount(), 0);
+        long available = Math.max(total - booked, 0);
         return new FrontdeskDashboardResponse.RoomTypeOverview(coalesceTypeName(type.roomTypeCode(), type.roomTypeName()), total, booked, available);
     }
 
@@ -271,8 +286,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             List<DashboardModels.HousekeepingRoomData> rooms,
             List<FrontdeskDashboardResponse.RoomTypeOverview> roomTypeOverview
     ) {
-        long totalByType = roomTypeOverview.stream().mapToLong(FrontdeskDashboardResponse.RoomTypeOverview::total).sum();
-        long totalRooms = totalByType > 0 ? totalByType : housekeeping.totalRooms();
+        long totalRooms = housekeeping.totalRooms();
         long sellable = rooms.stream().filter(DashboardModels.HousekeepingRoomData::sellable).count();
         if (sellable == 0) {
             sellable = Math.max(housekeeping.vacantClean() + housekeeping.inspected(), 0);
@@ -318,31 +332,8 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
         );
     }
 
-    private FrontdeskDashboardResponse.TomorrowStatus summarizeTomorrowStatus(List<DashboardModels.HousekeepingRoomData> tomorrowRooms) {
-        long required = tomorrowRooms.stream()
-                .filter(r -> containsAny(
-                        r.cleaningStatus(),
-                        CLEANING_DIRTY,
-                        CLEANING_PICKUP
-                ))
-                .count();
-
-        long notRequired = tomorrowRooms.stream()
-                .filter(r -> containsAny(
-                        r.cleaningStatus(),
-                        CLEANING_OUT_OF_ORDER,
-                        CLEANING_OUT_OF_SERVICE
-                ))
-                .count();
-
-        long completed = tomorrowRooms.stream()
-                .filter(r -> containsAny(
-                        r.cleaningStatus(),
-                        CLEANING_CLEAN,
-                        CLEANING_INSPECTED
-                ))
-                .count();
-        return new FrontdeskDashboardResponse.TomorrowStatus(required, notRequired, completed);
+    private FrontdeskDashboardResponse.TurndownStatus summarizeTurndownStatus(List<DashboardModels.HousekeepingRoomData> tomorrowRooms) {
+        return new FrontdeskDashboardResponse.TurndownStatus(0, 0, 0);
     }
 
     private FrontdeskDashboardResponse.RevenueMetrics summarizeRevenue(

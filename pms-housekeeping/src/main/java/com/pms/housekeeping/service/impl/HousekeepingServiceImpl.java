@@ -1,19 +1,15 @@
 package com.pms.housekeeping.service.impl;
 
+import com.pms.common.security.CurrentUserProvider;
+import com.pms.common.utils.CurrentUser;
 import com.pms.housekeeping.common.exception.HousekeepingNotFoundException;
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
 import com.pms.housekeeping.dto.response.*;
-import com.pms.housekeeping.entity.CleaningStatus;
-import com.pms.housekeeping.entity.FrontOfficeStatus;
-import com.pms.housekeeping.entity.HousekeepingRoomDayStatus;
-import com.pms.housekeeping.entity.HousekeepingRoomDayStatusHistory;
-import com.pms.housekeeping.entity.ReservationStatus;
-import com.pms.housekeeping.entity.RoomMasterProjection;
+import com.pms.housekeeping.entity.*;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusHistoryRepository;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
-import com.pms.security.jwt.CurrentUserProvider;
 import com.pms.housekeeping.service.HousekeepingService;
 import com.pms.housekeeping.specifications.HousekeepingRoomSpecification;
 import org.slf4j.Logger;
@@ -28,15 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
 
 @Service
 public class HousekeepingServiceImpl implements HousekeepingService {
@@ -454,10 +444,28 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                             "Housekeeping status not found for room: " + roomNumber);
                 });
         LocalDateTime now = LocalDateTime.now();
+        CleaningStatus oldCleaningStatus = row.getCleaningStatus();
 
         applyCleaningStatusChange(row, request, now, loggedInUser);
         applyFrontOfficeStatusChange(row, request, now, loggedInUser);
         applyReservationStatusChange(row, request, now, loggedInUser);
+
+        if (request.cleaningStatus() != null && request.cleaningStatus() != oldCleaningStatus) {
+            LocalDateTime lastCleanedAt = request.cleaningStatus() == CleaningStatus.CLEAN ? now : null;
+            boolean sellable = request.cleaningStatus() != CleaningStatus.OUT_OF_ORDER;
+            dayStatusRepository.updateCleaningStatusFromDate(
+                    request.propertyId(),
+                    roomNumber,
+                    request.businessDate(),
+                    request.cleaningStatus().name(),
+                    lastCleanedAt,
+                    sellable,
+                    now,
+                    CurrentUser.userId()
+            );
+            log.info("HousekeepingService::updateRoomStatus - Propagated cleaningStatus={} to future dates for room {} from {}",
+                    request.cleaningStatus(), roomNumber, request.businessDate());
+        }
 
         if (request.confirmationId() != null || row.getConfirmationId() != null) {
             String oldValue = row.getConfirmationId();
@@ -502,9 +510,9 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             row.setDepartureDate(request.departureDate());
         }
 
-        row.setSellable(request.sellable() != null ? request.sellable() : computeSellable(row));
+        row.setSellable(computeSellable(row));
 
-        row.setUpdatedBy(loggedInUser);
+        row.setUpdatedBy(CurrentUser.userId());
         row.setUpdatedAt(now);
 
         HousekeepingRoomDayStatus saved = dayStatusRepository.save(row);
@@ -643,13 +651,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     }
 
     private boolean computeSellable(HousekeepingRoomDayStatus status) {
-        boolean cleanEnough = status.getCleaningStatus() == CleaningStatus.CLEAN
-                || status.getCleaningStatus() == CleaningStatus.INSPECTED;
-        boolean vacant = status.getFrontOfficeStatus() == FrontOfficeStatus.VACANT;
-        boolean noAssignment = status.getConfirmationId() == null;
-        boolean notOut = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
-                && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
-        return cleanEnough && vacant && noAssignment;
+        return status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER;
     }
 
     private String toStringValue(Object value) {

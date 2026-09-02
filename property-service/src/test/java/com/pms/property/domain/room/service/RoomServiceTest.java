@@ -17,6 +17,7 @@ import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
 import com.pms.property.domain.room.service.serviceImpl.RoomServiceImpl;
 import com.pms.property.integration.inventory.service.InventorySyncService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -31,13 +32,15 @@ class RoomServiceTest {
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
         InventorySyncService inventorySyncService = mock(InventorySyncService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
         RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
             roomOutletTypeRepository,
             inventoryRoomRepository,
-            inventorySyncService
+            inventorySyncService,
+            request
         );
 
         when(inventoryRoomRepository.save(any(InventoryRoomEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -56,13 +59,15 @@ class RoomServiceTest {
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
         InventorySyncService inventorySyncService = mock(InventorySyncService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
         RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
             roomOutletTypeRepository,
             inventoryRoomRepository,
-            inventorySyncService
+            inventorySyncService,
+            request
         );
 
         when(inventoryRoomRepository.findByPropertyIdAndId("P-1", 33L)).thenReturn(Optional.empty());
@@ -78,13 +83,15 @@ class RoomServiceTest {
         RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
         InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
         InventorySyncService inventorySyncService = mock(InventorySyncService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
         RoomService service = new RoomServiceImpl(
             floorConfigRepository,
             propertyAreaRepository,
             floorPropertyAreaRepository,
             roomOutletTypeRepository,
             inventoryRoomRepository,
-            inventorySyncService
+            inventorySyncService,
+            request
         );
 
         RoomOutletTypeEntity entity = new RoomOutletTypeEntity();
@@ -109,4 +116,3 @@ class RoomServiceTest {
         assertEquals("P-1", response.get(0).propertyId());
     }
 }
-

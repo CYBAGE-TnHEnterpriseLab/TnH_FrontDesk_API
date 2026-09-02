@@ -15,7 +15,7 @@ import com.pms.auth.repository.RoleRepository;
 import com.pms.auth.repository.UserAccountRepository;
 import com.pms.auth.service.AuthService;
 import com.pms.auth.util.TokenHashUtils;
-import com.pms.security.jwt.JwtTokenService;
+import com.pms.common.utils.JwtTokenService;
 import com.pms.auth.validator.PasswordPolicyValidator;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -105,7 +105,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         UserAccount account = persistedToken.getUserAccount();
-        if (!account.getUsername().equals(refreshClaims.getSubject())) {
+        if (!account.getId().toString().equals(refreshClaims.getSubject())) {
             throw new AuthException("Refresh token subject mismatch");
         }
 
@@ -114,7 +114,7 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException("Access denied for non-admin user");
         }
 
-        String newRefreshToken = jwtTokenService.generateRefreshToken(account.getUsername());
+        String newRefreshToken = jwtTokenService.generateRefreshToken(account.getId(), account.getUsername());
         String newRefreshHash = TokenHashUtils.sha256(newRefreshToken);
         persistedToken.setRevoked(true);
         persistedToken.setRevokedAt(OffsetDateTime.now(ZoneOffset.UTC));
@@ -124,7 +124,7 @@ public class AuthServiceImpl implements AuthService {
         saveRefreshToken(account, newRefreshToken, jwtTokenService.parseRefreshTokenClaims(newRefreshToken));
 
         return AuthResponse.builder()
-                .accessToken(jwtTokenService.generateAccessToken(account.getUsername(), roleNames))
+                .accessToken(jwtTokenService.generateAccessToken(account.getId(), account.getUsername(), roleNames))
                 .refreshToken(newRefreshToken)
                 .tokenType("Bearer")
                 .accessTokenExpiresInSeconds(jwtTokenService.getAccessTokenExpirationSeconds())
@@ -152,8 +152,8 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthResponse issueAuthTokens(UserAccount account) {
         Set<String> roleNames = extractRoleNames(account);
-        String accessToken = jwtTokenService.generateAccessToken(account.getUsername(), roleNames);
-        String refreshToken = jwtTokenService.generateRefreshToken(account.getUsername());
+        String accessToken = jwtTokenService.generateAccessToken(account.getId(), account.getUsername(), roleNames);
+        String refreshToken = jwtTokenService.generateRefreshToken(account.getId(), account.getUsername());
 
         saveRefreshToken(account, refreshToken, jwtTokenService.parseRefreshTokenClaims(refreshToken));
 

@@ -1,6 +1,6 @@
 package com.pms.inventory.security;
 
-import com.pms.security.jwt.JwtAuthenticationFilter;
+import com.pms.common.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -27,6 +27,9 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/error"
+                ).permitAll()
+                .requestMatchers(
+                    "/api/v1/inventory/reconciliation"
                 ).permitAll()
                 .requestMatchers("/api/**").hasRole("ADMIN")
                 .anyRequest().permitAll()

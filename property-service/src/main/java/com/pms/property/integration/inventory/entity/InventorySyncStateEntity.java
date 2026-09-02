@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import com.pms.common.entity.BaseEntity;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,7 +17,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @Table(name = "inventory_sync_state")
-public class InventorySyncStateEntity {
+public class InventorySyncStateEntity extends BaseEntity {
 
     @Id
     @Column(name = "property_id", length = 36)
@@ -38,16 +39,6 @@ public class InventorySyncStateEntity {
     @Column(name = "last_synced_at")
     private Instant lastSyncedAt;
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    @PrePersist
-    @PreUpdate
-    void touchUpdatedAt() {
-        if (retryCount == null) {
-            retryCount = 0;
-        }
-        updatedAt = Instant.now();
-    }
 }
+
 

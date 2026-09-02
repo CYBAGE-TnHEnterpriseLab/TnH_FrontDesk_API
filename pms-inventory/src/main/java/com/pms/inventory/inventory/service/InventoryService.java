@@ -139,5 +139,10 @@ public class InventoryService {
                 hasActiveReservations
         );
     }
+
+    @Transactional
+    public void deletePropertyData(UUID propertyId) {
+        dailyRepository.deleteByPropertyId(propertyId);
+    }
 }
 

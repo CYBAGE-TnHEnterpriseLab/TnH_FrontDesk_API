@@ -1,6 +1,7 @@
 package Policy_Management.Policy.dto;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -33,7 +34,7 @@ public class PolicyDto {
 
     private Status status;
 
-    private String createdBy;
+    private UUID createdBy;
 
     private String action;
 
@@ -139,11 +140,11 @@ public class PolicyDto {
         this.status = status;
     }
 
-    public String getCreatedBy() {
+    public UUID getCreatedBy() {
         return createdBy;
     }
 
-    public void setCreatedBy(String createdBy) {
+    public void setCreatedBy(UUID createdBy) {
         this.createdBy = createdBy;
     }
 

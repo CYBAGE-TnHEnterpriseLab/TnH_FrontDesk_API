@@ -99,7 +99,7 @@ springdoc:
 
 app:
   cors:
-    allowed-origins: http://172.27.57.211:4200,http://172.27.57.175:4200,http://172.27.57.97:4200,http://localhost:4200,http://172.27.212.27:4200
+    allowed-origin-patterns: http://172.27.57.211:4200,http://172.27.57.175:4200,http://172.27.57.97:4200,http://localhost:4200,http://172.27.212.27:4200
     
 security:
   jwt:

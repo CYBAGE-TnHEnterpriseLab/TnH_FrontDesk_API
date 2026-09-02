@@ -18,7 +18,7 @@ import com.pms.property.domain.room.entity.RoomOutletTypeEntity;
 import com.pms.property.domain.tax.entity.TaxRuleEntity;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -61,7 +61,7 @@ public class PublishMapper {
             property.setCheckInTime(firstText(propertyNode, "checkInTime"));
             property.setCheckOutTime(firstText(propertyNode, "checkOutTime"));
             property.setStatus("ACTIVE");
-            property.setCreatedAt(Instant.now());
+            property.setCreatedAt(LocalDateTime.now());
 
             PropertyOverviewEntity propertyOverview = mapPropertyOverview(contentNode);
             List<GuestServiceAmenityEntity> guestServiceAmenities = mapGuestServiceAmenities(contentNode);

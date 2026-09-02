@@ -2,6 +2,10 @@ package com.pms.housekeeping.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -58,8 +62,8 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class HousekeepingRoomDayStatus {
+@SuperBuilder
+public class HousekeepingRoomDayStatus extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -120,18 +124,9 @@ public class HousekeepingRoomDayStatus {
     @Column(name = "is_sellable", nullable = false)
     private boolean sellable;
 
-    @Column(name = "updated_by", length = 120)
-    private String updatedBy;
-
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 
     @Column(name = "features_csv", length = 500)
     private String featuresCsv;

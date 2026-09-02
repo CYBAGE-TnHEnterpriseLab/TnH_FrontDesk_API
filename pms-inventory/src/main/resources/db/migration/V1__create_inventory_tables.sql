@@ -1,7 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS pms_inventory;
-SET search_path TO pms_inventory;
 
-CREATE TABLE room_type_inventory_daily (
+CREATE TABLE pms_inventory.room_type_inventory_daily (
 	id BIGSERIAL PRIMARY KEY,
 	property_id UUID NOT NULL,
 	room_type_id UUID NOT NULL,
@@ -17,11 +16,11 @@ CREATE TABLE room_type_inventory_daily (
 );
 
 CREATE INDEX idx_inventory_daily_property_room_type_date
-	ON room_type_inventory_daily (property_id, room_type_id, business_date);
+	ON pms_inventory.room_type_inventory_daily (property_id, room_type_id, business_date);
 CREATE INDEX idx_inventory_daily_business_date
-	ON room_type_inventory_daily (business_date);
+	ON pms_inventory.room_type_inventory_daily (business_date);
 
-CREATE TABLE inventory_reservation (
+CREATE TABLE pms_inventory.inventory_reservation (
 	id BIGSERIAL PRIMARY KEY,
 	reservation_id UUID NOT NULL,
 	property_id UUID NOT NULL,
@@ -38,9 +37,9 @@ CREATE TABLE inventory_reservation (
 );
 
 CREATE INDEX idx_inventory_reservation_property_assigned_dates
-	ON inventory_reservation (property_id, assigned_room_type_id, check_in_date, check_out_date);
+	ON pms_inventory.inventory_reservation (property_id, assigned_room_type_id, check_in_date, check_out_date);
 
-CREATE TABLE inventory_block (
+CREATE TABLE pms_inventory.inventory_block (
 	id BIGSERIAL PRIMARY KEY,
 	property_id UUID NOT NULL,
 	room_type_id UUID NOT NULL,
@@ -55,5 +54,5 @@ CREATE TABLE inventory_block (
 );
 
 CREATE INDEX idx_inventory_block_property_room_type_dates
-	ON inventory_block (property_id, room_type_id, from_date, to_date);
+	ON pms_inventory.inventory_block (property_id, room_type_id, from_date, to_date);
 
