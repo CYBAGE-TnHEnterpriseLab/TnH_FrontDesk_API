@@ -34,7 +34,7 @@ public class PolicyDto {
 
     private Status status;
 
-    private UUID createdBy;
+//    private UUID createdBy;
 
     private String action;
 
@@ -140,13 +140,13 @@ public class PolicyDto {
         this.status = status;
     }
 
-    public UUID getCreatedBy() {
-        return createdBy;
-    }
+//    public UUID getCreatedBy() {
+//        return createdBy;
+//    }
 
-    public void setCreatedBy(UUID createdBy) {
-        this.createdBy = createdBy;
-    }
+//    public void setCreatedBy(UUID createdBy) {
+//        this.createdBy = createdBy;
+//    }
 
     public String getAction() {
         return action;

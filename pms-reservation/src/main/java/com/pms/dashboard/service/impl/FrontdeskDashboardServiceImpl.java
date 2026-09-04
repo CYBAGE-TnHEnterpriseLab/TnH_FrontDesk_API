@@ -25,6 +25,8 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import static com.pms.dashboard.constants.DashboardConstants.*;
@@ -57,7 +59,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
     }
 
     @Override
-    public FrontdeskDashboardResponse getDashboard(UUID propertyId, LocalDate businessDate) {
+    public FrontdeskDashboardResponse getDashboard(UUID propertyId, LocalDate businessDate, String authorization) {
         Duration timeout = Duration.ofMillis(
                 Math.max(MIN_TIMEOUT_MS, properties.getTimeoutMs())
         );
@@ -68,35 +70,35 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
 
         Mono<SourceResult<DashboardModels.HousekeepingDashboardData>> housekeepingSummary = wrap(
                 "housekeepingSummary",
-                housekeepingClient.fetchDashboard(propertyId, businessDate),
+                housekeepingClient.fetchDashboard(propertyId, businessDate, authorization),
                 DashboardModels.HousekeepingDashboardData.empty(),
                 timeout
         ).cache();
 
         Mono<SourceResult<List<DashboardModels.HousekeepingRoomData>>> housekeepingRoomsToday = wrap(
                 "housekeepingRoomsToday",
-                housekeepingClient.fetchRooms(propertyId, businessDate),
+                housekeepingClient.fetchRooms(propertyId, businessDate, authorization),
                 List.of(),
                 housekeepingRoomsTimeout
         ).cache();
 
         Mono<SourceResult<List<DashboardModels.HousekeepingRoomData>>> housekeepingRoomsTomorrow = wrap(
                 "housekeepingRoomsTomorrow",
-                housekeepingClient.fetchRooms(propertyId, businessDate.plusDays(1)),
+                housekeepingClient.fetchRooms(propertyId, businessDate.plusDays(1), authorization),
                 List.of(),
                 housekeepingRoomsTimeout
         ).cache();
 
         Mono<SourceResult<List<DashboardModels.PropertyRoomTypeData>>> propertyRoomTypes = wrap(
                 "propertyRoomTypes",
-                propertyClient.fetchRoomTypes(propertyId),
+                propertyClient.fetchRoomTypes(propertyId, authorization),
                 List.of(),
                 timeout
         ).cache();
 
         Mono<SourceResult<DashboardModels.ReservationFlowData>> reservationFlow = wrap(
                 "reservationFlow",
-                reservationClient.fetchFlow(propertyId, businessDate),
+                reservationClient.fetchFlow(propertyId, businessDate, authorization),
                 DashboardModels.ReservationFlowData.empty(),
                 timeout
         );
@@ -112,11 +114,11 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                                     .toList();
 
                             if (!usable.isEmpty()) {
-                                return fetchRoomTypeOverview(propertyId, businessDate, usable, propertyTypes.status(), timeout);
+                                return fetchRoomTypeOverview(propertyId, businessDate, usable, propertyTypes.status(), timeout, authorization);
                             }
 
                             List<DashboardModels.PropertyRoomTypeData> fallbackTypes = deriveRoomTypesFromHousekeeping(hkRooms.payload());
-                            return fetchRoomTypeOverview(propertyId, businessDate, fallbackTypes, STATUS_DEGRADED, timeout);
+                            return fetchRoomTypeOverview(propertyId, businessDate, fallbackTypes, STATUS_DEGRADED, timeout, authorization);
                         });
 
         Mono<FrontdeskDashboardResponse> merged = Mono.zip(
@@ -186,7 +188,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                     propertyId,
                     businessDate,
                     new FrontdeskDashboardResponse.Kpis(availableTonight, occupiedTonight, occupancyPercent),
-                    new FrontdeskDashboardResponse.ComplimentaryHouseUse(arrivals, arrivals, stayovers, stayovers, departures, departures),
+                    new FrontdeskDashboardResponse.ComplimentaryHouseUse(0, 0, 0, 0, 0, 0),
                     summarizeRevenue(propertyId,businessDate),
                     inventoryMetrics,
                     housekeepingStatus,
@@ -206,14 +208,15 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             LocalDate businessDate,
             List<DashboardModels.PropertyRoomTypeData> roomTypes,
             String sourceStatus,
-            Duration timeout
+            Duration timeout,
+            String authorization
     ) {
         if (roomTypes == null || roomTypes.isEmpty()) {
             return Mono.just(SourceResult.degraded(List.of()));
         }
 
         return Flux.fromIterable(roomTypes)
-                .flatMap(type -> inventoryClient.fetchDaily(propertyId, type.roomTypeId(), businessDate)
+                .flatMap(type -> inventoryClient.fetchDaily(propertyId, type.roomTypeId(), businessDate, authorization)
                         .timeout(timeout)
                         .map(daily -> toRoomTypeOverview(type, daily))
                         .onErrorResume(ex -> {

@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.guestlisting.exception.ExternalServiceException;
 import java.net.URI;
 import java.util.function.Function;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriBuilder;
 import reactor.core.publisher.Mono;
@@ -22,9 +24,13 @@ public abstract class DashboardWebClientSupport {
 
     protected Mono<JsonNode> getJson(WebClient.RequestHeadersUriSpec<?> methodSpec,
                                      Function<UriBuilder, URI> uriFunction,
-                                     String sourceName) {
-        return methodSpec
-                .uri(uriFunction)
+                                     String sourceName,
+                                     String authorization) {
+        WebClient.RequestHeadersSpec<?> spec = methodSpec.uri(uriFunction);
+        if (StringUtils.hasText(authorization)) {
+            spec = spec.header(HttpHeaders.AUTHORIZATION, authorization);
+        }
+        return spec
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")

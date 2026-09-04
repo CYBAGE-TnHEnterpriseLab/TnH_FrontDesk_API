@@ -139,11 +139,10 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
                             .roomTypeId(room.roomTypeId())
                             .roomTypeName(room.roomTypeName())
                             .floor(room.floor())
-                            .cleaningStatus(CleaningStatus.DIRTY)
+                            .cleaningStatus(CleaningStatus.CLEAN)
                             .frontOfficeStatus(FrontOfficeStatus.VACANT)
                             .reservationStatus(ReservationStatus.NOT_RESERVED)
                             .priority(HousekeepingPriority.NORMAL)
-                            .sellable(false)
                             .createdAt(now)
                             .updatedAt(now)
                             .build();
@@ -198,18 +197,10 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
     }
 
     private boolean computeSellable(HousekeepingRoomDayStatus status) {
-        if (status.getCleaningStatus() == null || status.getFrontOfficeStatus() == null) {
+        if (status.getCleaningStatus() == null) {
             return false;
         }
-
-        boolean clean = status.getCleaningStatus() == CleaningStatus.CLEAN
-                || status.getCleaningStatus() == CleaningStatus.INSPECTED;
-        boolean vacant = status.getFrontOfficeStatus() == FrontOfficeStatus.VACANT;
-        boolean unassigned = status.getConfirmationId() == null;
-        boolean available = status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER
-                && status.getCleaningStatus() != CleaningStatus.OUT_OF_SERVICE;
-
-        return clean && vacant && unassigned && available;
+        return status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER;
     }
 
     private List<RoomMasterProjection> deactivateMissingRooms(

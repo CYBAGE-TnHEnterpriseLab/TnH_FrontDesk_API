@@ -6,6 +6,6 @@ import java.util.UUID;
 
 public interface FrontdeskDashboardService {
 
-    FrontdeskDashboardResponse getDashboard(UUID propertyId, LocalDate businessDate);
+    FrontdeskDashboardResponse getDashboard(UUID propertyId, LocalDate businessDate, String authorization);
 }
 

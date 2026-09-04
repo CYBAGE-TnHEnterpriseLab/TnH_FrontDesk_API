@@ -122,7 +122,7 @@ public class HousekeepingRoomDayStatus extends BaseEntity {
     private HousekeepingPriority priority;
 
     @Column(name = "is_sellable", nullable = false)
-    private boolean sellable;
+    private boolean sellable = true;
 
     @Version
     @Column(name = "version", nullable = false)
