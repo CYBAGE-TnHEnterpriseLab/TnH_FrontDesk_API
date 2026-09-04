@@ -20,7 +20,7 @@ public class InventoryDashboardClient extends DashboardWebClientSupport {
         this.config = properties.getInventory();
     }
 
-    public Mono<DashboardModels.InventoryDailyData> fetchDaily(UUID propertyId, UUID roomTypeId, LocalDate businessDate) {
+    public Mono<DashboardModels.InventoryDailyData> fetchDaily(UUID propertyId, UUID roomTypeId, LocalDate businessDate, String authorization) {
         return getJson(
                 webClient.get(),
                 uri -> uri.path(config.getPrimaryPath())
@@ -28,7 +28,8 @@ public class InventoryDashboardClient extends DashboardWebClientSupport {
                         .queryParam("roomTypeId", roomTypeId)
                         .queryParam("businessDate", businessDate)
                         .build(),
-                "inventory.daily"
+                "inventory.daily",
+                authorization
         ).map(this::toDailyData);
     }
 

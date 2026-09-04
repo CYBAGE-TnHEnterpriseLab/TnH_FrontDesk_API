@@ -23,11 +23,12 @@ public class PropertyDashboardClient extends DashboardWebClientSupport {
         this.config = properties.getProperty();
     }
 
-    public Mono<List<DashboardModels.PropertyRoomTypeData>> fetchRoomTypes(UUID propertyId) {
+    public Mono<List<DashboardModels.PropertyRoomTypeData>> fetchRoomTypes(UUID propertyId, String authorization) {
         return getJson(
                 webClient.get(),
                 uri -> uri.path(config.getPrimaryPath()).build(propertyId.toString()),
-                "property.roomTypes"
+                "property.roomTypes",
+                authorization
         ).map(node -> toRoomTypes(node, propertyId));
     }
 

@@ -28,16 +28,18 @@ public class DashboardWebClientConfig {
             if (attrs instanceof ServletRequestAttributes servletAttrs) {
                 String auth = servletAttrs.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
                 String correlationId = servletAttrs.getRequest().getHeader("X-Correlation-Id");
-                updatedRequest = ClientRequest.from(request)
-                        .headers(headers -> {
-                            if (StringUtils.hasText(auth)) {
-                                headers.set(HttpHeaders.AUTHORIZATION, auth);
-                            }
-                            if (StringUtils.hasText(correlationId)) {
-                                headers.set("X-Correlation-Id", correlationId);
-                            }
-                        })
-                        .build();
+                if (StringUtils.hasText(auth) || StringUtils.hasText(correlationId)) {
+                    updatedRequest = ClientRequest.from(request)
+                            .headers(headers -> {
+                                if (StringUtils.hasText(auth)) {
+                                    headers.set(HttpHeaders.AUTHORIZATION, auth);
+                                }
+                                if (StringUtils.hasText(correlationId)) {
+                                    headers.set("X-Correlation-Id", correlationId);
+                                }
+                            })
+                            .build();
+                }
             }
             return next.exchange(updatedRequest);
         };

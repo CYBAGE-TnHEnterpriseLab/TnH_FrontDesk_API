@@ -35,7 +35,7 @@ class FrontdeskDashboardServiceImplTest {
                 LocalDate businessDate = LocalDate.of(2026, 8, 3);
                 UUID roomTypeId = UUID.randomUUID();
 
-                Mockito.when(housekeepingClient.fetchDashboard(propertyId, businessDate))
+                Mockito.when(housekeepingClient.fetchDashboard(propertyId, businessDate, null))
                                 .thenReturn(Mono.just(new DashboardModels.HousekeepingDashboardData(100, 20, 10, 40, 10,
                                                 2, 1, 5, 3, 12, 8)));
 
@@ -45,18 +45,18 @@ class FrontdeskDashboardServiceImplTest {
                                 new DashboardModels.HousekeepingRoomData("King", roomTypeId, "DIRTY", "VACANT", false),
                                 new DashboardModels.HousekeepingRoomData("King", roomTypeId, "CLEAN", "OCCUPIED",
                                                 true));
-                Mockito.when(housekeepingClient.fetchRooms(propertyId, businessDate)).thenReturn(Mono.just(todayRooms));
-                Mockito.when(housekeepingClient.fetchRooms(propertyId, businessDate.plusDays(1)))
+                Mockito.when(housekeepingClient.fetchRooms(propertyId, businessDate, null)).thenReturn(Mono.just(todayRooms));
+                Mockito.when(housekeepingClient.fetchRooms(propertyId, businessDate.plusDays(1), null))
                                 .thenReturn(Mono.just(todayRooms));
 
-                Mockito.when(propertyClient.fetchRoomTypes(propertyId))
+                Mockito.when(propertyClient.fetchRoomTypes(propertyId, null))
                                 .thenReturn(Mono.just(List.of(new DashboardModels.PropertyRoomTypeData(roomTypeId,
                                                 "KING", "Standard King"))));
 
-                Mockito.when(inventoryClient.fetchDaily(propertyId, roomTypeId, businessDate))
+                Mockito.when(inventoryClient.fetchDaily(propertyId, roomTypeId, businessDate, null))
                                 .thenReturn(Mono.just(new DashboardModels.InventoryDailyData(25, 15, 3, 7)));
 
-                Mockito.when(reservationClient.fetchFlow(propertyId, businessDate))
+                Mockito.when(reservationClient.fetchFlow(propertyId, businessDate, null))
                                 .thenReturn(Mono.just(new DashboardModels.ReservationFlowData(14, 9)));
 
                 DailyRevenueProjection dailyRevenueProjection = Mockito.mock(DailyRevenueProjection.class);
@@ -78,7 +78,7 @@ class FrontdeskDashboardServiceImplTest {
                                 properties,
                                 reservationBookingRepository);
 
-                FrontdeskDashboardResponse response = service.getDashboard(propertyId, businessDate);
+                FrontdeskDashboardResponse response = service.getDashboard(propertyId, businessDate, null);
 
                 Assertions.assertNotNull(response);
                 Assertions.assertEquals(propertyId, response.propertyId());

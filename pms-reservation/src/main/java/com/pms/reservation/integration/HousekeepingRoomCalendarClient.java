@@ -14,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -70,15 +71,17 @@ public class HousekeepingRoomCalendarClient {
                 .findFirst()
                 .map(String::trim)
                 .map(this::parseFloor)
-                .orElseThrow(() -> new ExternalServiceException(
-                        "Room floor is not available in Housekeeping calendar for room " + roomNumber));
+                .orElse(null);
     }
 
     private Integer parseFloor(String floor) {
+        if (!StringUtils.hasText(floor)) {
+            return null;
+        }
         try {
-            return Integer.valueOf(floor);
+            return Integer.valueOf(floor.trim());
         } catch (NumberFormatException ex) {
-            throw new ExternalServiceException("Room floor must be numeric in Housekeeping calendar service", ex);
+            return null;
         }
     }
 

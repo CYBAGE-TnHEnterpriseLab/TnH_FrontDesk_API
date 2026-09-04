@@ -1,5 +1,4 @@
 CREATE SCHEMA IF NOT EXISTS folio_db;
-SET SCHEMA folio_db;
 
 CREATE TABLE IF NOT EXISTS folio_db.folios (
     id BIGSERIAL PRIMARY KEY,
@@ -14,6 +13,6 @@ CREATE TABLE IF NOT EXISTS folio_db.folios (
     last_updated_at TIMESTAMP NOT NULL,
     transactions_json TEXT,
     CONSTRAINT uk_folio_confirmation_folio_code UNIQUE (confirmation_number, folio_code)
-);
+    );
 
 CREATE INDEX IF NOT EXISTS idx_folios_confirmation_number ON folio_db.folios (confirmation_number);
