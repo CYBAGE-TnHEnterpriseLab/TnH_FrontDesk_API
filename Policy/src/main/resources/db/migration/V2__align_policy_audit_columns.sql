@@ -5,5 +5,6 @@
 ALTER TABLE policy_db.policies ADD COLUMN IF NOT EXISTS created_at timestamp NOT NULL DEFAULT now();
 ALTER TABLE policy_db.policies ADD COLUMN IF NOT EXISTS updated_at timestamp NOT NULL DEFAULT now();
 ALTER TABLE policy_db.policies ADD COLUMN IF NOT EXISTS updated_by uuid;
+ALTER TABLE policy_db.policies ADD COLUMN IF NOT EXISTS created_by_user VARCHAR(250);
 
 ALTER TABLE policy_db.policies ALTER COLUMN created_by TYPE uuid USING NULL;
