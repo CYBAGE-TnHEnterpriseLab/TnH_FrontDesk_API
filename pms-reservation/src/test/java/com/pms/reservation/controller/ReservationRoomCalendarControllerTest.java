@@ -18,9 +18,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = ReservationRoomCalendarController.class, properties = "security.jwt.enabled=false")
+@WebMvcTest(controllers = ReservationRoomCalendarController.class, properties = {"security.jwt.enabled=false", "spring.data.jpa.repositories.enabled=false"})
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class ReservationRoomCalendarControllerTest {
@@ -30,6 +31,9 @@ class ReservationRoomCalendarControllerTest {
 
     @MockBean
     private ReservationRoomCalendarService reservationRoomCalendarService;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Test
     void getRoomCalendarShouldReturnRoomWiseCalendar() throws Exception {

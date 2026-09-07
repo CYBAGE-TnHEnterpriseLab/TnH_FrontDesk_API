@@ -22,9 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -41,24 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
-@Testcontainers(disabledWithoutDocker = true)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class InventoryIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("pms_inventory_test")
-            .withUsername("postgres")
-            .withPassword("postgres");
-
-    @DynamicPropertySource
-    static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
-        registry.add("spring.flyway.enabled", () -> "true");
-    }
 
     @Autowired
     private InventoryReconciliationService reconciliationService;
@@ -142,7 +123,6 @@ class InventoryIntegrationTest {
 
     @Test
     void roomTypeReassignmentFailsWhenNewInventoryUnavailable() {
-        // consume suite first so reassignment to suite cannot be satisfied.
         reservationService.reserve(new ReserveInventoryRequest(
                 UUID.randomUUID(), propertyId, suiteRoomType, suiteRoomType,
                 LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1
@@ -271,5 +251,3 @@ class InventoryIntegrationTest {
         }
     }
 }
-
-

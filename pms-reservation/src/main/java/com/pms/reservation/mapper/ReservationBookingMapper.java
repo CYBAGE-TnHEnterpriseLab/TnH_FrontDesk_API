@@ -66,6 +66,7 @@ public class ReservationBookingMapper {
                 .specialRequests(request.getSpecialRequests())
                 .discount(request.getDiscount())
                 .alertsMessages(request.getAlertsMessages())
+                .createdAt(LocalDateTime.now())
                 .build();
     }
 

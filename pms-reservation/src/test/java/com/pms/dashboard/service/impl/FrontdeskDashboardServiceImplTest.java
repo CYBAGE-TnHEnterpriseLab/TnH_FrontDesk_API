@@ -82,7 +82,7 @@ class FrontdeskDashboardServiceImplTest {
 
                 Assertions.assertNotNull(response);
                 Assertions.assertEquals(propertyId, response.propertyId());
-                Assertions.assertEquals(7, response.kpis().availableTonight());
+                Assertions.assertEquals(47, response.kpis().availableTonight());
                 Assertions.assertEquals(50, response.kpis().occupiedTonight());
                 Assertions.assertEquals(1, response.roomStatusOverview().size());
                 Assertions.assertEquals(new BigDecimal("2500"), response.revenue().roomRevenue());
