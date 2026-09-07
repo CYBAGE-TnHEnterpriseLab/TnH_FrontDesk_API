@@ -11,6 +11,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,37 +20,39 @@ class AccessTokenVerifierContractTest {
 
     private static final String JWT_SECRET = "0123456789abcdef0123456789abcdef";
     private static final String OTHER_SECRET = "abcdef0123456789abcdef0123456789";
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String USERNAME = "admin.user";
 
     private final AccessTokenVerifier accessTokenVerifier = new AccessTokenVerifier(JWT_SECRET);
 
     @Test
     void verify_shouldAcceptValidAccessTokenWithRoles() {
-        String token = buildToken("admin-user", "access", List.of("ADMIN"));
+        String token = buildToken(USER_ID.toString(), USERNAME, "access", List.of("ADMIN"));
 
         Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
 
         assertTrue(verifiedToken.isPresent());
-        assertEquals("admin-user", verifiedToken.get().username());
+        assertEquals(USERNAME, verifiedToken.get().username());
         assertEquals(Set.of("ADMIN"), verifiedToken.get().roles());
     }
 
     @Test
     void verify_shouldRejectRefreshToken() {
-        String token = buildToken("admin-user", "refresh", List.of("ADMIN"));
+        String token = buildToken(USER_ID.toString(), USERNAME, "refresh", List.of("ADMIN"));
 
         assertTrue(accessTokenVerifier.verify(token).isEmpty());
     }
 
     @Test
     void verify_shouldRejectTokenWithMissingTypeClaim() {
-        String token = buildTokenWithoutType("admin-user", List.of("ADMIN"));
+        String token = buildTokenWithoutType(USER_ID.toString(), USERNAME, List.of("ADMIN"));
 
         assertTrue(accessTokenVerifier.verify(token).isEmpty());
     }
 
     @Test
     void verify_shouldAcceptCommaSeparatedRoles() {
-        String token = buildTokenWithRolesClaim("admin-user", "access", "ADMIN, MANAGER");
+        String token = buildTokenWithRolesClaim(USER_ID.toString(), USERNAME, "access", "ADMIN, MANAGER");
 
         Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
 
@@ -59,10 +62,12 @@ class AccessTokenVerifierContractTest {
 
     @Test
     void verify_shouldAllowEmptyRolesClaim() {
-        String token = buildToken("admin-user", "access", List.of());
+        String token = buildToken(USER_ID.toString(), USERNAME, "access", List.of());
 
-        assertTrue(accessTokenVerifier.verify(token).isPresent());
-        assertTrue(accessTokenVerifier.verify(token).get().roles().isEmpty());
+        Optional<AccessTokenVerifier.VerifiedAccessToken> verifiedToken = accessTokenVerifier.verify(token);
+
+        assertTrue(verifiedToken.isPresent());
+        assertTrue(verifiedToken.get().roles().isEmpty());
     }
 
     @Test
@@ -80,18 +85,19 @@ class AccessTokenVerifierContractTest {
 
     @Test
     void verify_shouldRejectTokenSignedWithDifferentSecret() {
-        String token = buildTokenWithSecret("admin-user", "access", List.of("ADMIN"), OTHER_SECRET);
+        String token = buildTokenWithSecret(USER_ID.toString(), USERNAME, "access", List.of("ADMIN"), OTHER_SECRET);
 
         assertTrue(accessTokenVerifier.verify(token).isEmpty());
     }
 
-    private String buildToken(String username, String tokenType, List<String> roles) {
-        return buildTokenWithSecret(username, tokenType, roles, JWT_SECRET);
+    private String buildToken(String subject, String username, String tokenType, List<String> roles) {
+        return buildTokenWithSecret(subject, username, tokenType, roles, JWT_SECRET);
     }
 
-    private String buildTokenWithSecret(String username, String tokenType, Object rolesClaim, String secret) {
+    private String buildTokenWithSecret(String subject, String username, String tokenType, Object rolesClaim, String secret) {
         return Jwts.builder()
-                .subject(username)
+                .subject(subject)
+                .claim("username", username)
                 .claim("typ", tokenType)
                 .claim("roles", rolesClaim)
                 .issuedAt(Date.from(Instant.now()))
@@ -100,11 +106,12 @@ class AccessTokenVerifierContractTest {
                 .compact();
     }
 
-    private String buildTokenWithoutType(String username, List<String> roles) {
+    private String buildTokenWithoutType(String subject, String username, List<String> roles) {
         Instant now = Instant.now();
 
         return Jwts.builder()
-                .subject(username)
+                .subject(subject)
+                .claim("username", username)
                 .claim("roles", roles)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(300)))
@@ -112,7 +119,7 @@ class AccessTokenVerifierContractTest {
                 .compact();
     }
 
-    private String buildTokenWithRolesClaim(String username, String tokenType, String rolesClaim) {
-        return buildTokenWithSecret(username, tokenType, rolesClaim, JWT_SECRET);
+    private String buildTokenWithRolesClaim(String subject, String username, String tokenType, String rolesClaim) {
+        return buildTokenWithSecret(subject, username, tokenType, rolesClaim, JWT_SECRET);
     }
 }

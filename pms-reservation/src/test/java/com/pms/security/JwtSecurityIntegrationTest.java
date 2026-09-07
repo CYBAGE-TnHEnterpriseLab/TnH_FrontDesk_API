@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.pms.common.utils.JwtTokenService;
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
 import com.pms.reservation.controller.ReservationController;
 import com.pms.common.config.SecurityAutoConfiguration;
@@ -13,19 +14,23 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(
         controllers = ReservationController.class,
         properties = {
-                "security.jwt.secret=abcdefghijklmnopqrstuvwxyz123456"
+                "security.jwt.secret=abcdefghijklmnopqrstuvwxyz123456",
+                "spring.data.jpa.repositories.enabled=false"
         }
 )
 @Import({
@@ -37,12 +42,17 @@ class JwtSecurityIntegrationTest {
 
     private static final String SECRET = "abcdefghijklmnopqrstuvwxyz123456";
     private static final String WRONG_SECRET = "wrongsecretwrongsecretwrongsecret12345";
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String USERNAME = "admin.user";
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
     private com.pms.reservation.service.ReservationBookingService reservationBookingService;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Test
     void protectedEndpointShouldReturnUnauthorizedWhenAuthorizationHeaderMissing() throws Exception {
@@ -54,8 +64,9 @@ class JwtSecurityIntegrationTest {
 
     @Test
     void protectedEndpointShouldAllowValidAccessTokenAndRejectInvalidTypeToken() throws Exception {
-        String accessToken = buildToken("access", List.of("ADMIN"));
-        String refreshToken = buildToken("refresh", List.of("ADMIN"));
+        JwtTokenService tokenService = new JwtTokenService(SECRET, 900, 1209600);
+        String accessToken = tokenService.generateAccessToken(USER_ID, USERNAME, Set.of("ADMIN"));
+        String refreshToken = tokenService.generateRefreshToken(USER_ID, USERNAME);
 
         mockMvc.perform(get("/api/v1/reservations/payment-modes")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -71,7 +82,8 @@ class JwtSecurityIntegrationTest {
 
     @Test
     void protectedEndpointShouldReturnForbiddenForValidTokenWithoutAdminRole() throws Exception {
-        String userToken = buildToken("access", List.of("USER"));
+        JwtTokenService tokenService = new JwtTokenService(SECRET, 900, 1209600);
+        String userToken = tokenService.generateAccessToken(USER_ID, USERNAME, Set.of("USER"));
 
         mockMvc.perform(get("/api/v1/reservations/payment-modes")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
@@ -81,7 +93,8 @@ class JwtSecurityIntegrationTest {
     @Test
     void protectedEndpointShouldReturnUnauthorizedForInvalidSignature() throws Exception {
         String token = Jwts.builder()
-                .subject("admin.user")
+                .subject(USER_ID.toString())
+                .claim("username", USERNAME)
                 .claim("typ", "access")
                 .claim("roles", List.of("ADMIN"))
                 .issuedAt(Date.from(Instant.now()))
@@ -94,18 +107,5 @@ class JwtSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
-    }
-
-    private String buildToken(String type, List<String> roles) {
-        SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-        Instant now = Instant.now();
-        return Jwts.builder()
-                .subject("admin.user")
-                .claim("typ", type)
-                .claim("roles", roles)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(1800)))
-                .signWith(key)
-                .compact();
     }
 }

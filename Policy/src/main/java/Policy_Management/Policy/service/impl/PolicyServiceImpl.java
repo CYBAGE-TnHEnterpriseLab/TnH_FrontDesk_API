@@ -193,6 +193,7 @@ public class PolicyServiceImpl implements PolicyService {
             if (dto.getPolicyCategory() == null || dto.getPolicyCategory().isBlank()) {
                 errors.put("policyCategory", "Policy category is required for published policies");
             }
+
             if (dto.getCreatedByUser() == null) {
                 errors.put("createdByUser", "Created by user is required for published policies");
             }

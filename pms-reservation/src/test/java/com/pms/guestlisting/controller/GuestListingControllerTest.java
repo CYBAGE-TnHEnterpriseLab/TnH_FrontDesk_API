@@ -26,9 +26,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = GuestListingController.class, properties = "security.jwt.enabled=false")
+@WebMvcTest(controllers = GuestListingController.class, properties = {"security.jwt.enabled=false", "spring.data.jpa.repositories.enabled=false"})
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class GuestListingControllerTest {
@@ -38,6 +39,9 @@ class GuestListingControllerTest {
 
     @MockBean
     private ReservationBookingRepository reservationBookingRepository;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
         @MockBean
         private HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;

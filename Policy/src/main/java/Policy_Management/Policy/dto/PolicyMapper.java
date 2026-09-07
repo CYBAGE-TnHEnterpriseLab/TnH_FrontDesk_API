@@ -21,7 +21,11 @@ public class PolicyMapper {
         dto.setEffectiveDate(p.getEffectiveDate());
         dto.setEffectiveTo(p.getEffectiveTo());
         dto.setStatus(p.getStatus());
+<<<<<<< HEAD
         // dto.setCreatedBy(p.getCreatedBy());
+=======
+//        dto.setCreatedBy(p.getCreatedBy());
+>>>>>>> cd5fe0d223938b833081849bff3705d6ebb12d76
         dto.setAction(p.getAction());
         dto.setPolicyCount(p.getPolicyCount());
         dto.setPropertyId(p.getPropertyId());
@@ -47,7 +51,6 @@ public class PolicyMapper {
         p.setEffectiveDate(dto.getEffectiveDate());
         p.setEffectiveTo(dto.getEffectiveTo());
         p.setStatus(dto.getStatus());
-        // p.setCreatedBy(dto.getCreatedBy());
         p.setAction(dto.getAction());
         p.setPolicyCount(dto.getPolicyCount());
         p.setPropertyId(dto.getPropertyId());
@@ -81,7 +84,6 @@ public class PolicyMapper {
         if (dto.getEffectiveDate() != null) p.setEffectiveDate(dto.getEffectiveDate());
         if (dto.getEffectiveTo() != null) p.setEffectiveTo(dto.getEffectiveTo());
         if (dto.getStatus() != null) p.setStatus(dto.getStatus());
-        // if (dto.getCreatedBy() != null) p.setCreatedBy(dto.getCreatedBy());
         if (dto.getAction() != null) p.setAction(dto.getAction());
         if (dto.getPolicyCount() != 0) p.setPolicyCount(dto.getPolicyCount());
         if (dto.getPropertyId() != null) p.setPropertyId(dto.getPropertyId());

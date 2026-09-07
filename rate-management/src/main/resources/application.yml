@@ -6,7 +6,7 @@ spring:
     name: rate-management-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/Property_Management_System_db?currentSchema=rate_db
+    url: jdbc:postgresql://localhost:5432/PMSystem_db?currentSchema=rate_db
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver

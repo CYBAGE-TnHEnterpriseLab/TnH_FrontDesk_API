@@ -6,7 +6,7 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
-    url: jdbc:postgresql://localhost:5432/Property_Management_System_db?CurrentSchema=folio_db
+    url: jdbc:postgresql://localhost:5432/PMSystem_db?CurrentSchema=folio_db
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
