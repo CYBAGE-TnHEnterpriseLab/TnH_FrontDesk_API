@@ -22,11 +22,12 @@ public class RateDashboardClient extends DashboardWebClientSupport {
         this.config = properties.getRate();
     }
 
-    public Mono<List<DashboardModels.RatePlanData>> fetchRatePlans(UUID propertyId) {
+    public Mono<List<DashboardModels.RatePlanData>> fetchRatePlans(UUID propertyId, String authorization) {
         return getJson(
                 webClient.get(),
                 uri -> uri.path(config.getPrimaryPath()).build(propertyId.toString()),
-                "rate.listPlans"
+                "rate.listPlans",
+                authorization
         ).map(this::toRatePlans);
     }
 

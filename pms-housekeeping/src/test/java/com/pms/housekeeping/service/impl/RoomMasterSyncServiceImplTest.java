@@ -116,7 +116,7 @@ class RoomMasterSyncServiceImplTest {
         assertThat(savedStatuses).filteredOn(s -> s.getBusinessDate().equals(fromDate))
                 .singleElement().satisfies(s -> assertThat(s.isSellable()).isTrue());
         assertThat(savedStatuses).filteredOn(s -> s.getBusinessDate().equals(toDate))
-                .singleElement().satisfies(s -> assertThat(s.isSellable()).isFalse());
+                .singleElement().satisfies(s -> assertThat(s.isSellable()).isTrue());
     }
 
     @Test

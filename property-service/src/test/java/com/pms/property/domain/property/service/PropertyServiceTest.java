@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.domain.config.InventoryClient;
+import com.pms.property.domain.config.HousekeepingClient;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
@@ -57,6 +58,7 @@ class PropertyServiceTest {
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
         DraftService draftService = mock(DraftService.class);
         InventoryClient inventoryClient = mock(InventoryClient.class);
+        HousekeepingClient housekeepingClient = mock(HousekeepingClient.class);
 
         PropertyService service = new com.pms.property.domain.property.service.serviceImpl.PropertyServiceImpl(
             propertyRepository,
@@ -75,7 +77,8 @@ class PropertyServiceTest {
             propertyDraftRepository,
             localImageStorageService,
             draftService,
-            inventoryClient
+            inventoryClient,
+            housekeepingClient
         );
 
         PropertyEntity property = new PropertyEntity();
@@ -137,6 +140,7 @@ class PropertyServiceTest {
         LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
         DraftService draftService = mock(DraftService.class);
         InventoryClient inventoryClient = mock(InventoryClient.class);
+        HousekeepingClient housekeepingClient = mock(HousekeepingClient.class);
 
         PropertyService service = new com.pms.property.domain.property.service.serviceImpl.PropertyServiceImpl(
             propertyRepository,
@@ -154,7 +158,9 @@ class PropertyServiceTest {
             taxRuleRepository,
             propertyDraftRepository,
             localImageStorageService,
-            draftService,inventoryClient
+            draftService,
+            inventoryClient,
+            housekeepingClient
         );
 
         PropertyEntity property = new PropertyEntity();

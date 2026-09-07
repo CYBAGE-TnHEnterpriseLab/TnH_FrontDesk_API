@@ -31,7 +31,6 @@ public class PolicyController {
     
     @PostMapping(value = "/createPolicy")
     public ResponseEntity<APIResponse<PolicyDto>> create(@RequestBody PolicyDto dto) {
-        dto.setCreatedBy(UUID.fromString(currentUserProvider.getCurrentUsername()));
         LOGGER.info("POST /api/v1/policies/createPolicy request: {}", dto);
         PolicyDto created = service.createPolicy(dto);
         APIResponse<PolicyDto> response = new APIResponse<>("success", "Policy created successfully", created);

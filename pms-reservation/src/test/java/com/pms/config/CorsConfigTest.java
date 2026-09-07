@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,6 +18,7 @@ import com.pms.common.config.CorsConfig;
 
 @WebMvcTest(controllers = CorsConfigTest.CorsTestController.class, properties = {
         "security.jwt.enabled=false",
+        "spring.data.jpa.repositories.enabled=false",
         "app.cors.allowed-origin-patterns=http://localhost:3000,https://example.com"
 })
 @AutoConfigureMockMvc(addFilters = false)
@@ -24,6 +27,9 @@ class CorsConfigTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Test
     void preflightShouldApplyCorsConfiguration() throws Exception {

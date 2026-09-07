@@ -1,0 +1,63 @@
+name: TnH_FrontDesk_Backend CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - pms-reservation
+          - pms-auth
+          - pms-housekeeping
+          - pms-inventory
+          - pms-folio-billing
+          - property-service
+          - rate-management
+          - Policy
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build and Install pms-common
+        working-directory: pms-common
+        run: mvn -B clean install -DskipTests
+
+      - name: Build and Test
+        working-directory: ${{ matrix.service }}
+        run: mvn -B clean verify
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-test-reports
+          path: ${{ matrix.service }}/target/surefire-reports/
+
+      - name: Upload JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-application
+          path: ${{ matrix.service }}/target/*.jar
