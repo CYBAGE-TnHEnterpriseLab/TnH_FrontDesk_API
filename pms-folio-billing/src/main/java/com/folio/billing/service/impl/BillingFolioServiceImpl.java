@@ -104,7 +104,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<FolioBillingRow> getFolioBilling(FolioBillingFilter filter) {
         if (filter == null) {
             return List.of();
@@ -298,15 +298,22 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public FolioDetailsResponse getFolioDetails(String confirmationNumber) {
         String cn = normalize(confirmationNumber);
         if (!hasText(cn)) {
             return new FolioDetailsResponse("", new FolioDetailsResponse.Guest("", ""), List.of(),
-                new FolioDetailsResponse.Summary(0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+                new FolioDetailsResponse.Summary(0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, BigDecimal.ZERO));
         }
 
         try {
+            ReservationSummary reservationSummary = reservationServiceClient
+                .getReservationSummary(cn, null, null).orElse(null);
+            if (reservationSummary != null) {
+                ensureReservationCharge(cn, DEFAULT_FOLIO_CODE, reservationSummary);
+            }
+
             List<Folio> persistedFolios = folioRepository.findByConfirmationNumberOrderByFolioCode(cn);
             persistedFolios.stream().filter(Objects::nonNull)
                     .forEach(f -> loadPersistedTransactionsIfNeeded(cn, f.getFolioCode()));
@@ -346,7 +353,9 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             return new FolioDetailsResponse(cn,
                 new FolioDetailsResponse.Guest(first == null ? "" : first.getGuestName(), first == null ? "" : first.getRoomNo()),
                 result,
-                new FolioDetailsResponse.Summary(result.size(), balance, charges, credits));
+                new FolioDetailsResponse.Summary(result.size(), balance, charges, credits,
+                    reservationSummary == null ? BigDecimal.ZERO : safeAmount(reservationSummary.taxPercent()),
+                    reservationSummary == null ? BigDecimal.ZERO : safeAmount(reservationSummary.taxAmount())));
         } catch (Exception ex) {
             LOGGER.warn("Falling back to in-memory folio details for confirmationNumber {} due to: {}", cn, ex.getMessage());
             return buildFolioDetailsFromState(cn);
@@ -403,7 +412,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             confirmationNumber,
             new FolioDetailsResponse.Guest(first == null ? "" : defaultString(first.guestName()), first == null ? "" : defaultString(first.roomNo())),
             folios,
-            new FolioDetailsResponse.Summary(folios.size(), balance, charges, credits)
+            new FolioDetailsResponse.Summary(folios.size(), balance, charges, credits,
+                BigDecimal.ZERO, BigDecimal.ZERO)
         );
         }
 
@@ -1404,6 +1414,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 null,
                 0,
                 new BillingComments(List.of(), ""),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 BigDecimal.ZERO
         );
     }
@@ -1416,12 +1428,48 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         List<FolioTransactionRow> existing = postedTransactionsByKey.getOrDefault(
                 folioKey(confirmationNumber, folioCode), List.of());
         String reference = "RESERVATION-" + normalize(confirmationNumber);
-        if (existing.stream().anyMatch(t -> reference.equalsIgnoreCase(defaultString(t.referenceNumber())))) return;
+        int existingIndex = -1;
+        for (int index = 0; index < existing.size(); index++) {
+            if (reference.equalsIgnoreCase(defaultString(existing.get(index).referenceNumber()))) {
+                existingIndex = index;
+                break;
+            }
+        }
 
-        appendPostedTransaction(confirmationNumber, folioCode, new FolioTransactionRow(
+        FolioTransactionRow reservationTransaction = new FolioTransactionRow(
                 LocalDate.now(), reference, "CHARGE", "ACCOMMODATION",
                 "Reservation amount", amount, BigDecimal.ZERO, "reservation-service",
-                LocalDateTime.now(), null, null));
+                LocalDateTime.now(), null, null);
+        if (existingIndex >= 0) {
+            FolioTransactionRow current = existing.get(existingIndex);
+            if (safeAmount(current.charges()).compareTo(amount) == 0) {
+                return;
+            }
+            List<FolioTransactionRow> updatedTransactions = new ArrayList<>(existing);
+            updatedTransactions.set(existingIndex, reservationTransaction);
+            replacePostedTransactions(confirmationNumber, folioCode, updatedTransactions);
+            return;
+        }
+        appendPostedTransaction(confirmationNumber, folioCode, reservationTransaction);
+    }
+
+    private void replacePostedTransactions(String confirmationNumber, String folioCode,
+                                           List<FolioTransactionRow> transactions) {
+        String key = folioKey(confirmationNumber, folioCode);
+        postedTransactionsByKey.put(key, List.copyOf(transactions));
+        BillingTotals totals = totalsFromTransactions(transactions);
+        upsertFolio(confirmationNumber, folioCode, "", "", totals.totalCharges(), totals.totalPayment());
+        if (folioRepository == null) {
+            return;
+        }
+        findPersistedFolio(confirmationNumber, folioCode).ifPresent(folio -> {
+            try {
+                folio.setTransactionsJson(objectMapper.writeValueAsString(transactions));
+                folioRepository.saveAndFlush(folio);
+            } catch (Exception ex) {
+                throw new IllegalStateException("Unable to persist reservation charge update", ex);
+            }
+        });
     }
 
     private String resolveActiveFolioCode(String confirmationNumber) {

@@ -11,19 +11,18 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 public interface RoomTypeInventoryDailyRepository extends JpaRepository<RoomTypeInventoryDaily, Long> {
 
 	Optional<RoomTypeInventoryDaily> findByPropertyIdAndRoomTypeIdAndBusinessDate(
-			UUID propertyId,
-			UUID roomTypeId,
+			String propertyId,
+			String roomTypeId,
 			LocalDate businessDate
 	);
 
 	List<RoomTypeInventoryDaily> findByPropertyIdAndRoomTypeIdAndBusinessDateGreaterThanEqualAndBusinessDateLessThanOrderByBusinessDate(
-			UUID propertyId,
-			UUID roomTypeId,
+			String propertyId,
+			String roomTypeId,
 			LocalDate fromDate,
 			LocalDate toDate
 	);
@@ -38,14 +37,14 @@ public interface RoomTypeInventoryDailyRepository extends JpaRepository<RoomType
 			ORDER BY i.businessDate
 			""")
 	List<RoomTypeInventoryDaily> findForUpdate(
-			@Param("propertyId") UUID propertyId,
-			@Param("roomTypeId") UUID roomTypeId,
+			@Param("propertyId") String propertyId,
+			@Param("roomTypeId") String roomTypeId,
 			@Param("fromDate") LocalDate fromDate,
 			@Param("toDate") LocalDate toDate
 	);
 
 	boolean existsByPropertyIdAndBusinessDateGreaterThanEqualAndReservedCountGreaterThan(
-			UUID propertyId,
+			String propertyId,
 			LocalDate businessDate,
 			Integer reservedCount
 	);

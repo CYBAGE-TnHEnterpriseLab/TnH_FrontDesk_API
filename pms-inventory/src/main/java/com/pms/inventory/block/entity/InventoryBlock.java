@@ -15,10 +15,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.time.LocalDate;
-import java.util.UUID;
-
 @Entity
 @Table(name = "inventory_block")
 @Getter
@@ -33,10 +30,10 @@ public class InventoryBlock extends BaseEntity {
     private Long id;
 
     @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    private String propertyId;
 
     @Column(name = "room_type_id", nullable = false)
-    private UUID roomTypeId;
+    private String roomTypeId;
 
     @Column(name = "from_date", nullable = false)
     private LocalDate fromDate;
