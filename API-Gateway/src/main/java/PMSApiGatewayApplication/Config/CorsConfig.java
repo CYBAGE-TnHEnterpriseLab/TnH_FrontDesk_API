@@ -12,7 +12,7 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*,http://172.27.212.*:*,http://172.27.57.*:*,https://172.27.57.*:*}")
+    @Value("${app.cors.allowed-origin-patterns:http://localhost:*,http://127.27.57.175:*,http://172.27.212.*:*,http://172.27.57.*:*,https://172.0.0.*:*}")
     private String allowedOriginPatterns;
 
     @Bean
@@ -36,4 +36,5 @@ public class CorsConfig {
         source.registerCorsConfiguration("/**", corsConfiguration);
         return new CorsWebFilter(source);
     }
+       
 }
