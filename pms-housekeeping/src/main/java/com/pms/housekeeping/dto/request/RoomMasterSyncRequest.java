@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 public record RoomMasterSyncRequest(
         @NotNull String propertyId,
@@ -15,7 +14,7 @@ public record RoomMasterSyncRequest(
         @Valid @NotNull List<RoomMasterUnit> rooms
 ) {
     public record RoomMasterUnit(
-            @NotNull UUID roomTypeId,
+            @NotNull String roomTypeId,
             @NotNull String roomTypeName,
             @NotNull String roomNumber,
             String floor,

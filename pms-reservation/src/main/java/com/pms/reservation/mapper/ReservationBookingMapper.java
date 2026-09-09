@@ -44,12 +44,14 @@ public class ReservationBookingMapper {
                 .adultCount(request.getAdultCount())
                 .childCount(request.getChildCount())
                 .reservationType(request.getReservationType())
+                .blockCode(request.getBlockCode())
                 .roomType(request.getRoomType())
                 .assignedRoomNo(request.getAssignedRoomNo())
                 .floor(request.getFloor())
                 .rateCode(request.getRateCode())
                 .numberOfRooms(request.getNumberOfRooms())
                 .rate(request.getRate())
+                .taxPercent(request.getTaxPercent())
                 .totalRate(calculateTotalRate(
                     request.getRate(),
                     request.getNumberOfRooms(),

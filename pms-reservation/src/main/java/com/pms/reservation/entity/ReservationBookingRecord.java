@@ -113,6 +113,9 @@ public class ReservationBookingRecord extends BaseEntity {
     @Column(nullable = false, length = 20)
     private String reservationType;
 
+    @Column(length = 80)
+    private String blockCode;
+
     @Column(nullable = false, length = 40)
     private String roomType;
 
@@ -129,6 +132,9 @@ public class ReservationBookingRecord extends BaseEntity {
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal rate;
+
+    @Column(precision = 5, scale = 2)
+    private BigDecimal taxPercent;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalRate;

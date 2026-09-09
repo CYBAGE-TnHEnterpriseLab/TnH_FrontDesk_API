@@ -19,7 +19,6 @@ import lombok.experimental.SuperBuilder;
 import com.pms.common.entity.BaseEntity;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -49,7 +48,7 @@ public class RoomMasterProjection extends BaseEntity {
     private String roomNumber;
 
     @Column(name = "room_type_id", nullable = false)
-    private UUID roomTypeId;
+        private String roomTypeId;
 
     @Column(name = "room_type_name", nullable = false, length = 120)
     private String roomTypeName;
