@@ -17,4 +17,7 @@ public class CheckoutRequestDto {
     @NotNull(message = "businessDate is required")
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate businessDate;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate earlyDepartureDate;
 }

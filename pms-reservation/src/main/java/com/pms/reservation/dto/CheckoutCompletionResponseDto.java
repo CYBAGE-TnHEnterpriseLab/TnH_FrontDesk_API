@@ -1,5 +1,6 @@
 package com.pms.reservation.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.Builder;
@@ -14,4 +15,9 @@ public class CheckoutCompletionResponseDto {
     LocalDate businessDate;
     LocalDateTime checkOutCompletedAt;
     String checkOutCompletedBy;
+    LocalDate earlyDepartureDate;
+    BigDecimal recalculatedTotalRate;
+    BigDecimal updatedGuestBalance;
+    BigDecimal refundAmount;
+    String message;
 }

@@ -70,6 +70,9 @@ rate-management:
 housekeeping-service:
   base-url: http://localhost:8086
 
+folio-service:
+  base-url: ${FOLIO_SERVICE_BASE_URL:http://localhost:8080}
+
 dashboard:
   timeout-ms: 2500
   housekeeping:
