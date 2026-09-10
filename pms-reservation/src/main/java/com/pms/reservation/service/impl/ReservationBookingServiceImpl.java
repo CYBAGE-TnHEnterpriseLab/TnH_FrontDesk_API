@@ -25,6 +25,7 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -775,9 +776,18 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             .filter(item -> normalizedRoomType.equalsIgnoreCase(item.getRoomName())
                 || normalizedRoomType.equalsIgnoreCase(item.getRoomCode()))
             .findFirst()
-            .map(item -> String.valueOf(item.getId()))
+            .map(item -> inventoryRoomTypeId(propertyId, item.getRoomCode(), item.getRoomName()))
             .orElseThrow(() -> new BadRequestException(
                 "roomType is not configured for selected property"));
+        }
+
+        private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {
+        String roomKey = StringUtils.hasText(roomCode)
+            ? roomCode.trim()
+            : roomName == null ? "" : roomName.trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+            .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
         }
 
     private void validateDates(LocalDate arrivalDate, LocalDate departureDate) {

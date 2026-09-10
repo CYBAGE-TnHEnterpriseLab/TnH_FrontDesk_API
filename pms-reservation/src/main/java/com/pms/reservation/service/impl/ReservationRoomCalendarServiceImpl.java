@@ -12,6 +12,7 @@ import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.service.ReservationRoomCalendarService;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +85,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         if (liveInventory == null) {
             liveInventory = List.of();
         }
+        liveInventory = normalizeLiveInventoryRoomTypes(propertyId, liveInventory);
 
         List<HousekeepingRoomStatusRecord> housekeepingStatuses = housekeepingRoomStatusRepository
                 .findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(propertyId, arrivalDate, departureDate);
@@ -139,7 +142,12 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
 
             String normalizedCode = normalize(roomType.getRoomCode());
             String normalizedName = normalize(roomType.getRoomName());
-            if (requestedRoomTypes.contains(normalizedCode) || requestedRoomTypes.contains(normalizedName)) {
+            String normalizedNumericId = roomType.getId() == null ? "" : normalize(String.valueOf(roomType.getId()));
+            String normalizedInventoryId = normalize(inventoryRoomTypeId(propertyId, roomType));
+            if (requestedRoomTypes.contains(normalizedCode)
+                    || requestedRoomTypes.contains(normalizedName)
+                    || requestedRoomTypes.contains(normalizedNumericId)
+                    || requestedRoomTypes.contains(normalizedInventoryId)) {
                 if (StringUtils.hasText(normalizedCode)) {
                     requestedRoomTypes.add(normalizedCode);
                 }
@@ -150,6 +158,56 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         }
 
         return requestedRoomTypes;
+    }
+
+    private List<PropertyRoomInventoryDto> normalizeLiveInventoryRoomTypes(
+            String propertyId,
+            List<PropertyRoomInventoryDto> liveInventory
+    ) {
+        List<PropertyRoomOutletTypeDto> propertyRoomTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+        if (propertyRoomTypes == null || propertyRoomTypes.isEmpty()) {
+            return liveInventory;
+        }
+
+        Map<String, String> displayNameByIdentifier = new LinkedHashMap<>();
+        for (PropertyRoomOutletTypeDto propertyRoomType : propertyRoomTypes) {
+            if (propertyRoomType == null || !StringUtils.hasText(propertyRoomType.getRoomName())) {
+                continue;
+            }
+            String displayName = propertyRoomType.getRoomName().trim();
+            addRoomTypeIdentifier(displayNameByIdentifier, propertyRoomType.getRoomCode(), displayName);
+            addRoomTypeIdentifier(displayNameByIdentifier, propertyRoomType.getRoomName(), displayName);
+            if (propertyRoomType.getId() != null) {
+                addRoomTypeIdentifier(displayNameByIdentifier, String.valueOf(propertyRoomType.getId()), displayName);
+            }
+            addRoomTypeIdentifier(displayNameByIdentifier, inventoryRoomTypeId(propertyId, propertyRoomType), displayName);
+        }
+
+        for (PropertyRoomInventoryDto inventoryItem : liveInventory) {
+            if (inventoryItem == null || !StringUtils.hasText(inventoryItem.getRoomType())) {
+                continue;
+            }
+            String displayName = displayNameByIdentifier.get(normalize(inventoryItem.getRoomType()));
+            if (displayName != null) {
+                inventoryItem.setRoomType(displayName);
+            }
+        }
+        return liveInventory;
+    }
+
+    private void addRoomTypeIdentifier(Map<String, String> displayNameByIdentifier, String identifier, String displayName) {
+        if (StringUtils.hasText(identifier)) {
+            displayNameByIdentifier.putIfAbsent(normalize(identifier), displayName);
+        }
+    }
+
+    private String inventoryRoomTypeId(String propertyId, PropertyRoomOutletTypeDto roomType) {
+        String roomKey = StringUtils.hasText(roomType.getRoomCode())
+                ? roomType.getRoomCode().trim()
+                : roomType.getRoomName() == null ? "" : roomType.getRoomName().trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+                .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private Map<String, RoomMeta> collectRoomMeta(
