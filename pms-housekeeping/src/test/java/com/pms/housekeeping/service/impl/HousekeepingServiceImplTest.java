@@ -134,7 +134,7 @@ class HousekeepingServiceImplTest {
         String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "201", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
-        row.setRoomTypeId(UUID.randomUUID());
+        row.setRoomTypeId("13");
         row.setRoomTypeName("Deluxe");
         row.setFloor("2");
         row.setGuestDisplayName("Jane Doe");
@@ -149,7 +149,7 @@ class HousekeepingServiceImplTest {
 
         Page<HousekeepingRoomDayStatus> roomPage = new PageImpl<>(List.of(row), PageRequest.of(0, 50, Sort.by(Sort.Direction.ASC, "roomNumber")), 1);
         when(dayStatusRepository.findAll(org.mockito.ArgumentMatchers.<Specification<HousekeepingRoomDayStatus>>any(), pageableCaptor.capture())).thenReturn(roomPage);
-        when(dayStatusRepository.findDistinctRoomTypes(propertyId, businessDate)).thenReturn(List.of(new RoomTypeOptionResponse(UUID.randomUUID(), "Deluxe")));
+        when(dayStatusRepository.findDistinctRoomTypes(propertyId, businessDate)).thenReturn(List.of(new RoomTypeOptionResponse("13", "Deluxe")));
         when(dayStatusRepository.findDistinctFloors(propertyId, businessDate)).thenReturn(List.of("2"));
         when(dayStatusRepository.findDistinctAttendants(propertyId, businessDate)).thenReturn(List.of("Alice"));
 
@@ -246,7 +246,7 @@ class HousekeepingServiceImplTest {
     @Test
     void calendar_shouldBuildNestedDateAndRoomStructure() {
         String propertyId = UUID.randomUUID().toString();
-        UUID roomTypeId = UUID.randomUUID();
+        String roomTypeId = "13";
 
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
         LocalDate toDate = LocalDate.of(2026, 8, 20);
@@ -508,7 +508,7 @@ class HousekeepingServiceImplTest {
     @Test
     void assignableRooms_shouldClampLimitAndEnrichResults() {
         String propertyId = UUID.randomUUID().toString();
-        UUID roomTypeId = UUID.randomUUID();
+        String roomTypeId = "13";
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
 
         List<HousekeepingRoomDayStatus> rows = new ArrayList<>();
@@ -567,7 +567,7 @@ class HousekeepingServiceImplTest {
     @Test
     void assignableRooms_shouldReturnAtLeastOneRoomEvenWhenLimitIsZero() {
         String propertyId = UUID.randomUUID().toString();
-        UUID roomTypeId = UUID.randomUUID();
+        String roomTypeId = "14";
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "301", CleaningStatus.INSPECTED, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setRoomTypeId(roomTypeId);
@@ -794,7 +794,7 @@ class HousekeepingServiceImplTest {
                 .propertyId(propertyId)
                 .businessDate(businessDate)
                 .roomNumber(roomNumber)
-                .roomTypeId(UUID.randomUUID())
+                .roomTypeId("13")
                 .roomTypeName("Standard")
                 .floor("1")
                 .cleaningStatus(cleaningStatus)

@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,8 +40,8 @@ public class InventoryReconciliationService {
     }
 
     private int reconcileRoomType(
-            UUID propertyId,
-            UUID roomTypeId,
+            String propertyId,
+            String roomTypeId,
             int totalInventory,
             LocalDate fromDate,
             LocalDate toDate
@@ -62,8 +61,8 @@ public class InventoryReconciliationService {
     }
 
     private List<RoomTypeInventoryDaily> buildRowsToSave(
-            UUID propertyId,
-            UUID roomTypeId,
+            String propertyId,
+            String roomTypeId,
             int totalInventory,
             LocalDate fromDate,
             LocalDate toDate,
@@ -77,8 +76,8 @@ public class InventoryReconciliationService {
     }
 
     private RoomTypeInventoryDaily upsertRowForDate(
-            UUID propertyId,
-            UUID roomTypeId,
+            String propertyId,
+            String roomTypeId,
             int totalInventory,
             LocalDate date,
             Map<LocalDate, RoomTypeInventoryDaily> existingByDate
@@ -96,8 +95,8 @@ public class InventoryReconciliationService {
     }
 
     private Map<LocalDate, RoomTypeInventoryDaily> loadExistingByDate(
-            UUID propertyId,
-            UUID roomTypeId,
+            String propertyId,
+            String roomTypeId,
             LocalDate fromDate,
             LocalDate toDate
     ) {
@@ -112,8 +111,8 @@ public class InventoryReconciliationService {
     }
 
     private RoomTypeInventoryDaily newDailyRow(
-            UUID propertyId,
-            UUID roomTypeId,
+            String propertyId,
+            String roomTypeId,
             LocalDate date,
             int totalInventory
     ) {
