@@ -26,8 +26,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import com.pms.reservation.integration.InventoryServiceClient;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -190,7 +192,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 continue;
             }
             List<InventoryAvailabilityDto> rows = inventoryServiceClient.availability(
-                    propertyId, String.valueOf(roomType.getId()), arrivalDate, departureDate);
+                    propertyId, inventoryRoomTypeId(propertyId, roomType.getRoomCode(), roomType.getRoomName()), arrivalDate, departureDate);
             int availableRooms = rows.stream()
                     .map(InventoryAvailabilityDto::getAvailableCount)
                     .filter(java.util.Objects::nonNull)
@@ -204,6 +206,15 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             result.add(item);
         }
         return result;
+    }
+
+    private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {
+        String roomKey = StringUtils.hasText(roomCode)
+                ? roomCode.trim()
+                : roomName == null ? "" : roomName.trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+                .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private List<PropertyRoomInventoryDto> enrichInventoryFromRateQuotes(
@@ -226,7 +237,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
             List<InventoryAvailabilityDto> rows = inventoryServiceClient.availability(
                 propertyId,
-                String.valueOf(roomTypeId),
+                inventoryRoomTypeId(propertyId, null, quote.getRoomType()),
                 arrivalDate,
                 departureDate
             );
