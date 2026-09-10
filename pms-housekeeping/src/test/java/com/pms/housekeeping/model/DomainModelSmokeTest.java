@@ -43,7 +43,7 @@ class DomainModelSmokeTest {
     @Test
     void recordsEnumsAndEntities_shouldBeInstantiableAndExposeValues() {
         String propertyId = UUID.randomUUID().toString();
-        UUID roomTypeId = UUID.randomUUID();
+        String roomTypeId = "13";
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         LocalDateTime now = LocalDateTime.of(2026, 8, 18, 10, 0);
 
@@ -108,7 +108,7 @@ class DomainModelSmokeTest {
         HousekeepingFiltersResponse filters = new HousekeepingFiltersResponse(List.of(roomTypeOption), List.of("1"), List.of("Anna"));
         HousekeepingRoomRowResponse roomRow = new HousekeepingRoomRowResponse(
                 "101", roomTypeId, "Deluxe", "1", "CLEAN", "VACANT", "NOT_RESERVED", "Guest",
-                businessDate, businessDate.plusDays(1), "Anna", now, HousekeepingPriority.NORMAL, true, null, "WiFi"
+                businessDate, businessDate.plusDays(1), "Anna", now, HousekeepingPriority.NORMAL, true, null, List.of("WiFi")
         );
         HousekeepingRoomsPageResponse roomsPage = new HousekeepingRoomsPageResponse(0, 50, 1, 1, filters, List.of(roomRow));
         CalendarDateResponse calDate = new CalendarDateResponse(businessDate, "MONDAY", 18);

@@ -9,7 +9,7 @@ import java.util.List;
 
 public record HousekeepingRoomRowResponse(
         String roomNumber,
-        UUID roomTypeId,
+        String roomTypeId,
         String roomTypeName,
         String floor,
         String cleaningStatus,

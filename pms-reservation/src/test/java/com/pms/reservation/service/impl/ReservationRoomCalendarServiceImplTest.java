@@ -14,6 +14,7 @@ import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import java.time.LocalDate;
 import java.util.List;
@@ -200,5 +201,45 @@ class ReservationRoomCalendarServiceImplTest {
         assertThat(response.getRoomTypes()).containsExactly("King", "Suite");
         assertThat(response.getRooms()).extracting(ReservationRoomCalendarResponseDto.RoomCalendarRowDto::getRoomNo)
                 .containsExactly("101", "201");
+    }
+
+    @Test
+    void getRoomCalendarShouldMatchRoomCodeToRoomName() {
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+
+        PropertyRoomOutletTypeDto deluxe = new PropertyRoomOutletTypeDto();
+        deluxe.setRoomCode("DLX");
+        deluxe.setRoomName("Deluxe");
+        when(propertyInventoryPort.fetchRoomOutletTypes("property-1")).thenReturn(List.of(deluxe));
+
+        PropertyRoomInventoryDto room101 = new PropertyRoomInventoryDto();
+        room101.setRoomNumber("101");
+        room101.setRoomType("Deluxe");
+
+        when(housekeepingRoomCalendarClient.fetchRooms(
+                "property-1",
+                LocalDate.of(2026, 9, 2),
+                LocalDate.of(2026, 9, 4)
+        )).thenReturn(List.of(room101));
+        when(reservationBookingRepository.findByPropertyIdAndAssignedRoomNoIsNotNullAndArrivalDateLessThanAndDepartureDateGreaterThan(
+                "property-1",
+                LocalDate.of(2026, 9, 5),
+                LocalDate.of(2026, 9, 2)
+        )).thenReturn(List.of());
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(
+                "property-1",
+                LocalDate.of(2026, 9, 2),
+                LocalDate.of(2026, 9, 4)
+        )).thenReturn(List.of());
+
+        ReservationRoomCalendarResponseDto response = reservationRoomCalendarService.getRoomCalendar(
+                "property-1",
+                LocalDate.of(2026, 9, 2),
+                LocalDate.of(2026, 9, 4),
+                List.of("DLX")
+        );
+
+        assertThat(response.getRooms()).hasSize(1);
+        assertThat(response.getRooms().getFirst().getRoomType()).isEqualTo("Deluxe");
     }
 }
