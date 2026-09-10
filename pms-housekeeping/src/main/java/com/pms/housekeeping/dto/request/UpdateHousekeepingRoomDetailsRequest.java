@@ -6,11 +6,11 @@ import com.pms.housekeeping.entity.HousekeepingPriority;
 import com.pms.housekeeping.entity.ReservationStatus;
 import com.pms.housekeeping.entity.StatusChangeSource;
 import jakarta.validation.constraints.NotNull;
-
+import java.util.List;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-public record UpdateHousekeepingStatusRequest(
+public record UpdateHousekeepingRoomDetailsRequest(
         @NotNull String propertyId,
         @NotNull LocalDate businessDate,
         CleaningStatus cleaningStatus,
@@ -18,6 +18,7 @@ public record UpdateHousekeepingStatusRequest(
         ReservationStatus reservationStatus,
         String confirmationId,
         String attendantName,
+        List<String> features,
         HousekeepingPriority priority,
         String guestDisplayName,
         LocalDate arrivalDate,
