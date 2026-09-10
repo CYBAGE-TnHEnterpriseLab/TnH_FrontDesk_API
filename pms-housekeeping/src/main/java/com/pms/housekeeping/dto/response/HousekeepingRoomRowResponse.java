@@ -5,6 +5,7 @@ import com.pms.housekeeping.entity.HousekeepingPriority;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 public record HousekeepingRoomRowResponse(
         String roomNumber,
@@ -22,7 +23,7 @@ public record HousekeepingRoomRowResponse(
         HousekeepingPriority priority,
         boolean sellable,
         String confirmationId,
-        String featuresCsv
+        List<String> features
 ) {
 }
 

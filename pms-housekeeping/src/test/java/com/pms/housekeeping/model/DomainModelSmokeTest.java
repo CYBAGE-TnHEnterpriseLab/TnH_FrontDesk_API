@@ -6,7 +6,7 @@ import com.pms.housekeeping.common.exception.HousekeepingException;
 import com.pms.housekeeping.common.exception.HousekeepingNotFoundException;
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.RoomMasterSyncRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.dto.response.AssignableRoomResponse;
 import com.pms.housekeeping.dto.response.CalendarDateResponse;
 import com.pms.housekeeping.dto.response.CalendarRoomDayResponse;
@@ -17,7 +17,7 @@ import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
 import com.pms.housekeeping.dto.response.HousekeepingFiltersResponse;
 import com.pms.housekeeping.dto.response.HousekeepingRoomRowResponse;
 import com.pms.housekeeping.dto.response.HousekeepingRoomsPageResponse;
-import com.pms.housekeeping.dto.response.HousekeepingStatusUpdateResponse;
+import com.pms.housekeeping.dto.response.HousekeepingRoomDetailsUpdateResponse;
 import com.pms.housekeeping.dto.response.RoomMasterSyncResponse;
 import com.pms.housekeeping.dto.response.RoomTypeOptionResponse;
 import com.pms.housekeeping.entity.CleaningStatus;
@@ -65,6 +65,7 @@ class DomainModelSmokeTest {
                 .reservationStatus(ReservationStatus.NOT_RESERVED)
                 .priority(HousekeepingPriority.NORMAL)
                 .sellable(true)
+                .featuresCsv("KING_BED,TV,GARDEN_VIEW")
                 .updatedBy(java.util.UUID.fromString("00000000-0000-0000-0000-0000000000aa"))
                 .createdAt(now)
                 .updatedAt(now)
@@ -116,8 +117,8 @@ class DomainModelSmokeTest {
         CalendarRoomTypeResponse calType = new CalendarRoomTypeResponse(roomTypeId, "Deluxe", List.of(calRoom));
         HousekeepingCalendarResponse calendar = new HousekeepingCalendarResponse(propertyId, businessDate, businessDate.plusDays(1), List.of(calDate), List.of(calType));
         AssignableRoomResponse assignable = new AssignableRoomResponse("101", roomTypeId, "Deluxe", "1", "CLASS-A", "North", "CLEAN");
-        HousekeepingStatusUpdateResponse statusUpdate = new HousekeepingStatusUpdateResponse(
-                propertyId, businessDate, "101", "CLEAN", "VACANT", "Guest", "NOT_RESERVED", "Anna", HousekeepingPriority.NORMAL, null, true, now, now
+        HousekeepingRoomDetailsUpdateResponse statusUpdate = new HousekeepingRoomDetailsUpdateResponse(
+                propertyId, businessDate, "101", "CLEAN", "VACANT", "Guest", "NOT_RESERVED", "Anna", List.of("KING_BED", "TV", "GARDEN_VIEW"), HousekeepingPriority.NORMAL, null, true, now, now
         );
         RoomMasterSyncResponse syncResponse = new RoomMasterSyncResponse(5, 1);
 
@@ -127,6 +128,8 @@ class DomainModelSmokeTest {
         assertThat(assignable.cleaningStatus()).isEqualTo("CLEAN");
         assertThat(statusUpdate.sellable()).isTrue();
         assertThat(syncResponse.syncedRooms()).isEqualTo(5);
+        assertThat(statusUpdate.features())
+                .containsExactly("KING_BED", "TV", "GARDEN_VIEW");
 
         HousekeepingRoomFilterRequest filterRequest = new HousekeepingRoomFilterRequest(
                 propertyId, businessDate, "101", List.of(CleaningStatus.CLEAN), List.of(FrontOfficeStatus.VACANT),
@@ -138,9 +141,9 @@ class DomainModelSmokeTest {
                 businessDate.plusDays(1),
                 List.of(new RoomMasterSyncRequest.RoomMasterUnit(roomTypeId, "Deluxe", "101", "1", "North", "CLASS-A", "WiFi", true, true))
         );
-        UpdateHousekeepingStatusRequest updateRequest = new UpdateHousekeepingStatusRequest(
+        UpdateHousekeepingRoomDetailsRequest updateRequest = new UpdateHousekeepingRoomDetailsRequest(
                 propertyId, businessDate, CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED,
-                null, "Anna", HousekeepingPriority.NORMAL, "Guest", businessDate, businessDate.plusDays(1), true, "tester", StatusChangeSource.SYSTEM, now
+                null, "Anna", List.of("KING_BED", "TV"), HousekeepingPriority.NORMAL, "Guest", businessDate, businessDate.plusDays(1), true, "tester", StatusChangeSource.SYSTEM, now
         );
 
         assertThat(filterRequest.propertyId()).isEqualTo(propertyId);
