@@ -5,7 +5,6 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import com.pms.common.entity.BaseEntity;
-import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -127,7 +126,7 @@ public class HousekeepingRoomDayStatus extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @Column(name = "features_csv", length = 500)
+    @Column(name = "features_csv", length = 4000)
     private String featuresCsv;
 }
 
