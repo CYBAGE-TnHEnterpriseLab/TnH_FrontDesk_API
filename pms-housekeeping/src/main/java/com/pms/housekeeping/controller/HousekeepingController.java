@@ -1,7 +1,7 @@
 package com.pms.housekeeping.controller;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.dto.response.*;
 import com.pms.housekeeping.service.HousekeepingService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -78,12 +78,12 @@ public class HousekeepingController {
         return housekeepingService.assignableRooms(propertyId, businessDate, roomTypeId, limit);
     }
 
-    @PatchMapping("/rooms/{roomNumber}/status")
-    @Operation(summary = "Update housekeeping status for a room")
-    public HousekeepingStatusUpdateResponse updateRoomStatus(
+    @PatchMapping("/rooms/{roomNumber}/updateRoom")
+    @Operation(summary = "Update room status, attendant, features")
+    public HousekeepingRoomDetailsUpdateResponse updateRoomDetails(
             @PathVariable String roomNumber,
-            @Valid @RequestBody UpdateHousekeepingStatusRequest request
+            @Valid @RequestBody UpdateHousekeepingRoomDetailsRequest request
     ) {
-        return housekeepingService.updateRoomStatus(roomNumber, request);
+        return housekeepingService.updateRoomDetails(roomNumber, request);
     }
 }

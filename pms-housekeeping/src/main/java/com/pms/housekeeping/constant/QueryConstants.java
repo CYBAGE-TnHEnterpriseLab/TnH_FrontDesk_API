@@ -29,6 +29,16 @@ public class QueryConstants {
                AND r.business_date >= :fromDate
             """;
 
+    public static final String UPDATE_ROOM_FEATURES_FROM_DATE = """
+            UPDATE pms_housekeeping.housekeeping_room_day_status r
+                SET features_csv = :featuresCsv,
+                    updated_at = :updatedAt,
+                    updated_by = :updatedBy
+                WHERE r.property_id = :propertyId
+                   AND r.room_number = :roomNumber
+                   AND r.business_date >= :fromDate
+            """;
+
     public static final String FIND_DISTINCT_ROOM_TYPES = """
             select distinct new com.pms.housekeeping.dto.response.RoomTypeOptionResponse(
                    h.roomTypeId,

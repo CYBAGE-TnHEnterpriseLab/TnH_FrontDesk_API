@@ -92,5 +92,16 @@ public interface HousekeepingRoomDayStatusRepository
             @Param("updatedBy") UUID updatedBy
     );
 
+    @Modifying(clearAutomatically = true)
+    @Query(value = QueryConstants.UPDATE_ROOM_FEATURES_FROM_DATE, nativeQuery = true)
+    int updateRoomFeaturesFromDate(
+            @Param("propertyId") String propertyId,
+            @Param("roomNumber") String roomNumber,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("featuresCsv") String featuresCsv,
+            @Param("updatedAt") LocalDateTime updatedAt,
+            @Param("updatedBy") UUID updatedBy
+    );
+
     void deleteByPropertyId(String propertyId);
 }

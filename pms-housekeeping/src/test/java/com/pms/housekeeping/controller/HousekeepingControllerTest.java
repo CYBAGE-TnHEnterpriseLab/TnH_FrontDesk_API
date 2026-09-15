@@ -1,12 +1,12 @@
 package com.pms.housekeeping.controller;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.dto.response.AssignableRoomResponse;
 import com.pms.housekeeping.dto.response.HousekeepingCalendarResponse;
 import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
 import com.pms.housekeeping.dto.response.HousekeepingRoomsPageResponse;
-import com.pms.housekeeping.dto.response.HousekeepingStatusUpdateResponse;
+import com.pms.housekeeping.dto.response.HousekeepingRoomDetailsUpdateResponse;
 import com.pms.housekeeping.entity.CleaningStatus;
 import com.pms.housekeeping.entity.FrontOfficeStatus;
 import com.pms.housekeeping.entity.HousekeepingPriority;
@@ -143,45 +143,62 @@ class HousekeepingControllerTest {
     }
 
     @Test
-    void updateRoomStatus_shouldDelegateToService() {
-        UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
-                UUID.randomUUID().toString(),
-                LocalDate.of(2026, 8, 18),
-                CleaningStatus.CLEAN,
-                FrontOfficeStatus.VACANT,
-                ReservationStatus.NOT_RESERVED,
-                "CONF-1",
-                "Alice",
-                HousekeepingPriority.NORMAL,
-                "Guest",
-                LocalDate.of(2026, 8, 18),
-                LocalDate.of(2026, 8, 20),
-                true,
-                "system",
-                StatusChangeSource.HOUSEKEEPING,
-                LocalDateTime.of(2026, 8, 18, 10, 0)
-        );
-        HousekeepingStatusUpdateResponse expected = new HousekeepingStatusUpdateResponse(
-                request.propertyId(),
-                request.businessDate(),
-                "101",
-                "CLEAN",
-                "VACANT",
-                "Guest",
-                "NOT_RESERVED",
-                "Alice",
-                HousekeepingPriority.NORMAL,
-                "CONF-1",
-                true,
-                LocalDateTime.of(2026, 8, 18, 11, 0),
-                LocalDateTime.of(2026, 8, 18, 10, 0)
-        );
-        when(housekeepingService.updateRoomStatus("101", request)).thenReturn(expected);
+    void updateRoomDetails_shouldDelegateToService() {
 
-        HousekeepingStatusUpdateResponse response = controller.updateRoomStatus("101", request);
+        List<String> features = List.of(
+                "KING_BED",
+                "TV",
+                "GARDEN_VIEW"
+        );
+
+        UpdateHousekeepingRoomDetailsRequest request =
+                new UpdateHousekeepingRoomDetailsRequest(
+                        UUID.randomUUID().toString(),
+                        LocalDate.of(2026, 8, 18),
+                        CleaningStatus.CLEAN,
+                        FrontOfficeStatus.VACANT,
+                        ReservationStatus.NOT_RESERVED,
+                        "CONF-1",
+                        "Alice",
+                        features,
+                        HousekeepingPriority.NORMAL,
+                        "Guest",
+                        LocalDate.of(2026, 8, 18),
+                        LocalDate.of(2026, 8, 20),
+                        true,
+                        "system",
+                        StatusChangeSource.HOUSEKEEPING,
+                        LocalDateTime.of(2026, 8, 18, 10, 0)
+                );
+
+        HousekeepingRoomDetailsUpdateResponse expected =
+                new HousekeepingRoomDetailsUpdateResponse(
+                        request.propertyId(),
+                        request.businessDate(),
+                        "101",
+                        "CLEAN",
+                        "VACANT",
+                        "Guest",
+                        "NOT_RESERVED",
+                        "Alice",
+                        features,
+                        HousekeepingPriority.NORMAL,
+                        "CONF-1",
+                        true,
+                        LocalDateTime.of(2026, 8, 18, 11, 0),
+                        LocalDateTime.of(2026, 8, 18, 10, 0)
+                );
+
+        when(housekeepingService.updateRoomDetails("101", request))
+                .thenReturn(expected);
+
+        HousekeepingRoomDetailsUpdateResponse response =
+                controller.updateRoomDetails("101", request);
 
         assertThat(response).isSameAs(expected);
-        verify(housekeepingService).updateRoomStatus("101", request);
+
+        verify(housekeepingService)
+                .updateRoomDetails("101", request);
     }
 }
 
