@@ -300,7 +300,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             }
             bookingRefByConfirmation.putIfAbsent(
                     booking.getConfirmationNumber(),
-                    new BookingRef(booking.getId(), booking.getReservationStatus())
+                    new BookingRef(booking.getId(), booking.getGuestName(), booking.getReservationStatus())
             );
         }
         return bookingRefByConfirmation;
@@ -367,6 +367,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                         cell,
                         cellStatus,
                         booking.getConfirmationNumber(),
+                        booking.getGuestName(),
                         booking.getId(),
                         booking.getReservationStatus()
                 );
@@ -415,6 +416,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                     cell,
                     normalizedStatus,
                     confirmationNumber,
+                    bookingRef == null ? null : bookingRef.guestName,
                     bookingRef == null ? null : bookingRef.bookingId,
                     bookingRef == null ? cell.reservationStatus : bookingRef.reservationStatus
             );
@@ -439,6 +441,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                                         .date(date)
                                         .status(cell.status)
                                         .confirmationNumber(cell.confirmationNumber)
+                                        .guestName(cell.guestName)
                                         .bookingId(cell.bookingId)
                                         .reservationStatus(cell.reservationStatus)
                                         .build();
@@ -510,6 +513,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             MutableCell cell,
             String status,
             String confirmationNumber,
+            String guestName,
             Long bookingId,
             String reservationStatus
     ) {
@@ -524,6 +528,9 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             cell.status = status;
             if (StringUtils.hasText(confirmationNumber)) {
                 cell.confirmationNumber = confirmationNumber;
+            }
+            if (StringUtils.hasText(guestName)) {
+                cell.guestName = guestName;
             }
             if (bookingId != null) {
                 cell.bookingId = bookingId;
@@ -662,6 +669,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
     private static final class MutableCell {
         private String status;
         private String confirmationNumber;
+        private String guestName;
         private Long bookingId;
         private String reservationStatus;
 
@@ -674,10 +682,12 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
 
     private static final class BookingRef {
         private final Long bookingId;
+        private final String guestName;
         private final String reservationStatus;
 
-        private BookingRef(Long bookingId, String reservationStatus) {
+        private BookingRef(Long bookingId, String guestName, String reservationStatus) {
             this.bookingId = bookingId;
+            this.guestName = guestName;
             this.reservationStatus = reservationStatus;
         }
     }
