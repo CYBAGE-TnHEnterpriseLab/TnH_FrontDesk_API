@@ -546,6 +546,49 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
+        @Override
+        @Transactional
+        public int releaseReservationAssignment(String propertyId, String confirmationId) {
+                String loggedInUser = currentUserProvider.getCurrentUsername();
+                LocalDateTime now = LocalDateTime.now();
+                List<HousekeepingRoomDayStatus> rows = dayStatusRepository
+                                .findAllByPropertyIdAndConfirmationId(propertyId, confirmationId);
+
+                for (HousekeepingRoomDayStatus row : rows) {
+                        saveHistory(row, "assignedReservationId", row.getConfirmationId(), null,
+                                        new UpdateHousekeepingStatusRequest(
+                                        propertyId,
+                                        row.getBusinessDate(),
+                                        null,
+                                        FrontOfficeStatus.VACANT,
+                                        ReservationStatus.NOT_RESERVED,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        StatusChangeSource.RESERVATION,
+                                        null),
+                                now,
+                                loggedInUser);
+                        row.setConfirmationId(null);
+                        row.setGuestDisplayName(null);
+                        row.setArrivalDate(null);
+                        row.setDepartureDate(null);
+                        row.setFrontOfficeStatus(FrontOfficeStatus.VACANT);
+                        row.setReservationStatus(ReservationStatus.NOT_RESERVED);
+                        row.setSellable(computeSellable(row));
+                        row.setUpdatedBy(CurrentUser.userId());
+                        row.setUpdatedAt(now);
+                }
+
+                dayStatusRepository.saveAll(rows);
+                return rows.size();
+        }
+
     private void applyCleaningStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
         if (request.cleaningStatus() == null || request.cleaningStatus() == row.getCleaningStatus()) {
             log.debug("HousekeepingService::applyCleaningStatusChange - No cleaning status change for room {}",

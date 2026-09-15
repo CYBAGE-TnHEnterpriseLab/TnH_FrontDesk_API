@@ -31,6 +31,7 @@ public class ReservationRoomCalendarResponseDto {
         LocalDate date;
         String status;
         String confirmationNumber;
+        String guestName;
         Long bookingId;
         String reservationStatus;
     }

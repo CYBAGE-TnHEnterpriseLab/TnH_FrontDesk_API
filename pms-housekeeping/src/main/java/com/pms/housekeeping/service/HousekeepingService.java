@@ -24,6 +24,8 @@ public interface HousekeepingService {
 
     HousekeepingStatusUpdateResponse updateRoomStatus(String roomNumber, UpdateHousekeepingStatusRequest request);
 
+    int releaseReservationAssignment(String propertyId, String confirmationId);
+
 }
 
 

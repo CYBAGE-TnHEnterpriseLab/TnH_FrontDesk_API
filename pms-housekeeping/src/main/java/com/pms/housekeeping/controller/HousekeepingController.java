@@ -86,4 +86,13 @@ public class HousekeepingController {
     ) {
         return housekeepingService.updateRoomStatus(roomNumber, request);
     }
+
+    @PostMapping("/reservations/{confirmationId}/release")
+    @Operation(summary = "Release all housekeeping room assignments for a reservation")
+    public int releaseReservationAssignment(
+            @PathVariable String confirmationId,
+            @RequestParam @NotNull String propertyId
+    ) {
+        return housekeepingService.releaseReservationAssignment(propertyId, confirmationId);
+    }
 }
