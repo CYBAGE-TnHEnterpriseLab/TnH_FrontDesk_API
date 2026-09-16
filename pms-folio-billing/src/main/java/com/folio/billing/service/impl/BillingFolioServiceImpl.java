@@ -104,7 +104,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<FolioBillingRow> getFolioBilling(FolioBillingFilter filter) {
         if (filter == null) {
             return List.of();

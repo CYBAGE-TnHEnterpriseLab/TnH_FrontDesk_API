@@ -34,8 +34,6 @@ public class PolicyDto {
 
     private Status status;
 
-//    private UUID createdBy;
-
     private String action;
 
     private int policyCount;
@@ -43,6 +41,8 @@ public class PolicyDto {
     private String propertyId;
 
     private String propertyCode;
+
+    private String createdByUser;
 
     public Long getId() {
         return id;
@@ -140,14 +140,6 @@ public class PolicyDto {
         this.status = status;
     }
 
-//    public UUID getCreatedBy() {
-//        return createdBy;
-//    }
-
-//    public void setCreatedBy(UUID createdBy) {
-//        this.createdBy = createdBy;
-//    }
-
     public String getAction() {
         return action;
     }
@@ -162,5 +154,13 @@ public class PolicyDto {
 
     public void setPolicyCount(int policyCount) {
         this.policyCount = policyCount;
+    }
+
+    public String createdByUser() {
+        return createdByUser();
+    }
+
+    public void setCreatedByUser(String createdByUser) {
+        this.createdByUser = createdByUser;
     }
 }

@@ -64,4 +64,7 @@ public class Policy extends BaseEntity {
 
     @Column(name = "property_code")
     private String propertyCode;
+
+    @Column(name = "created_by_user")
+    private String createdByUser;
 }

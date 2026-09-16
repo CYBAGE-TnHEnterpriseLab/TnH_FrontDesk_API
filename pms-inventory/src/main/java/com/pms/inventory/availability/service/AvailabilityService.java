@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class AvailabilityService {
@@ -21,8 +20,8 @@ public class AvailabilityService {
 
     @Transactional(readOnly = true)
     public List<AvailabilityResponse> getAvailability(
-            UUID propertyId,
-            UUID roomTypeId,
+            String propertyId,
+            String roomTypeId,
             LocalDate fromDate,
             LocalDate toDate
     ) {

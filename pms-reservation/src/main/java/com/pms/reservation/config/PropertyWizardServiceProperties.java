@@ -19,20 +19,9 @@ public class PropertyWizardServiceProperties {
     @NotBlank(message = "property-wizard-service.base-url is required")
     private String baseUrl;
 
-    @NotBlank(message = "property-wizard-service.inventory-validation-path is required")
-    private String inventoryValidationPath;
-
-    @NotBlank(message = "property-wizard-service.inventory-availability-path is required")
-    private String inventoryAvailabilityPath;
-
     private String roomOutletTypesPath;
 
     @NotBlank(message = "property-wizard-service.tax-rules-path is required")
     private String taxRulesPath;
 
-    @NotBlank(message = "property-wizard-service.inventory-deduction-path is required")
-    private String inventoryDeductionPath;
-
-    @NotBlank(message = "property-wizard-service.inventory-sync-path is required")
-    private String inventorySyncPath;
 }

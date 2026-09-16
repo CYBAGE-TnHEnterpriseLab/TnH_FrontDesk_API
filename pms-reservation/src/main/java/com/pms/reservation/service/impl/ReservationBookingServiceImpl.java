@@ -15,17 +15,17 @@ import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
-import com.pms.reservation.integration.dto.InventoryDeductionRequest;
-import com.pms.reservation.integration.dto.InventorySyncRequest;
-import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
+import com.pms.reservation.integration.dto.InventoryReservationRequest;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -70,6 +70,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
     private final PropertyInventoryPort propertyInventoryPort;
+    private final InventoryServiceClient inventoryServiceClient;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
     private final PaymentProcessingService paymentProcessingService;
@@ -88,12 +89,17 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateAndNormalizePaymentType(request);
         String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
-        LocalDateTime inventoryDeductedAt = null;
-        LocalDateTime inventorySyncedAt = null;
-
-        if (propertyWizardServiceProperties.isEnabled()) {
-            validatePropertyAndInventory(request);
-        }
+        String roomTypeId = resolveRoomTypeId(request.getPropertyId(), request.getRoomType());
+        InventoryReservationRequest inventoryRequest = InventoryReservationRequest.builder()
+            .confirmationNumber(confirmationNumber)
+            .propertyId(request.getPropertyId())
+            .bookedRoomTypeId(roomTypeId)
+            .assignedRoomTypeId(roomTypeId)
+            .checkInDate(request.getArrivalDate())
+            .checkOutDate(request.getDepartureDate())
+            .quantity(request.getNumberOfRooms())
+            .build();
+        inventoryServiceClient.reserve(inventoryRequest);
 
         BigDecimal payableAmount = calculatePayableAmount(request);
         PaymentProcessingResult paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
@@ -101,21 +107,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             String failureReason = paymentResult.getFailureReason() == null
                     ? "payment processing failed"
                     : paymentResult.getFailureReason();
+            inventoryServiceClient.release(confirmationNumber);
             throw new BadRequestException("payment processing failed: " + failureReason);
-        }
-
-        if (propertyWizardServiceProperties.isEnabled()) {
-            try {
-                propertyInventoryPort.deductInventory(buildInventoryDeductionRequest(request, confirmationNumber));
-                inventoryDeductedAt = LocalDateTime.now();
-
-                propertyInventoryPort.syncInventory(buildInventorySyncRequest(request, confirmationNumber));
-                inventorySyncedAt = LocalDateTime.now();
-            } catch (ExternalServiceException ex) {
-                if (!propertyWizardServiceProperties.isFailOpenOnWriteError()) {
-                    throw ex;
-                }
-            }
         }
 
         ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
@@ -123,8 +116,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         applyPropertyTaxOnBooking(entity);
         entity.setConfirmationNumber(confirmationNumber);
         entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
-        entity.setInventoryDeductedAt(inventoryDeductedAt);
-        entity.setInventorySyncedAt(inventorySyncedAt);
+        entity.setInventoryDeductedAt(LocalDateTime.now());
+        entity.setInventorySyncedAt(LocalDateTime.now());
 
         ReservationBookingRecord saved = reservationBookingRepository.save(entity);
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
@@ -177,10 +170,16 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
         try {
-            housekeepingRoomStatusClient.updateReservationStay(
-                    java.util.UUID.fromString(booking.getPropertyId()), booking.getArrivalDate(),
-                    booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
-                    booking.getConfirmationNumber());
+            UUID propertyId = UUID.fromString(booking.getPropertyId());
+            if (STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
+                housekeepingRoomStatusClient.updateCheckedInStay(
+                        propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
+                        booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
+            } else {
+                housekeepingRoomStatusClient.updateReservationStay(
+                        propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
+                        booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
+            }
         } catch (IllegalArgumentException ex) {
             log.warn("Skipping standalone housekeeping update because propertyId is not a UUID: {}", booking.getPropertyId());
         } catch (ExternalServiceException ex) {
@@ -222,8 +221,14 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         request.setPayment(existing.getPayment());
         request.setPaymentType(existing.getPaymentType());
 
-        if (propertyWizardServiceProperties.isEnabled()) {
-            validatePropertyAndInventory(request);
+        String previousRoomNumber = existing.getAssignedRoomNo();
+        String previousRoomTypeId = resolveRoomTypeId(existing.getPropertyId(), existing.getRoomType());
+        String assignedRoomTypeId = resolveAssignedRoomTypeId(
+            existing.getPropertyId(), request.getAssignedRoomNo(), request.getArrivalDate(), request.getDepartureDate());
+        if (roomNumberChanged(previousRoomNumber, request.getAssignedRoomNo())
+            && assignedRoomTypeId != null
+            && !assignedRoomTypeId.equals(previousRoomTypeId)) {
+            inventoryServiceClient.changeAssignedRoomType(existing.getConfirmationNumber(), assignedRoomTypeId);
         }
 
         ReservationBookingRecord updated = reservationBookingMapper.toEntity(request);
@@ -235,9 +240,48 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         applyPropertyTaxOnBooking(updated);
 
         ReservationBookingRecord saved = reservationBookingRepository.save(updated);
+        if (roomNumberChanged(previousRoomNumber, saved.getAssignedRoomNo())) {
+            clearHousekeepingAssignments(existing);
+            updateStandaloneHousekeeping(saved);
+        }
         Optional<ReservationPaymentTransactionRecord> latestTransaction =
             reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(existing.getId());
         return buildReservationViewResponse(saved, latestTransaction.orElse(null));
+    }
+
+    private boolean roomNumberChanged(String previousRoomNumber, String newRoomNumber) {
+        String previous = previousRoomNumber == null ? "" : previousRoomNumber.trim();
+        String current = newRoomNumber == null ? "" : newRoomNumber.trim();
+        return !previous.equalsIgnoreCase(current);
+    }
+
+    private String resolveAssignedRoomTypeId(String propertyId, String roomNumber,
+                                             LocalDate arrivalDate, LocalDate departureDate) {
+        if (!StringUtils.hasText(roomNumber)) {
+            return null;
+        }
+        String roomTypeName = housekeepingRoomCalendarClient.fetchRooms(propertyId, arrivalDate, departureDate).stream()
+                .filter(room -> roomNumber.trim().equalsIgnoreCase(room.getRoomNumber()))
+                .map(room -> room.getRoomType())
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+        return StringUtils.hasText(roomTypeName)
+                ? resolveRoomTypeId(propertyId, roomTypeName)
+                : null;
+    }
+
+    private void clearHousekeepingAssignments(ReservationBookingRecord booking) {
+        try {
+            UUID propertyId = UUID.fromString(booking.getPropertyId());
+            housekeepingRoomStatusClient.clearReservationAssignments(propertyId, booking.getConfirmationNumber());
+        } catch (IllegalArgumentException ex) {
+            throw new ExternalServiceException(
+                    "Cannot release the previous housekeeping room because propertyId is not a UUID: "
+                            + booking.getPropertyId(), ex);
+        } catch (ExternalServiceException ex) {
+            throw ex;
+        }
     }
 
         @Override
@@ -396,7 +440,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         return ReservationViewResponseDto.BookingDto.builder()
                 .groupCode(booking.getGuestGroup())
                 .company(booking.getCompany())
-                .blockCode(null)
+                .blockCode(booking.getBlockCode())
                 .source(booking.getSource())
                 .reservationType(booking.getReservationType())
                 .rateCode(booking.getRateCode())
@@ -407,7 +451,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         return ReservationViewResponseDto.PricingDto.builder()
                 .currency(DEFAULT_CURRENCY)
                 .roomRate(booking.getRate())
-                .taxPercent(taxSummary.taxPercent)
+                .taxPercent(booking.getTaxPercent() == null ? taxSummary.taxPercent : booking.getTaxPercent())
                 .taxAmount(taxSummary.taxAmount)
                 .totalRate(booking.getTotalRate())
                 .guestBalance(booking.getGuestBalance())
@@ -765,33 +809,6 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .multiply(BigDecimal.valueOf(nights));
     }
 
-    private InventoryDeductionRequest buildInventoryDeductionRequest(
-            ReservationBookingRequestDto request,
-            String confirmationNumber
-    ) {
-        return InventoryDeductionRequest.builder()
-                .propertyId(request.getPropertyId())
-                .roomType(request.getRoomType())
-                .quantity(request.getNumberOfRooms())
-                .arrivalDate(request.getArrivalDate())
-                .departureDate(request.getDepartureDate())
-                .confirmationNumber(confirmationNumber)
-                .build();
-    }
-
-    private InventorySyncRequest buildInventorySyncRequest(
-            ReservationBookingRequestDto request,
-            String confirmationNumber
-    ) {
-        return InventorySyncRequest.builder()
-                .propertyId(request.getPropertyId())
-                .roomType(request.getRoomType())
-                .arrivalDate(request.getArrivalDate())
-                .departureDate(request.getDepartureDate())
-                .confirmationNumber(confirmationNumber)
-                .build();
-    }
-
     private String generateConfirmationNumber(String propertyId) {
         for (int attempt = 0; attempt < CONFIRMATION_MAX_ATTEMPTS; attempt++) {
             String candidate = String.valueOf(ThreadLocalRandom.current()
@@ -805,37 +822,28 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         throw new IllegalStateException("Unable to generate unique confirmation number");
     }
 
-    private void validatePropertyAndInventory(ReservationBookingRequestDto request) {
-        if (!propertyWizardServiceProperties.isEnabled()) {
-            return;
+        private String resolveRoomTypeId(String propertyId, String roomType) {
+        List<com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto> roomTypes =
+            propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+        String normalizedRoomType = roomType == null ? "" : roomType.trim();
+        return roomTypes.stream()
+            .filter(item -> item.getId() != null)
+            .filter(item -> normalizedRoomType.equalsIgnoreCase(item.getRoomName())
+                || normalizedRoomType.equalsIgnoreCase(item.getRoomCode()))
+            .findFirst()
+            .map(item -> inventoryRoomTypeId(propertyId, item.getRoomCode(), item.getRoomName()))
+            .orElseThrow(() -> new BadRequestException(
+                "roomType is not configured for selected property"));
         }
 
-        PropertyInventoryValidationResponse validation;
-        try {
-            validation = propertyInventoryPort.validateInventory(
-                request.getPropertyId(),
-                request.getRoomType(),
-                request.getNumberOfRooms()
-            );
-        } catch (ExternalServiceException ex) {
-            if (propertyWizardServiceProperties.isFailOpenOnValidationError()) {
-                return;
-            }
-            throw ex;
+        private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {
+        String roomKey = StringUtils.hasText(roomCode)
+            ? roomCode.trim()
+            : roomName == null ? "" : roomName.trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+            .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
         }
-
-        if (!Boolean.TRUE.equals(validation.getPropertyExists())) {
-            throw new BadRequestException("propertyId is invalid as per Property Wizard service");
-        }
-
-        if (!Boolean.TRUE.equals(validation.getRoomTypeAvailable())) {
-            throw new BadRequestException("roomType is not available for selected property");
-        }
-
-        if (validation.getAvailableRooms() != null && request.getNumberOfRooms() > validation.getAvailableRooms()) {
-            throw new BadRequestException("numberOfRooms exceeds available rooms for selected property and roomType");
-        }
-    }
 
     private void validateDates(LocalDate arrivalDate, LocalDate departureDate) {
         if (departureDate != null && arrivalDate != null && departureDate.isBefore(arrivalDate)) {

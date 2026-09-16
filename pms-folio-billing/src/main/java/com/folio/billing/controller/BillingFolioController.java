@@ -57,17 +57,20 @@ public class BillingFolioController {
             @RequestParam(required = false) String roomNumber,
             @RequestParam(required = false) String guestName,
             @RequestParam(required = false) String company,
+            @RequestParam(required = false) String companyName,
             @RequestParam(required = false) String confirmationNumber,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkInDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOutDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOutDate,
+            @RequestParam(required = false) String propertyId
     ) {
         FolioBillingFilter filter = new FolioBillingFilter(
                 roomNumber,
                 guestName,
-                company,
+                company != null && !company.isBlank() ? company : companyName,
                 confirmationNumber,
                 checkInDate,
-                checkOutDate
+                checkOutDate,
+                propertyId
         );
 
         return ResponseEntity.ok(billingFolioService.getFolioBilling(filter));

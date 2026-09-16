@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 
 public interface ReservationBookingRepository
 	extends JpaRepository<ReservationBookingRecord, Long>, JpaSpecificationExecutor<ReservationBookingRecord> {
@@ -30,6 +31,19 @@ public interface ReservationBookingRepository
 	);
 
 	boolean existsByConfirmationNumber(String confirmationNumber);
+
+    @Modifying
+    @Query("""
+        UPDATE ReservationBookingRecord r
+        SET r.reservationStatus = 'NO_SHOW'
+        WHERE r.propertyId = :propertyId
+          AND UPPER(r.reservationStatus) = 'CONFIRMED'
+          AND r.arrivalDate < :businessDate
+        """)
+    int markPastConfirmedReservationsAsNoShow(
+            @Param("propertyId") String propertyId,
+            @Param("businessDate") LocalDate businessDate
+    );
 
 	@Query("""
     SELECT

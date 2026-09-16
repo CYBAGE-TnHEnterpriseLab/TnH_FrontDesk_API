@@ -58,6 +58,40 @@ public class HousekeepingRoomStatusClient {
         }
     }
 
+    public void clearReservationStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+                                     String roomNumber) {
+        clearStay(propertyId, arrivalDate, departureDate, roomNumber);
+    }
+
+    public void clearCheckedInStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+                                   String roomNumber) {
+        clearStay(propertyId, arrivalDate, departureDate, roomNumber);
+    }
+
+    public void clearReservationAssignments(UUID propertyId, String confirmationId) {
+        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .path("/api/v1/housekeeping/reservations/{confirmationId}/release")
+                .queryParam("propertyId", propertyId)
+                .buildAndExpand(confirmationId)
+                .toUriString();
+        HttpHeaders headers = copyAuthorizationHeader(new HttpHeaders());
+        try {
+            restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(headers), Integer.class);
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to release reservation assignments in Housekeeping service", ex);
+        }
+    }
+
+    private void clearStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+                           String roomNumber) {
+        LocalDate businessDate = arrivalDate;
+        while (businessDate.isBefore(departureDate)) {
+            updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
+                    null, null, "VACANT", "NOT_RESERVED");
+            businessDate = businessDate.plusDays(1);
+        }
+    }
+
     private void updateStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
                               LocalDate departureDate, String roomNumber,
                               String guestDisplayName, String confirmationId,

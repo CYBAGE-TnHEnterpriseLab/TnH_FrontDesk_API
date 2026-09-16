@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS policy_db.policies (
     effective_to DATE,
     status VARCHAR(255) NOT NULL,
     created_by VARCHAR(255) NOT NULL,
+    created_by_user VARCHAR(255) NOT NULL,
     action VARCHAR(255),
     policy_count INTEGER,
     property_id VARCHAR(255),

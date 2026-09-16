@@ -6,13 +6,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 public record CreateInventoryBlockRequest(
         @NotNull(message = "propertyId is required")
-        UUID propertyId,
+        String propertyId,
         @NotNull(message = "roomTypeId is required")
-        UUID roomTypeId,
+        String roomTypeId,
         @NotNull(message = "fromDate is required")
         LocalDate fromDate,
         @NotNull(message = "toDate is required")

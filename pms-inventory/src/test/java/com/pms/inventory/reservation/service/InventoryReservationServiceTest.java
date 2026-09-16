@@ -22,7 +22,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,17 +53,17 @@ class InventoryReservationServiceTest {
     @BeforeEach
     void setUp() {
         reserveRequest = new ReserveInventoryRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
+                "confirmation-1",
+                "property-1",
+                "room-type-1",
+                "room-type-1",
                 LocalDate.of(2026, 7, 20),
                 LocalDate.of(2026, 7, 22),
                 1
         );
 
         reservation = InventoryReservation.builder()
-                .reservationId(reserveRequest.reservationId())
+                .confirmationNumber(reserveRequest.confirmationNumber())
                 .propertyId(reserveRequest.propertyId())
                 .bookedRoomTypeId(reserveRequest.bookedRoomTypeId())
                 .assignedRoomTypeId(reserveRequest.assignedRoomTypeId())
@@ -79,7 +78,7 @@ class InventoryReservationServiceTest {
     void reserveInventorySuccessfully() {
         List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
         InventoryReservationResponse expected = new InventoryReservationResponse(
-                reserveRequest.reservationId(),
+                reserveRequest.confirmationNumber(),
                 reserveRequest.propertyId(),
                 reserveRequest.bookedRoomTypeId(),
                 reserveRequest.assignedRoomTypeId(),
@@ -90,7 +89,7 @@ class InventoryReservationServiceTest {
                 false
         );
 
-        when(reservationRepository.findByReservationId(reserveRequest.reservationId())).thenReturn(Optional.empty());
+        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.empty());
         when(inventoryService.lockInventoryRange(
                 reserveRequest.propertyId(),
                 reserveRequest.assignedRoomTypeId(),
@@ -110,7 +109,7 @@ class InventoryReservationServiceTest {
     @Test
     void reserveInventoryFailsWhenInsufficient() {
         List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
-        when(reservationRepository.findByReservationId(reserveRequest.reservationId())).thenReturn(Optional.empty());
+        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.empty());
         when(inventoryService.lockInventoryRange(any(), any(), any(), any())).thenReturn(rows);
         doThrow(new InsufficientInventoryException("Insufficient")).when(inventoryService).ensureSufficientInventory(rows, 1);
 
@@ -121,7 +120,7 @@ class InventoryReservationServiceTest {
     @Test
     void duplicateReservationRequestReturnsIdempotentResponse() {
         InventoryReservationResponse expected = new InventoryReservationResponse(
-                reservation.getReservationId(),
+                reservation.getConfirmationNumber(),
                 reservation.getPropertyId(),
                 reservation.getBookedRoomTypeId(),
                 reservation.getAssignedRoomTypeId(),
@@ -131,7 +130,7 @@ class InventoryReservationServiceTest {
                 InventoryReservationStatus.RESERVED,
                 true
         );
-        when(reservationRepository.findByReservationId(reserveRequest.reservationId())).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.of(reservation));
         when(mapper.toResponse(reservation, true)).thenReturn(expected);
 
         InventoryReservationResponse response = service.reserve(reserveRequest);
@@ -143,7 +142,7 @@ class InventoryReservationServiceTest {
     @Test
     void duplicateReservationWithReleasedStatusThrowsConflict() {
         reservation.setStatus(InventoryReservationStatus.RELEASED);
-        when(reservationRepository.findByReservationId(reserveRequest.reservationId())).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.of(reservation));
 
         assertThrows(InventoryException.class, () -> service.reserve(reserveRequest));
     }
@@ -152,16 +151,16 @@ class InventoryReservationServiceTest {
     void releaseInventorySuccessfully() {
         List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
         InventoryReservationResponse expected = new InventoryReservationResponse(
-                reservation.getReservationId(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
+                reservation.getConfirmationNumber(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
                 reservation.getAssignedRoomTypeId(), reservation.getCheckInDate(), reservation.getCheckOutDate(),
                 reservation.getQuantity(), InventoryReservationStatus.RELEASED, false
         );
 
-        when(reservationRepository.findByReservationId(reservation.getReservationId())).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByConfirmationNumber(reservation.getConfirmationNumber())).thenReturn(Optional.of(reservation));
         when(inventoryService.lockInventoryRange(any(), any(), any(), any())).thenReturn(rows);
         when(mapper.toResponse(any(InventoryReservation.class), eq(false))).thenReturn(expected);
 
-        InventoryReservationResponse response = service.release(reservation.getReservationId());
+        InventoryReservationResponse response = service.release(reservation.getConfirmationNumber());
 
         assertEquals(InventoryReservationStatus.RELEASED, reservation.getStatus());
         assertEquals(expected, response);
@@ -172,15 +171,15 @@ class InventoryReservationServiceTest {
     void duplicateReleaseIsIdempotent() {
         reservation.setStatus(InventoryReservationStatus.RELEASED);
         InventoryReservationResponse expected = new InventoryReservationResponse(
-                reservation.getReservationId(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
+                reservation.getConfirmationNumber(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
                 reservation.getAssignedRoomTypeId(), reservation.getCheckInDate(), reservation.getCheckOutDate(),
                 reservation.getQuantity(), InventoryReservationStatus.RELEASED, true
         );
 
-        when(reservationRepository.findByReservationId(reservation.getReservationId())).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByConfirmationNumber(reservation.getConfirmationNumber())).thenReturn(Optional.of(reservation));
         when(mapper.toResponse(reservation, true)).thenReturn(expected);
 
-        InventoryReservationResponse response = service.release(reservation.getReservationId());
+        InventoryReservationResponse response = service.release(reservation.getConfirmationNumber());
 
         assertEquals(true, response.idempotent());
         verify(inventoryService, never()).decreaseReserved(anyList(), anyInt());
@@ -188,16 +187,16 @@ class InventoryReservationServiceTest {
 
     @Test
     void roomTypeReassignmentFromDeluxeToSuiteSuccess() {
-        UUID newRoomType = UUID.randomUUID();
+        String newRoomType = "room-type-2";
         List<RoomTypeInventoryDaily> oldRows = List.of(new RoomTypeInventoryDaily());
         List<RoomTypeInventoryDaily> newRows = List.of(new RoomTypeInventoryDaily());
         InventoryReservationResponse expected = new InventoryReservationResponse(
-                reservation.getReservationId(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
+                reservation.getConfirmationNumber(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
                 newRoomType, reservation.getCheckInDate(), reservation.getCheckOutDate(), reservation.getQuantity(),
                 InventoryReservationStatus.RESERVED, false
         );
 
-        when(reservationRepository.findByReservationId(reservation.getReservationId())).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByConfirmationNumber(reservation.getConfirmationNumber())).thenReturn(Optional.of(reservation));
         when(inventoryService.lockInventoryRange(
                 reservation.getPropertyId(), reservation.getAssignedRoomTypeId(), reservation.getCheckInDate(), reservation.getCheckOutDate()
         )).thenReturn(oldRows);
@@ -207,7 +206,7 @@ class InventoryReservationServiceTest {
         when(mapper.toResponse(any(InventoryReservation.class), eq(false))).thenReturn(expected);
 
         InventoryReservationResponse response = service.changeAssignedRoomType(
-                reservation.getReservationId(),
+                reservation.getConfirmationNumber(),
                 new ChangeAssignedRoomTypeRequest(newRoomType)
         );
 
@@ -219,11 +218,11 @@ class InventoryReservationServiceTest {
 
     @Test
     void roomTypeReassignmentFailsWhenUnavailable() {
-        UUID newRoomType = UUID.randomUUID();
+        String newRoomType = "room-type-2";
         List<RoomTypeInventoryDaily> oldRows = List.of(new RoomTypeInventoryDaily());
         List<RoomTypeInventoryDaily> newRows = List.of(new RoomTypeInventoryDaily());
 
-        when(reservationRepository.findByReservationId(reservation.getReservationId())).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByConfirmationNumber(reservation.getConfirmationNumber())).thenReturn(Optional.of(reservation));
         when(inventoryService.lockInventoryRange(
                 reservation.getPropertyId(), reservation.getAssignedRoomTypeId(), reservation.getCheckInDate(), reservation.getCheckOutDate()
         )).thenReturn(oldRows);
@@ -234,18 +233,18 @@ class InventoryReservationServiceTest {
                 .ensureSufficientInventory(newRows, reservation.getQuantity());
 
         assertThrows(InsufficientInventoryException.class,
-                () -> service.changeAssignedRoomType(reservation.getReservationId(), new ChangeAssignedRoomTypeRequest(newRoomType)));
+                () -> service.changeAssignedRoomType(reservation.getConfirmationNumber(), new ChangeAssignedRoomTypeRequest(newRoomType)));
         verify(inventoryService, never()).decreaseReserved(oldRows, reservation.getQuantity());
     }
 
     @Test
     void checkoutDateIsExclusiveOnLockingRange() {
         List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
-        when(reservationRepository.findByReservationId(reserveRequest.reservationId())).thenReturn(Optional.empty());
+        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.empty());
         when(inventoryService.lockInventoryRange(any(), any(), any(), any())).thenReturn(rows);
         when(reservationRepository.save(any(InventoryReservation.class))).thenReturn(reservation);
         when(mapper.toResponse(any(InventoryReservation.class), eq(false))).thenReturn(new InventoryReservationResponse(
-                reservation.getReservationId(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
+                reservation.getConfirmationNumber(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
                 reservation.getAssignedRoomTypeId(), reservation.getCheckInDate(), reservation.getCheckOutDate(),
                 reservation.getQuantity(), InventoryReservationStatus.RESERVED, false
         ));

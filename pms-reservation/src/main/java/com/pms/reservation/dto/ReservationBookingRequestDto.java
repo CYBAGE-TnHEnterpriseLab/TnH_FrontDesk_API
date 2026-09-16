@@ -90,6 +90,8 @@ public class ReservationBookingRequestDto {
     @Pattern(regexp = "(?i)GTD|NON[\\s-]?GTD", message = "reservationType must be GTD or Non GTD")
     private String reservationType;
 
+        private String blockCode;
+
     @NotBlank(message = "roomType is required")
     private String roomType;
 
@@ -110,6 +112,8 @@ public class ReservationBookingRequestDto {
     @NotNull(message = "rate is required")
     @DecimalMin(value = "0.0", inclusive = false, message = "rate must be > 0")
     private BigDecimal rate;
+
+        private BigDecimal taxPercent;
 
     @Schema(description = "Reservation payment mode", allowableValues = {
             PaymentModes.CARD,
