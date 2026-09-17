@@ -43,6 +43,21 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
         }
 
+        BigDecimal folioBalance = folioServiceClient.getFolioBalance(confirmationNumber);
+        if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
+            throw new BadRequestException(
+                    "Check-out denied: folio has outstanding balance of "
+                            + folioBalance.setScale(2, RoundingMode.HALF_UP)
+                            + ". Please resolve the balance before checkout.");
+        }
+
+        if (booking.getGuestBalance() != null && booking.getGuestBalance().compareTo(BigDecimal.ZERO) > 0) {
+            throw new BadRequestException(
+                    "Check-out denied: guest has outstanding balance of "
+                            + booking.getGuestBalance().setScale(2, RoundingMode.HALF_UP)
+                            + ". Please resolve the balance before checkout.");
+        }
+
         LocalDate originalDepartureDate = booking.getDepartureDate();
         LocalDate businessDate = request.getBusinessDate();
         LocalDate requestedEarlyDeparture = request.getEarlyDepartureDate();
@@ -83,11 +98,6 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
             throw new BadRequestException("Check-out businessDate must match the reservation departureDate");
         }
 
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(confirmationNumber);
-        if (folioBalance.compareTo(BigDecimal.ZERO) > 0) {
-            throw new BadRequestException("Check-out denied: folio has outstanding balance of " + folioBalance);
-        }
-
         LocalDateTime completedAt = LocalDateTime.now();
         booking.setReservationStatus(STATUS_CHECKED_OUT);
         booking.setCheckOutCompletedAt(completedAt);
@@ -119,6 +129,13 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
 
         validateEarlyDeparture(booking, requestedEarlyDeparture);
 
+        BigDecimal folioBalance = folioServiceClient.getFolioBalance(confirmationNumber);
+        if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
+            throw new BadRequestException(
+                    "Check-out denied: folio has outstanding balance of " + folioBalance.setScale(2, RoundingMode.HALF_UP)
+                            + ". Please resolve the balance before checkout.");
+        }
+
         long originalNights = ChronoUnit.DAYS.between(booking.getArrivalDate(), booking.getDepartureDate());
         long newNights = ChronoUnit.DAYS.between(booking.getArrivalDate(), requestedEarlyDeparture);
 
@@ -143,7 +160,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                         "Early check-out on %s will change stay from %d to %d nights. 1-day penalty applied. Refund: %s%s",
                         requestedEarlyDeparture,
                         originalNights,
-                        newNights,
+                        Math.max(newNights, 0),
                         refundAmount.compareTo(BigDecimal.ZERO) > 0 ? "+" : "",
                         refundAmount.abs().setScale(2, RoundingMode.HALF_UP)))
                 .build();
@@ -181,9 +198,9 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
         if (earlyDepartureDate == null) {
             return;
         }
-//        if (!earlyDepartureDate.isAfter(booking.getArrivalDate())) {
-//            throw new BadRequestException("Early departure date must be after arrival date");
-//        }
+        if (earlyDepartureDate.isBefore(booking.getArrivalDate())) {
+            throw new BadRequestException("Early departure date cannot be before arrival date");
+        }
         if (earlyDepartureDate.isAfter(booking.getDepartureDate())) {
             throw new BadRequestException("Early departure date cannot be after the scheduled departure date");
         }
