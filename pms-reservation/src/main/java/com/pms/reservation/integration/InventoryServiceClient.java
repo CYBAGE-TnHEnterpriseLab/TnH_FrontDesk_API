@@ -60,6 +60,23 @@ public class InventoryServiceClient {
         }
     }
 
+    public void changeAssignedRoomType(String confirmationNumber, String assignedRoomTypeId) {
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+                    .path(properties.getReservationsPath())
+                    .pathSegment(confirmationNumber, "assigned-room-type")
+                    .toUriString();
+            restTemplate.exchange(
+                    url,
+                    HttpMethod.PUT,
+                    new HttpEntity<>(new ChangeAssignedRoomTypeRequest(assignedRoomTypeId), headers()),
+                    InventoryReservationResponse.class
+            );
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to change assigned inventory room type", ex);
+        }
+    }
+
     public List<InventoryAvailabilityDto> availability(
             String propertyId, String roomTypeId, LocalDate fromDate, LocalDate toDate) {
         try {
@@ -89,4 +106,6 @@ public class InventoryServiceClient {
         }
         return headers;
     }
+
+    private record ChangeAssignedRoomTypeRequest(String assignedRoomTypeId) {}
 }

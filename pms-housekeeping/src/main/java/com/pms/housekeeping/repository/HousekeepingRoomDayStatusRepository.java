@@ -35,6 +35,10 @@ public interface HousekeepingRoomDayStatusRepository
             LocalDate businessDate,
             String roomNumber);
 
+    List<HousekeepingRoomDayStatus> findAllByPropertyIdAndConfirmationId(
+            String propertyId,
+            String confirmationId);
+
     List<HousekeepingRoomDayStatus> findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
             String propertyId,
             LocalDate businessDate,
@@ -88,6 +92,17 @@ public interface HousekeepingRoomDayStatusRepository
             @Param("status") String status,
             @Param("lastCleanedAt") LocalDateTime lastCleanedAt,
             @Param("sellable") boolean sellable,
+            @Param("updatedAt") LocalDateTime updatedAt,
+            @Param("updatedBy") UUID updatedBy
+    );
+
+    @Modifying(clearAutomatically = true)
+    @Query(value = QueryConstants.UPDATE_ROOM_FEATURES_FROM_DATE, nativeQuery = true)
+    int updateRoomFeaturesFromDate(
+            @Param("propertyId") String propertyId,
+            @Param("roomNumber") String roomNumber,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("featuresCsv") String featuresCsv,
             @Param("updatedAt") LocalDateTime updatedAt,
             @Param("updatedBy") UUID updatedBy
     );
