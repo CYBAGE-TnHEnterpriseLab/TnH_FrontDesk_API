@@ -3,6 +3,7 @@ package com.pms.reservation.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,8 @@ import com.pms.reservation.dto.CheckoutRequestDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInAuditRepository;
+import com.pms.reservation.integration.FolioServiceClient;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +38,9 @@ class ReservationCheckoutServiceImplTest {
     @Mock
     private HousekeepingRoomStatusService housekeepingRoomStatusService;
 
+    @Mock
+    private FolioServiceClient folioServiceClient;
+
     @InjectMocks
     private ReservationCheckoutServiceImpl service;
 
@@ -54,6 +60,8 @@ class ReservationCheckoutServiceImplTest {
         request = new CheckoutRequestDto();
         request.setActor("front-desk-user");
         request.setBusinessDate(LocalDate.of(2026, 8, 11));
+
+        lenient().when(folioServiceClient.getFolioBalance("CONF-101")).thenReturn(BigDecimal.ZERO);
     }
 
     @Test
@@ -91,7 +99,7 @@ class ReservationCheckoutServiceImplTest {
 
         assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessage("Check-out businessDate must match the reservation departureDate");
+                .hasMessage("earlyDepartureDate is required for early checkout");
 
         verify(reservationBookingRepository, never()).save(any());
     }
