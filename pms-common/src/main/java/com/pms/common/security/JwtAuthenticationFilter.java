@@ -25,6 +25,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
 
+    private static final String SWAGGER_UI = "/swagger-ui.html";
+    private static final String SWAGGER_UI_PREFIX = "/swagger-ui";
+    private static final String API_DOCS = "/v3/api-docs";
+    private static final String API_DOCS_PREFIX = "/v3/api-docs";
+
     private final AccessTokenVerifier accessTokenVerifier;
     private final Set<String> publicPaths;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
@@ -39,7 +44,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        if (isPreflight(request) || isPublicPath(request.getRequestURI())) {
+        String requestURI = request.getRequestURI();
+        if (isPreflight(request) || isSwaggerPath(requestURI) || isPublicPath(requestURI)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -73,6 +79,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             RequestUserContext.clear();
             SecurityContextHolder.clearContext();
         }
+    }
+
+    private boolean isSwaggerPath(String path) {
+        if (path == null) {
+            return false;
+        }
+        return path.equals(SWAGGER_UI)
+                || path.startsWith(SWAGGER_UI_PREFIX + "/")
+                || path.startsWith(SWAGGER_UI_PREFIX + ".")
+                || path.equals(API_DOCS)
+                || path.startsWith(API_DOCS_PREFIX + "/")
+                || path.equals("/swagger-ui")
+                || path.startsWith("/swagger-ui/");
     }
 
     private boolean isPublicPath(String path) {

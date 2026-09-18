@@ -42,7 +42,7 @@ public class HousekeepingRoomStatusController {
         return ResponseEntity.ok(ApiResponse.success("Room status updated to DIRTY", response));
     }
 
-    @PatchMapping("/status")
+    @PatchMapping("/updateRoom")
     @Operation(summary = "Manually change room status, e.g. DIRTY to CLEANED")
     public ResponseEntity<ApiResponse<HousekeepingRoomStatusResponseDto>> updateStatus(
             @Valid @RequestBody HousekeepingManualStatusUpdateRequestDto request
