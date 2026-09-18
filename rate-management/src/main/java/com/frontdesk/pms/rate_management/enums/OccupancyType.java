@@ -12,7 +12,8 @@ public enum OccupancyType {
     THREE_PERSON("3 Guest"),
     FOUR_PERSON("4 Guest"),
     EXTRA_ONE_PERSON("Extra Guest Charges(1P)"),
-    EXTRA_TWO_PERSON("Extra Guest Charges(2P)");
+    EXTRA_TWO_PERSON("Extra Guest Charges(2P)"),
+    CHILD_ABOVE_5("CHILD ABOVE 5");
 
     private final String label;
 
@@ -64,6 +65,7 @@ public enum OccupancyType {
             "extra_guest",
             "extra guest");
         register(EXTRA_ONE_PERSON, "extra 1p", "1 extra p", "extra one person", "extra_guest_1p");
+        register(CHILD_ABOVE_5, "CHILD_ABOVE_5", "CHILDABOVE5", "CHILD_ABOVE_FIVE", "CHILDABOVEFIVE", "CHILD_5_PLUS", "CHILD5PLUS");
     }
 
     public static String normalizeOrThrow(String rawOccupancyType) {
