@@ -142,7 +142,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             }
             processed++;
             try {
-                UUID propertyId = UUID.fromString(booking.getPropertyId());
+                String propertyId = booking.getPropertyId();
                 if (checkedIn) {
                     housekeepingRoomStatusClient.updateCheckedInStay(propertyId, booking.getArrivalDate(),
                             booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
@@ -153,10 +153,6 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                             booking.getConfirmationNumber());
                 }
                 updated++;
-            } catch (IllegalArgumentException ex) {
-                skipped++;
-                log.warn("Skipping housekeeping sync for confirmation {} because propertyId is not a UUID: {}",
-                        booking.getConfirmationNumber(), booking.getPropertyId());
             } catch (ExternalServiceException ex) {
                 failed++;
                 log.warn("Housekeeping sync failed for confirmation {}", booking.getConfirmationNumber(), ex);
@@ -170,7 +166,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
         try {
-            UUID propertyId = UUID.fromString(booking.getPropertyId());
+            String propertyId = booking.getPropertyId();
             if (STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
                 housekeepingRoomStatusClient.updateCheckedInStay(
                         propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
@@ -180,8 +176,6 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                         propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
                         booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
             }
-        } catch (IllegalArgumentException ex) {
-            log.warn("Skipping standalone housekeeping update because propertyId is not a UUID: {}", booking.getPropertyId());
         } catch (ExternalServiceException ex) {
             log.warn("Standalone housekeeping update failed for room {} and confirmation {}",
                     booking.getAssignedRoomNo(), booking.getConfirmationNumber(), ex);
@@ -272,16 +266,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     }
 
     private void clearHousekeepingAssignments(ReservationBookingRecord booking) {
-        try {
-            UUID propertyId = UUID.fromString(booking.getPropertyId());
-            housekeepingRoomStatusClient.clearReservationAssignments(propertyId, booking.getConfirmationNumber());
-        } catch (IllegalArgumentException ex) {
-            throw new ExternalServiceException(
-                    "Cannot release the previous housekeeping room because propertyId is not a UUID: "
-                            + booking.getPropertyId(), ex);
-        } catch (ExternalServiceException ex) {
-            throw ex;
-        }
+        housekeepingRoomStatusClient.clearReservationAssignments(
+                booking.getPropertyId(), booking.getConfirmationNumber());
     }
 
         @Override
