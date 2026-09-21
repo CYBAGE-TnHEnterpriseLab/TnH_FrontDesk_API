@@ -17,6 +17,18 @@ public interface HousekeepingRoomStatusRepository extends JpaRepository<Housekee
             String confirmationNumber
     );
 
+    Optional<HousekeepingRoomStatusRecord> findByPropertyIdAndBusinessDateAndBookingId(
+            String propertyId,
+            LocalDate businessDate,
+            Long bookingId
+    );
+
+    List<HousekeepingRoomStatusRecord> findByPropertyIdAndBusinessDateAndBookingIdIn(
+            String propertyId,
+            LocalDate businessDate,
+            Collection<Long> bookingIds
+    );
+
     List<HousekeepingRoomStatusRecord> findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
             String propertyId,
             LocalDate businessDate,

@@ -6,6 +6,7 @@ import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.housekeeping.service.HousekeepingRoomStatusService;
 import java.util.Locale;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -32,17 +33,17 @@ public class HousekeepingRoomStatusServiceImpl implements HousekeepingRoomStatus
     }
 
     private HousekeepingRoomStatusResponseDto saveStatus(HousekeepingRoomStatusRequestDto request, String roomStatus) {
-        HousekeepingRoomStatusRecord record = housekeepingRoomStatusRepository
-                .findByPropertyIdAndBusinessDateAndConfirmationNumber(
-                        request.getPropertyId(),
-                        request.getBusinessDate(),
-                        request.getConfirmationNumber()
-                )
-                .orElseGet(HousekeepingRoomStatusRecord::new);
+        Optional<HousekeepingRoomStatusRecord> existing = request.getBookingId() == null
+            ? housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumber(
+                request.getPropertyId(), request.getBusinessDate(), request.getConfirmationNumber())
+            : housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndBookingId(
+                request.getPropertyId(), request.getBusinessDate(), request.getBookingId());
+        HousekeepingRoomStatusRecord record = existing.orElseGet(HousekeepingRoomStatusRecord::new);
 
         record.setPropertyId(request.getPropertyId());
         record.setBusinessDate(request.getBusinessDate());
         record.setConfirmationNumber(request.getConfirmationNumber());
+        record.setBookingId(request.getBookingId());
         if (StringUtils.hasText(request.getRoomNo())) {
             record.setRoomNo(request.getRoomNo().trim());
         }
@@ -53,6 +54,7 @@ public class HousekeepingRoomStatusServiceImpl implements HousekeepingRoomStatus
                 .propertyId(saved.getPropertyId())
                 .businessDate(saved.getBusinessDate())
                 .confirmationNumber(saved.getConfirmationNumber())
+                .bookingId(saved.getBookingId())
                 .roomNo(saved.getRoomNo())
                 .roomStatus(saved.getRoomStatus())
                 .updatedAt(saved.getUpdatedAt())

@@ -290,6 +290,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
         housekeepingRequest.setPropertyId(booking.getPropertyId());
         housekeepingRequest.setBusinessDate(request.getBusinessDate());
         housekeepingRequest.setConfirmationNumber(booking.getConfirmationNumber());
+        housekeepingRequest.setBookingId(booking.getId());
         housekeepingRequest.setRoomNo(booking.getAssignedRoomNo());
         if (occupied) {
             housekeepingRoomStatusService.markOccupied(housekeepingRequest);

@@ -86,6 +86,7 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
         housekeepingRequest.setPropertyId(booking.getPropertyId());
         housekeepingRequest.setBusinessDate(request.getBusinessDate());
         housekeepingRequest.setConfirmationNumber(booking.getConfirmationNumber());
+        housekeepingRequest.setBookingId(booking.getId());
         housekeepingRequest.setRoomNo(booking.getAssignedRoomNo());
         housekeepingRoomStatusService.markOccupied(housekeepingRequest);
 

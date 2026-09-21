@@ -40,6 +40,9 @@ public class HousekeepingRoomStatusRecord extends BaseEntity {
     @Column(nullable = false, length = 80)
     private String confirmationNumber;
 
+    @Column
+    private Long bookingId;
+
     @Column(length = 20)
     private String roomNo;
 
