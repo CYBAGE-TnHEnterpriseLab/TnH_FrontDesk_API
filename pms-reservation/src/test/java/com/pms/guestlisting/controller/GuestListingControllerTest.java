@@ -115,7 +115,7 @@ class GuestListingControllerTest {
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].confirmationNumber").value("CNF458721"))
                 .andExpect(jsonPath("$.data.content[0].guests").value(3))
-                .andExpect(jsonPath("$.data.content[0].roomNo").value("301"))
+                .andExpect(jsonPath("$.data.content[0].roomNo").value("305"))
                 .andExpect(jsonPath("$.data.content[0].roomStatus").value("OCCUPIED"))
                 .andExpect(jsonPath("$.data.content[0].floor").value(3));
 
