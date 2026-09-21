@@ -39,10 +39,12 @@ import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.util.List;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class PublishServiceImpl implements PublishService {
 
     private final DraftService draftService;
@@ -118,6 +120,7 @@ public class PublishServiceImpl implements PublishService {
             propertyId = publishNewProperty(normalized, actor);
         }
 
+        log.info("Publish completed for draftId={}, propertyId={}, requesting inventory sync", draftId, propertyId);
         inventorySyncService.requestSyncAfterCommit(propertyId, authHeader);
 
         draftService.markPublished(draft, propertyId, actor);

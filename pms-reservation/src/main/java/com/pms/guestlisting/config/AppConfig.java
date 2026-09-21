@@ -4,6 +4,7 @@ import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.config.InventoryServiceProperties;
 import com.pms.reservation.config.RateManagementServiceProperties;
 import com.pms.reservation.integration.RateManagementAuthInterceptor;
+import com.pms.common.config.BaseOpenApiConfig;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
@@ -25,7 +26,7 @@ import org.springframework.web.client.RestTemplate;
     InventoryServiceProperties.class,
     RateManagementServiceProperties.class
 })
-public class AppConfig {
+public class AppConfig extends BaseOpenApiConfig {
 
     @Bean
     @Primary
@@ -54,7 +55,7 @@ public class AppConfig {
 
     @Bean
     public OpenAPI openAPI() {
-        return new OpenAPI().info(new Info()
+        return buildOpenApi(new Info()
                 .title("Front Desk Arrival API")
                 .version("v1")
                 .description("APIs for Hotel PMS Arrival Screen")

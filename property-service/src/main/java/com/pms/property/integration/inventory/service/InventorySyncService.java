@@ -54,9 +54,12 @@ public class InventorySyncService {
     }
 
     public void requestSyncAfterCommit(String propertyId, String authHeader) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            registerAfterCommitSync(propertyId, authHeader);
+        boolean transactionActive = TransactionSynchronizationManager.isSynchronizationActive();
+        log.info("Inventory sync requested for propertyId={}, transactionActive={}", propertyId, transactionActive);
+
+        if (transactionActive) {
             markPending(propertyId);
+            registerAfterCommitSync(propertyId, authHeader);
             return;
         }
 
@@ -73,10 +76,13 @@ public class InventorySyncService {
 
     private void syncSilently(String propertyId, String authHeader) {
         try {
+            markPending(propertyId);
             synchronizeProperty(propertyId, authHeader);
         } catch (InventorySyncException ex) {
-            // Sync state is already persisted with FAILED status.
             log.warn("Inventory sync failed for property {}: {}", propertyId, ex.getMessage());
+        } catch (Exception ex) {
+            log.error("Inventory sync unexpected failure for property {}: {}", propertyId, ex.getMessage(), ex);
+            persistFailureAndWrap(propertyId, newRequestId(), new InventorySyncException("Unexpected sync failure: " + ex.getMessage(), ex));
         }
     }
 

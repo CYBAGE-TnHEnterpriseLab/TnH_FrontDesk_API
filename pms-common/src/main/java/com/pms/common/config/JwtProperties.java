@@ -10,7 +10,7 @@ public class JwtProperties {
     private String secret;
     private long accessTokenExpirationSeconds = 60;
     private long refreshTokenExpirationSeconds = 1209600;
-    private List<String> publicPaths = List.of("/error", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/**");
+    private List<String> publicPaths = List.of("/error", "/swagger-ui", "/swagger-ui.html", "/v3/api-docs", "/actuator/**");
 
     public String getSecret() {
         return secret;

@@ -97,7 +97,7 @@ public class HousekeepingRoomStatusClient {
                               String guestDisplayName, String confirmationId,
                               String frontOfficeStatus, String reservationStatus) {
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .path("/api/v1/housekeeping/rooms/{roomNumber}/status")
+                .path("/api/v1/housekeeping/rooms/{roomNumber}/updateRoom")
                 .buildAndExpand(roomNumber)
                 .toUriString();
 

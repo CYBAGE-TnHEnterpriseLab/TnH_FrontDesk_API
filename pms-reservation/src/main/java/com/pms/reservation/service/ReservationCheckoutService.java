@@ -8,4 +8,6 @@ public interface ReservationCheckoutService {
     CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, CheckoutRequestDto request);
 
     CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, CheckoutRequestDto request);
+
+    CheckoutCompletionResponseDto previewEarlyCheckout(String confirmationNumber, CheckoutRequestDto request);
 }

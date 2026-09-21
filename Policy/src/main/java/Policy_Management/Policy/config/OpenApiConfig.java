@@ -1,4 +1,4 @@
-package com.pms.housekeeping.config;
+package Policy_Management.Policy.config;
 
 import com.pms.common.config.BaseOpenApiConfig;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -12,16 +12,12 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig extends BaseOpenApiConfig {
 
     @Bean
-    public OpenAPI housekeepingOpenAPI() {
-
+    public OpenAPI policyOpenAPI() {
         return buildOpenApi(new Info()
-                .title("PMS Housekeeping API")
-                .version("v1.0")
-                .description("REST APIs for PMS Housekeeping Microservice")
-                .contact(new Contact()
-                        .name("PMS Team")
-                        .email("support@pms.com"))
-                .license(new License()
-                        .name("Internal Use")));
+                .title("Policy Management API")
+                .version("v1")
+                .description("APIs for Policy Management")
+                .contact(new Contact().name("PMS Team").email("support@pms.com"))
+                .license(new License().name("Internal Use")));
     }
 }
