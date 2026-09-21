@@ -17,6 +17,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +39,19 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     @Transactional
     public CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, CheckoutRequestDto request) {
         ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        return completeCheckoutForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, Long bookingId,
+                                                          CheckoutRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber, bookingId);
+        return completeCheckoutForBooking(booking, request);
+    }
+
+    private CheckoutCompletionResponseDto completeCheckoutForBooking(ReservationBookingRecord booking,
+                                                                      CheckoutRequestDto request) {
 
         if (!STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
@@ -170,6 +184,19 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     @Transactional
     public CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, CheckoutRequestDto request) {
         ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        return cancelCheckoutForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, Long bookingId,
+                                                        CheckoutRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber, bookingId);
+        return cancelCheckoutForBooking(booking, request);
+    }
+
+    private CheckoutCompletionResponseDto cancelCheckoutForBooking(ReservationBookingRecord booking,
+                                                                    CheckoutRequestDto request) {
 
         if (!STATUS_CHECKED_OUT.equalsIgnoreCase(booking.getReservationStatus())) {
             throw new BadRequestException("Only a checked-out reservation can have its check-out cancelled");
@@ -190,8 +217,17 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     }
 
     private ReservationBookingRecord getBookingOrThrow(String confirmationNumber) {
-        return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        try {
+            return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+                    .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } catch (IncorrectResultSizeDataAccessException ex) {
+            throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+        }
+    }
+
+    private ReservationBookingRecord getBookingOrThrow(String confirmationNumber, Long bookingId) {
+        return reservationBookingRepository.findByIdAndConfirmationNumber(bookingId, confirmationNumber)
+                .orElseThrow(() -> new BadRequestException("Reservation room booking not found"));
     }
 
     private void validateEarlyDeparture(ReservationBookingRecord booking, LocalDate earlyDepartureDate) {

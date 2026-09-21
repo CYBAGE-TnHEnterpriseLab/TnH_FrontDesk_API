@@ -38,7 +38,7 @@ public class ReservationBookingRecord extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 80)
+    @Column(nullable = false, length = 80)
     private String confirmationNumber;
 
     @Column(nullable = false, length = 30)

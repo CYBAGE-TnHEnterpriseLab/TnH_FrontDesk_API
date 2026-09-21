@@ -50,6 +50,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
     @Override
     public ReservationAvailabilityResponseDto getAvailability(ReservationAvailabilityRequestDto request) {
+        validateRequestedRoomCount(request.getNumberOfRooms());
         validateDates(request.getArrivalDate(), request.getDepartureDate());
 
         if (!propertyWizardServiceProperties.isEnabled()) {
@@ -75,6 +76,12 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             next15DaysPricing,
             availableRateCodes
         );
+    }
+
+    private void validateRequestedRoomCount(Integer numberOfRooms) {
+        if (numberOfRooms == null || numberOfRooms < 1 || numberOfRooms > 9) {
+            throw new BadRequestException("numberOfRooms must be between 1 and 9");
+        }
     }
 
         private List<DailyAvailabilityPricingDto> fetchNext15DaysPricing(
@@ -153,7 +160,10 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             })
             .toList();
 
-        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType;
+        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType.stream()
+            .filter(item -> item.getAvailableRooms() != null
+                && item.getAvailableRooms() >= request.getNumberOfRooms())
+            .toList();
 
         List<RoomAvailabilityPricingDto> afterRateCodeFilter = applyRateCodeFilter(
             request.getRateCode(),

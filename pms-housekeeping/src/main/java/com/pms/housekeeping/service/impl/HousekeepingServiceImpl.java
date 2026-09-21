@@ -552,10 +552,17 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                     request.guestDisplayName());
             row.setGuestDisplayName(request.guestDisplayName());
         }
-        if (request.arrivalDate() != null) {
+                boolean reservationRelease = request.sourceModule() == StatusChangeSource.RESERVATION
+                                && request.reservationStatus() == ReservationStatus.NOT_RESERVED;
+                if (reservationRelease) {
+                        row.setGuestDisplayName(null);
+                        row.setArrivalDate(null);
+                        row.setDepartureDate(null);
+                }
+                if (!reservationRelease && request.arrivalDate() != null) {
             row.setArrivalDate(request.arrivalDate());
         }
-        if (request.departureDate() != null) {
+                if (!reservationRelease && request.departureDate() != null) {
             row.setDepartureDate(request.departureDate());
         }
 
@@ -599,12 +606,35 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         @Override
         @Transactional
-        public int releaseReservationAssignment(String propertyId, String confirmationId) {
+        public int releaseReservationAssignment(
+                        String propertyId,
+                        String confirmationId,
+                        String roomNumber,
+                        LocalDate arrivalDate,
+                        LocalDate departureDate) {
                 String loggedInUser = currentUserProvider.getCurrentUsername();
                 LocalDateTime now = LocalDateTime.now();
-                List<HousekeepingRoomDayStatus> rows = dayStatusRepository
-                                .findAllByPropertyIdAndConfirmationId(propertyId, confirmationId);
+                List<HousekeepingRoomDayStatus> rows = roomNumber == null || roomNumber.isBlank()
+                                ? dayStatusRepository.findAllByPropertyIdAndConfirmationId(propertyId, confirmationId)
+                                : arrivalDate != null && departureDate != null
+                                                ? dayStatusRepository
+                                                                .findAllByPropertyIdAndRoomNumberIgnoreCaseAndBusinessDateGreaterThanEqualAndBusinessDateLessThan(
+                                                                                propertyId, roomNumber.trim(), arrivalDate,
+                                                                                departureDate)
+                                                : dayStatusRepository.findAllByPropertyIdAndRoomNumberIgnoreCase(
+                                                                propertyId, roomNumber.trim());
 
+                log.info("HousekeepingService::releaseReservationAssignment - Matched {} rows for confirmationId={}, roomNumber={}",
+                                rows.size(), confirmationId, roomNumber);
+
+                return releaseReservationRows(rows, propertyId, now, loggedInUser);
+        }
+
+        private int releaseReservationRows(
+                        List<HousekeepingRoomDayStatus> rows,
+                        String propertyId,
+                        LocalDateTime now,
+                        String loggedInUser) {
                 for (HousekeepingRoomDayStatus row : rows) {
                         saveHistory(row, "assignedReservationId", row.getConfirmationId(), null,
                                         new UpdateHousekeepingRoomDetailsRequest(

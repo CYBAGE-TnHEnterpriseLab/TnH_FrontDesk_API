@@ -56,6 +56,17 @@ public class ReservationController {
                 return ResponseEntity.ok(ApiResponse.success("Reservation fetched successfully", response));
         }
 
+        @GetMapping("/bookings/{confirmationNumber}/rooms/{bookingId}")
+        @Operation(summary = "Get one room booking",
+            description = "Returns one room booking within a shared confirmation number")
+        public ResponseEntity<ApiResponse<ReservationViewResponseDto>> getRoomBookingDetails(
+            @PathVariable String confirmationNumber,
+            @PathVariable Long bookingId) {
+            ReservationViewResponseDto response = reservationBookingService.getBookingDetails(
+                confirmationNumber, bookingId);
+            return ResponseEntity.ok(ApiResponse.success("Room booking fetched successfully", response));
+        }
+
         @PatchMapping("/bookings/{confirmationNumber}")
     @Operation(summary = "Edit reservation booking",
             description = "Updates an existing reservation booking by confirmation number")
@@ -65,6 +76,18 @@ public class ReservationController {
         ReservationViewResponseDto response = reservationBookingService.updateBooking(confirmationNumber, request);
         return ResponseEntity.ok(ApiResponse.success("Reservation updated successfully", response));
     }
+
+        @PatchMapping("/bookings/{confirmationNumber}/rooms/{bookingId}")
+        @Operation(summary = "Edit an individual room booking",
+            description = "Updates one booking row within a shared confirmation number")
+        public ResponseEntity<ApiResponse<ReservationViewResponseDto>> updateRoomBooking(
+            @PathVariable String confirmationNumber,
+            @PathVariable Long bookingId,
+            @Valid @RequestBody ReservationBookingRequestDto request) {
+        ReservationViewResponseDto response = reservationBookingService.updateBooking(
+            confirmationNumber, bookingId, request);
+        return ResponseEntity.ok(ApiResponse.success("Room booking updated successfully", response));
+        }
 
     @GetMapping("/bookings")
     @Operation(summary = "Get all reservation bookings",

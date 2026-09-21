@@ -82,6 +82,24 @@ public class HousekeepingRoomStatusClient {
         }
     }
 
+    public void clearReservationAssignment(UUID propertyId, String confirmationId, String roomNumber,
+                                            LocalDate arrivalDate, LocalDate departureDate) {
+        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .path("/api/v1/housekeeping/reservations/{confirmationId}/release")
+                .queryParam("propertyId", propertyId)
+                .queryParam("roomNumber", roomNumber)
+                .queryParam("arrivalDate", arrivalDate)
+                .queryParam("departureDate", departureDate)
+                .buildAndExpand(confirmationId)
+                .toUriString();
+        HttpHeaders headers = copyAuthorizationHeader(new HttpHeaders());
+        try {
+            restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(headers), Integer.class);
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to release the room assignment in Housekeeping service", ex);
+        }
+    }
+
     private void clearStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
                            String roomNumber) {
         LocalDate businessDate = arrivalDate;

@@ -14,6 +14,11 @@ public interface ReservationServiceClient {
 
     Optional<ReservationSummary> getReservationSummary(String confirmationNumber, String roomNo, String guestName);
 
+    default Optional<ReservationSummary> getReservationSummary(String confirmationNumber, Long bookingId,
+                                                                String roomNo, String guestName) {
+        return getReservationSummary(confirmationNumber, roomNo, guestName);
+    }
+
     List<GuestDetail> getGuestDetails(String confirmationNumber);
 
     Optional<String> findDefaultConfirmationNumber();

@@ -12,11 +12,13 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInAuditRepository;
 import com.pms.reservation.service.ReservationCheckInWorkflowService;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 
 @Service
 @RequiredArgsConstructor
@@ -37,8 +39,26 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
     @Override
     @Transactional
     public CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, CheckInCompleteRequestDto request) {
-        ReservationBookingRecord booking = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        ReservationBookingRecord booking;
+        try {
+            booking = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+                    .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } catch (IncorrectResultSizeDataAccessException ex) {
+            throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+        }
+        return completeCheckInForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, Long bookingId,
+                                                        CheckInCompleteRequestDto request) {
+        ReservationBookingRecord booking = resolveBooking(confirmationNumber, bookingId);
+        return completeCheckInForBooking(booking, request);
+    }
+
+    private CheckInCompletionResponseDto completeCheckInForBooking(ReservationBookingRecord booking,
+                                                                    CheckInCompleteRequestDto request) {
         String targetStatus = resolveTargetStatus(request.getTargetStatus());
 
         if (isAlreadyCompleted(booking)) {
@@ -82,6 +102,28 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
         appendAudit(booking, "CHECKIN_COMPLETED", "Check-in completed successfully",
                 "reservationStatus, roomOccupancy", request.getActor());
         return toResponse(booking);
+    }
+
+    private ReservationBookingRecord resolveBooking(String confirmationNumber, Long bookingId) {
+        if (bookingId != null) {
+            return reservationBookingRepository.findByIdAndConfirmationNumber(bookingId, confirmationNumber)
+                    .orElseThrow(() -> new BadRequestException("Reservation room booking not found"));
+        }
+
+        try {
+            return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+                    .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } catch (IncorrectResultSizeDataAccessException ex) {
+            List<ReservationBookingRecord> bookings = reservationBookingRepository
+                    .findByConfirmationNumberOrderByIdAsc(confirmationNumber);
+            if (bookings.size() > 1) {
+                throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+            }
+            if (bookings.isEmpty()) {
+                throw new BadRequestException("Reservation booking not found");
+            }
+            return bookings.get(0);
+        }
     }
 
     private boolean isAlreadyCompleted(ReservationBookingRecord booking) {

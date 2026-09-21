@@ -12,6 +12,7 @@ import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.dto.HousekeepingSyncResponse;
+import com.pms.reservation.dto.ReservationRoomBookingSummaryDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
@@ -35,6 +36,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,6 +89,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateRoomSelectionAndGuestNames(request);
         validateAndNormalizePaymentMode(request);
         validateAndNormalizePaymentType(request);
+        int roomCount = request.getNumberOfRooms();
         String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
         String roomTypeId = resolveRoomTypeId(request.getPropertyId(), request.getRoomType());
@@ -111,19 +114,43 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             throw new BadRequestException("payment processing failed: " + failureReason);
         }
 
-        ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
-        populateRoomFloor(entity);
-        applyPropertyTaxOnBooking(entity);
-        entity.setConfirmationNumber(confirmationNumber);
-        entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
-        entity.setInventoryDeductedAt(LocalDateTime.now());
-        entity.setInventorySyncedAt(LocalDateTime.now());
+        List<String> roomGuestNames = request.getGuestNames();
+        List<ReservationBookingRecord> savedBookings = new ArrayList<>();
+        for (int roomIndex = 0; roomIndex < roomCount; roomIndex++) {
+            ReservationBookingRequestDto roomRequest = requestForRoom(
+                    request, roomGuestNames.get(roomIndex), roomCount > 1);
+            ReservationBookingRecord entity = reservationBookingMapper.toEntity(roomRequest);
+            populateRoomFloor(entity);
+            applyPropertyTaxOnBooking(entity);
+            entity.setConfirmationNumber(confirmationNumber);
+            entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
+            entity.setInventoryDeductedAt(LocalDateTime.now());
+            entity.setInventorySyncedAt(LocalDateTime.now());
+            savedBookings.add(reservationBookingRepository.save(entity));
+        }
 
-        ReservationBookingRecord saved = reservationBookingRepository.save(entity);
+        ReservationBookingRecord saved = savedBookings.get(0);
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
             .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
-        updateStandaloneHousekeeping(saved);
-        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction);
+        savedBookings.forEach(this::updateStandaloneHousekeeping);
+        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
+            .roomBookings(toRoomBookingSummaries(savedBookings))
+            .build();
+    }
+
+    private ReservationBookingRequestDto requestForRoom(
+            ReservationBookingRequestDto source,
+            String guestName,
+            boolean clearAssignedRoom
+    ) {
+        source.setGuestName(guestName);
+        source.setGuestNames(List.of(guestName));
+        source.setNumberOfRooms(1);
+        if (clearAssignedRoom) {
+            source.setAssignedRoomNo(null);
+            source.setFloor(null);
+        }
+        return source;
     }
 
     @Override
@@ -181,10 +208,11 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                         booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
             }
         } catch (IllegalArgumentException ex) {
-            log.warn("Skipping standalone housekeeping update because propertyId is not a UUID: {}", booking.getPropertyId());
+            throw new ExternalServiceException(
+                    "Cannot synchronize the assigned room with Housekeeping because propertyId is not a UUID: "
+                            + booking.getPropertyId(), ex);
         } catch (ExternalServiceException ex) {
-            log.warn("Standalone housekeeping update failed for room {} and confirmation {}",
-                    booking.getAssignedRoomNo(), booking.getConfirmationNumber(), ex);
+            throw ex;
         }
     }
 
@@ -203,13 +231,26 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     @Override
     @Transactional
     public ReservationViewResponseDto updateBooking(String confirmationNumber, ReservationBookingRequestDto request) {
+        return updateBooking(confirmationNumber, null, request);
+        }
+
+        @Override
+        @Transactional
+        public ReservationViewResponseDto updateBooking(
+            String confirmationNumber,
+            Long bookingId,
+            ReservationBookingRequestDto request
+        ) {
         normalizeCreateRequest(request);
         validatePhoneNumberFormat(request.getPhoneNumber());
         validateDates(request.getArrivalDate(), request.getDepartureDate());
         validateRequiredContactFields(request);
         validateRoomSelectionAndGuestNames(request);
 
-        ReservationBookingRecord existing = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+        ReservationBookingRecord existing = (bookingId == null
+                ? reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+                : reservationBookingRepository.findById(bookingId)
+                    .filter(item -> confirmationNumber.equals(item.getConfirmationNumber())))
             .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
 
         if (STATUS_CHECKED_OUT.equalsIgnoreCase(existing.getReservationStatus())) {
@@ -222,13 +263,19 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         request.setPaymentType(existing.getPaymentType());
 
         String previousRoomNumber = existing.getAssignedRoomNo();
+        LocalDate previousArrivalDate = existing.getArrivalDate();
+        LocalDate previousDepartureDate = existing.getDepartureDate();
         String previousRoomTypeId = resolveRoomTypeId(existing.getPropertyId(), existing.getRoomType());
         String assignedRoomTypeId = resolveAssignedRoomTypeId(
             existing.getPropertyId(), request.getAssignedRoomNo(), request.getArrivalDate(), request.getDepartureDate());
-        if (roomNumberChanged(previousRoomNumber, request.getAssignedRoomNo())
-            && assignedRoomTypeId != null
-            && !assignedRoomTypeId.equals(previousRoomTypeId)) {
-            inventoryServiceClient.changeAssignedRoomType(existing.getConfirmationNumber(), assignedRoomTypeId);
+        if (roomNumberChanged(previousRoomNumber, request.getAssignedRoomNo())) {
+            if (assignedRoomTypeId == null) {
+                throw new BadRequestException(
+                        "The newly assigned room is not available in Housekeeping for the selected stay dates");
+            }
+            if (!assignedRoomTypeId.equals(previousRoomTypeId)) {
+                inventoryServiceClient.changeAssignedRoomType(existing.getConfirmationNumber(), assignedRoomTypeId);
+            }
         }
 
         ReservationBookingRecord updated = reservationBookingMapper.toEntity(request);
@@ -241,7 +288,12 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
         ReservationBookingRecord saved = reservationBookingRepository.save(updated);
         if (roomNumberChanged(previousRoomNumber, saved.getAssignedRoomNo())) {
-            clearHousekeepingAssignments(existing);
+            clearPreviousHousekeepingStay(
+                    existing.getPropertyId(),
+                    existing.getConfirmationNumber(),
+                    previousRoomNumber,
+                    previousArrivalDate,
+                    previousDepartureDate);
             updateStandaloneHousekeeping(saved);
         }
         Optional<ReservationPaymentTransactionRecord> latestTransaction =
@@ -271,14 +323,26 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 : null;
     }
 
-    private void clearHousekeepingAssignments(ReservationBookingRecord booking) {
+    private void clearPreviousHousekeepingStay(
+            String propertyIdValue,
+            String confirmationNumber,
+            String previousRoomNumber,
+            LocalDate arrivalDate,
+            LocalDate departureDate) {
         try {
-            UUID propertyId = UUID.fromString(booking.getPropertyId());
-            housekeepingRoomStatusClient.clearReservationAssignments(propertyId, booking.getConfirmationNumber());
+            UUID propertyId = UUID.fromString(propertyIdValue);
+            if (StringUtils.hasText(previousRoomNumber)) {
+                housekeepingRoomStatusClient.clearReservationAssignment(
+                    propertyId,
+                    confirmationNumber,
+                    previousRoomNumber,
+                    arrivalDate,
+                    departureDate);
+            }
         } catch (IllegalArgumentException ex) {
             throw new ExternalServiceException(
                     "Cannot release the previous housekeeping room because propertyId is not a UUID: "
-                            + booking.getPropertyId(), ex);
+                            + propertyIdValue, ex);
         } catch (ExternalServiceException ex) {
             throw ex;
         }
@@ -287,9 +351,25 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         @Override
         @Transactional(readOnly = true)
         public ReservationViewResponseDto getBookingDetails(String confirmationNumber) {
-        ReservationBookingRecord booking = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+        ReservationBookingRecord booking = reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(confirmationNumber)
+            .stream()
+            .findFirst()
             .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
 
+        return buildReservationViewForBooking(booking);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public ReservationViewResponseDto getBookingDetails(String confirmationNumber, Long bookingId) {
+        ReservationBookingRecord booking = reservationBookingRepository.findById(bookingId)
+            .filter(item -> confirmationNumber.equals(item.getConfirmationNumber()))
+            .orElseThrow(() -> new BadRequestException("Room booking not found for confirmation number"));
+
+        return buildReservationViewForBooking(booking);
+        }
+
+        private ReservationViewResponseDto buildReservationViewForBooking(ReservationBookingRecord booking) {
         Optional<ReservationPaymentTransactionRecord> latestTransaction = booking.getId() == null
             ? Optional.empty()
             : reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(booking.getId());
@@ -326,8 +406,25 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .pricing(buildPricing(booking, taxSummary))
                 .comments(buildComments(booking))
                 .actions(buildActions(booking))
+                .roomBookings(toRoomBookingSummaries(
+                    reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(
+                        booking.getConfirmationNumber())))
                 .build();
     }
+
+            private List<ReservationRoomBookingSummaryDto> toRoomBookingSummaries(
+                List<ReservationBookingRecord> bookings
+            ) {
+            return bookings.stream()
+                .map(booking -> ReservationRoomBookingSummaryDto.builder()
+                    .bookingId(booking.getId())
+                    .confirmationNumber(booking.getConfirmationNumber())
+                    .guestName(booking.getGuestName())
+                    .assignedRoomNo(booking.getAssignedRoomNo())
+                    .floor(booking.getFloor())
+                    .build())
+                .toList();
+            }
 
     @Override
     @Transactional(readOnly = true)
@@ -718,12 +815,13 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             request.setGuestNames(List.of(request.getGuestName().trim()));
         }
 
-        if (request.getGuestNames() != null && request.getNumberOfRooms() != null && request.getNumberOfRooms() > 1) {
-            List<String> normalizedGuestNames = new ArrayList<>(request.getGuestNames());
-            while (normalizedGuestNames.size() < request.getNumberOfRooms()) {
-                normalizedGuestNames.add(request.getGuestName());
-            }
-            request.setGuestNames(normalizedGuestNames);
+        if (request.getNumberOfRooms() != null
+                && request.getNumberOfRooms() > 1
+                && request.getGuestNames() != null
+                && request.getGuestNames().size() == 1
+                && StringUtils.hasText(request.getGuestNames().get(0))) {
+            request.setGuestNames(new ArrayList<>(Collections.nCopies(
+                    request.getNumberOfRooms(), request.getGuestNames().get(0).trim())));
         }
 
         if (request.getNoPost() == null) {
