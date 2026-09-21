@@ -73,6 +73,9 @@ rate-management:
 housekeeping-service:
   base-url: http://localhost:8086
 
+folio-service:
+  base-url: ${FOLIO_SERVICE_BASE_URL:http://localhost:8080}
+
 dashboard:
   timeout-ms: 2500
   housekeeping:
@@ -96,7 +99,7 @@ departures:
 
 springdoc:
   api-docs:
-    path: /api-docs
+    path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
 
@@ -108,3 +111,9 @@ security:
   jwt:
     enabled: true
     secret: ${PMS_FRONTDESK_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}
+    public-paths:
+      - /error
+      - /swagger-ui
+      - /swagger-ui.html
+      - /v3/api-docs
+      - /actuator/**
