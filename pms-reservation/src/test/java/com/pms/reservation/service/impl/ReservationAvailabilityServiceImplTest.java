@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.pms.reservation.config.AvailabilityPerformanceProperties;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.ReservationAvailabilityRequestDto;
 import com.pms.reservation.dto.ReservationAvailabilityResponseDto;
@@ -15,9 +16,11 @@ import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.mapper.ReservationAvailabilityMapper;
+import com.pms.reservation.support.AvailabilityParallelExecutor;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -41,8 +44,22 @@ class ReservationAvailabilityServiceImplTest {
     @Mock
     private InventoryServiceClient inventoryServiceClient;
 
-    @InjectMocks
     private ReservationAvailabilityServiceImpl reservationAvailabilityService;
+
+        @BeforeEach
+        void setUp() {
+                AvailabilityPerformanceProperties performanceProperties = new AvailabilityPerformanceProperties();
+                performanceProperties.setParallelEnabled(false);
+                reservationAvailabilityService = new ReservationAvailabilityServiceImpl(
+                                propertyInventoryPort,
+                                rateManagementPort,
+                                propertyWizardServiceProperties,
+                                reservationAvailabilityMapper,
+                                inventoryServiceClient,
+                                new AvailabilityParallelExecutor(performanceProperties),
+                                performanceProperties
+                );
+        }
 
     @Test
     void getAvailabilityShouldReuseRoomOutletTypesAcrossPrimaryAndNext15Days() {
@@ -83,7 +100,7 @@ class ReservationAvailabilityServiceImplTest {
 
         verify(propertyInventoryPort, times(1)).fetchRoomOutletTypes(propertyId);
         verify(propertyInventoryPort, times(1)).fetchTaxRules(propertyId);
-        verify(inventoryServiceClient, times(16)).availability(
+        verify(inventoryServiceClient, times(1)).availability(
                 eq(propertyId), anyString(), any(LocalDate.class), any(LocalDate.class));
     }
 }
