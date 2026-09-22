@@ -2,7 +2,6 @@ package com.pms.reservation.integration;
 
 import com.pms.guestlisting.exception.ExternalServiceException;
 import java.time.LocalDate;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -22,21 +21,21 @@ public class HousekeepingRoomStatusClient {
     @Value("${housekeeping-service.base-url:http://localhost:8086}")
     private String baseUrl;
 
-    public void updateReservationStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
+    public void updateReservationStatus(String propertyId, LocalDate businessDate, LocalDate arrivalDate,
                                         LocalDate departureDate, String roomNumber,
                                         String guestDisplayName, String confirmationId) {
         updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
                 guestDisplayName, confirmationId, "VACANT", "ARRIVAL");
     }
 
-    public void updateCheckedInStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
+    public void updateCheckedInStatus(String propertyId, LocalDate businessDate, LocalDate arrivalDate,
                                       LocalDate departureDate, String roomNumber,
                                       String guestDisplayName, String confirmationId) {
         updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
                 guestDisplayName, confirmationId, "OCCUPIED", "IN_HOUSE");
     }
 
-    public void updateCheckedInStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+    public void updateCheckedInStay(String propertyId, LocalDate arrivalDate, LocalDate departureDate,
                                     String roomNumber, String guestDisplayName, String confirmationId) {
         LocalDate businessDate = arrivalDate;
         while (businessDate.isBefore(departureDate)) {
@@ -46,7 +45,7 @@ public class HousekeepingRoomStatusClient {
         }
     }
 
-    public void updateReservationStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+    public void updateReservationStay(String propertyId, LocalDate arrivalDate, LocalDate departureDate,
                                       String roomNumber, String guestDisplayName, String confirmationId) {
         LocalDate businessDate = arrivalDate;
         boolean firstNight = true;
@@ -58,17 +57,17 @@ public class HousekeepingRoomStatusClient {
         }
     }
 
-    public void clearReservationStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+    public void clearReservationStay(String propertyId, LocalDate arrivalDate, LocalDate departureDate,
                                      String roomNumber) {
         clearStay(propertyId, arrivalDate, departureDate, roomNumber);
     }
 
-    public void clearCheckedInStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+    public void clearCheckedInStay(String propertyId, LocalDate arrivalDate, LocalDate departureDate,
                                    String roomNumber) {
         clearStay(propertyId, arrivalDate, departureDate, roomNumber);
     }
 
-    public void clearReservationAssignments(UUID propertyId, String confirmationId) {
+    public void clearReservationAssignments(String propertyId, String confirmationId) {
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .path("/api/v1/housekeeping/reservations/{confirmationId}/release")
                 .queryParam("propertyId", propertyId)
@@ -82,7 +81,7 @@ public class HousekeepingRoomStatusClient {
         }
     }
 
-    private void clearStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
+    private void clearStay(String propertyId, LocalDate arrivalDate, LocalDate departureDate,
                            String roomNumber) {
         LocalDate businessDate = arrivalDate;
         while (businessDate.isBefore(departureDate)) {
@@ -92,7 +91,7 @@ public class HousekeepingRoomStatusClient {
         }
     }
 
-    private void updateStatus(UUID propertyId, LocalDate businessDate, LocalDate arrivalDate,
+    private void updateStatus(String propertyId, LocalDate businessDate, LocalDate arrivalDate,
                               LocalDate departureDate, String roomNumber,
                               String guestDisplayName, String confirmationId,
                               String frontOfficeStatus, String reservationStatus) {
@@ -127,7 +126,7 @@ public class HousekeepingRoomStatusClient {
     }
 
     private record HousekeepingRoomStatusUpdateRequest(
-            UUID propertyId, LocalDate businessDate, String frontOfficeStatus,
+            String propertyId, LocalDate businessDate, String frontOfficeStatus,
             String guestDisplayName, LocalDate arrivalDate, LocalDate departureDate,
             String reservationStatus, String confirmationId, String sourceModule) {}
 
