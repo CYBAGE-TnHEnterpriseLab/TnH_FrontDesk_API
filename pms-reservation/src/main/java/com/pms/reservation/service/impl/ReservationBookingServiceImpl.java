@@ -138,20 +138,23 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             .build();
     }
 
-    private ReservationBookingRequestDto requestForRoom(
-            ReservationBookingRequestDto source,
-            String guestName,
-            boolean clearAssignedRoom
-    ) {
-        source.setGuestName(guestName);
-        source.setGuestNames(List.of(guestName));
-        source.setNumberOfRooms(1);
-        if (clearAssignedRoom) {
-            source.setAssignedRoomNo(null);
-            source.setFloor(null);
-        }
-        return source;
+private ReservationBookingRequestDto requestForRoom(
+        ReservationBookingRequestDto source,
+        String guestName,
+        boolean clearAssignedRoom
+) {
+    ReservationBookingRequestDto copy = new ReservationBookingRequestDto();
+    org.springframework.beans.BeanUtils.copyProperties(source, copy);
+
+    copy.setGuestName(guestName);
+    copy.setGuestNames(List.of(guestName));
+    copy.setNumberOfRooms(1);
+    if (clearAssignedRoom) {
+        copy.setAssignedRoomNo(null);
+        copy.setFloor(null);
     }
+    return copy;
+}
 
     @Override
     public HousekeepingSyncResponse syncHousekeepingStatuses() {
