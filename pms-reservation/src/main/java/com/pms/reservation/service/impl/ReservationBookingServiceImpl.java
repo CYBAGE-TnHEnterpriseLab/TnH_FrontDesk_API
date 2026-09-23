@@ -247,11 +247,20 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateRequiredContactFields(request);
         validateRoomSelectionAndGuestNames(request);
 
-        ReservationBookingRecord existing = (bookingId == null
-                ? reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                : reservationBookingRepository.findById(bookingId)
-                    .filter(item -> confirmationNumber.equals(item.getConfirmationNumber())))
-            .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        ReservationBookingRecord existing;
+        if (bookingId == null) {
+            List<ReservationBookingRecord> matches = reservationBookingRepository
+                .findByConfirmationNumber(confirmationNumber);
+            if (matches.size() > 1) {
+            throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+            }
+            existing = matches.stream().findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else {
+            existing = reservationBookingRepository.findById(bookingId)
+                .filter(item -> confirmationNumber.equals(item.getConfirmationNumber()))
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        }
 
         if (STATUS_CHECKED_OUT.equalsIgnoreCase(existing.getReservationStatus())) {
             throw new BadRequestException("Checked-out reservations cannot be changed. Cancel the same-day check-out to re-check in the guest first");

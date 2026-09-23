@@ -39,13 +39,15 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
     @Override
     @Transactional
     public CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, CheckInCompleteRequestDto request) {
-        ReservationBookingRecord booking;
-        try {
-            booking = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                    .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
-        } catch (IncorrectResultSizeDataAccessException ex) {
+        List<ReservationBookingRecord> bookings = reservationBookingRepository
+                .findByConfirmationNumber(confirmationNumber);
+        if (bookings.isEmpty()) {
+            throw new BadRequestException("Reservation booking not found");
+        }
+        if (bookings.size() > 1) {
             throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
         }
+        ReservationBookingRecord booking = bookings.get(0);
         return completeCheckInForBooking(booking, request);
     }
 
@@ -111,20 +113,13 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
                     .orElseThrow(() -> new BadRequestException("Reservation room booking not found"));
         }
 
-        try {
-            return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                    .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
-        } catch (IncorrectResultSizeDataAccessException ex) {
-            List<ReservationBookingRecord> bookings = reservationBookingRepository
-                    .findByConfirmationNumberOrderByIdAsc(confirmationNumber);
-            if (bookings.size() > 1) {
-                throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
-            }
-            if (bookings.isEmpty()) {
-                throw new BadRequestException("Reservation booking not found");
-            }
-            return bookings.get(0);
+        List<ReservationBookingRecord> bookings = reservationBookingRepository
+                .findByConfirmationNumber(confirmationNumber);
+        if (bookings.size() > 1) {
+            throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
         }
+        return bookings.stream().findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
     }
 
     private boolean isAlreadyCompleted(ReservationBookingRecord booking) {
