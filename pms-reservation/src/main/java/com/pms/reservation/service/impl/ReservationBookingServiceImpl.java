@@ -172,7 +172,7 @@ private ReservationBookingRequestDto requestForRoom(
             }
             processed++;
             try {
-                UUID propertyId = UUID.fromString(booking.getPropertyId());
+                String propertyId = booking.getPropertyId();
                 if (checkedIn) {
                     housekeepingRoomStatusClient.updateCheckedInStay(propertyId, booking.getArrivalDate(),
                             booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
@@ -183,10 +183,6 @@ private ReservationBookingRequestDto requestForRoom(
                             booking.getConfirmationNumber());
                 }
                 updated++;
-            } catch (IllegalArgumentException ex) {
-                skipped++;
-                log.warn("Skipping housekeeping sync for confirmation {} because propertyId is not a UUID: {}",
-                        booking.getConfirmationNumber(), booking.getPropertyId());
             } catch (ExternalServiceException ex) {
                 failed++;
                 log.warn("Housekeeping sync failed for confirmation {}", booking.getConfirmationNumber(), ex);
@@ -200,7 +196,7 @@ private ReservationBookingRequestDto requestForRoom(
             return;
         }
         try {
-            UUID propertyId = UUID.fromString(booking.getPropertyId());
+            String propertyId = booking.getPropertyId();
             if (STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
                 housekeepingRoomStatusClient.updateCheckedInStay(
                         propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
@@ -210,10 +206,12 @@ private ReservationBookingRequestDto requestForRoom(
                         propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
                         booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
             }
+
         } catch (IllegalArgumentException ex) {
             throw new ExternalServiceException(
                     "Cannot synchronize the assigned room with Housekeeping because propertyId is not a UUID: "
                             + booking.getPropertyId(), ex);
+
         } catch (ExternalServiceException ex) {
             throw ex;
         }
@@ -326,6 +324,7 @@ private ReservationBookingRequestDto requestForRoom(
                 : null;
     }
 
+
     private void clearPreviousHousekeepingStay(
             String propertyIdValue,
             String confirmationNumber,
@@ -350,6 +349,11 @@ private ReservationBookingRequestDto requestForRoom(
             throw ex;
         }
     }
+
+    /* private void clearHousekeepingAssignments(ReservationBookingRecord booking) {
+        housekeepingRoomStatusClient.clearReservationAssignments(
+                booking.getPropertyId(), booking.getConfirmationNumber());
+    } */
 
         @Override
         @Transactional(readOnly = true)

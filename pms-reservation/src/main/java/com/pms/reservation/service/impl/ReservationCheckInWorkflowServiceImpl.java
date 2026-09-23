@@ -12,8 +12,10 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInAuditRepository;
 import com.pms.reservation.service.ReservationCheckInWorkflowService;
 import java.time.LocalDateTime;
+
 import java.util.List;
 import java.util.UUID;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,7 +94,7 @@ public class ReservationCheckInWorkflowServiceImpl implements ReservationCheckIn
 
         if (STATUS_CHECKED_IN.equals(targetStatus) && StringUtils.hasText(booking.getAssignedRoomNo())) {
             housekeepingRoomStatusClient.updateCheckedInStay(
-                    UUID.fromString(booking.getPropertyId()),
+                    booking.getPropertyId(),
                     booking.getArrivalDate(),
                     booking.getDepartureDate(),
                     booking.getAssignedRoomNo(),
