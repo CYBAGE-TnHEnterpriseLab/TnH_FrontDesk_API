@@ -8,9 +8,14 @@ import com.pms.reservation.config.RateManagementServiceProperties;
 import com.pms.reservation.integration.dto.RateManagementPlanDto;
 import com.pms.reservation.integration.dto.RatePlanCalculatedPriceResponseDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
+import com.pms.reservation.support.TtlCache;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -22,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -29,6 +35,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
@@ -45,6 +54,7 @@ public class RateManagementServiceClient implements RateManagementPort {
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
     private final Map<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache = new ConcurrentHashMap<>();
+    private final TtlCache<String, String> getResponseCache;
 
     public RateManagementServiceClient(
             @Qualifier("rateManagementRestTemplate") RestTemplate restTemplate,
@@ -52,6 +62,7 @@ public class RateManagementServiceClient implements RateManagementPort {
     ) {
         this.restTemplate = restTemplate;
         this.properties = properties;
+        this.getResponseCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
     }
 
     @Override
@@ -308,6 +319,36 @@ public class RateManagementServiceClient implements RateManagementPort {
     }
 
     private String executeGetWithRetry(String operation, String url, Map<String, Object> context) {
+        if (properties.getResponseCacheTtlMs() <= 0L) {
+            return executeGet(operation, url, context);
+        }
+        // Key includes a digest of the caller token so cached bodies never cross authorization scopes.
+        return getResponseCache.get(authorizationScope() + '|' + url, () -> executeGet(operation, url, context));
+    }
+
+    private String authorizationScope() {
+        String token = properties.getServiceAuthToken();
+        if (!StringUtils.hasText(token)) {
+            RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes instanceof ServletRequestAttributes servletRequestAttributes) {
+                token = servletRequestAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+            }
+        }
+
+        if (!StringUtils.hasText(token)) {
+            return "anonymous";
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(token.trim().getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 digest unavailable", ex);
+        }
+    }
+
+    private String executeGet(String operation, String url, Map<String, Object> context) {
         int maxAttempts = Math.max(1, properties.getRetryMaxAttempts());
         int attempt = 0;
 

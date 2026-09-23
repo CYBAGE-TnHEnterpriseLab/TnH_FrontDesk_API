@@ -39,4 +39,11 @@ public class RateManagementServiceProperties {
 
     @Min(value = 0, message = "rate-management.retry-backoff-ms must be >= 0")
     private long retryBackoffMs = 100;
+
+    /** Short-lived cache for idempotent GET responses; set to 0 to disable. */
+    @Min(value = 0, message = "rate-management.response-cache-ttl-ms must be >= 0")
+    private long responseCacheTtlMs = 60_000;
+
+    @Min(value = 1, message = "rate-management.response-cache-max-size must be >= 1")
+    private int responseCacheMaxSize = 5_000;
 }

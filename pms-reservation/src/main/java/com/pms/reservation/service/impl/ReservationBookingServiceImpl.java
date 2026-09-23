@@ -138,20 +138,23 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             .build();
     }
 
-    private ReservationBookingRequestDto requestForRoom(
-            ReservationBookingRequestDto source,
-            String guestName,
-            boolean clearAssignedRoom
-    ) {
-        source.setGuestName(guestName);
-        source.setGuestNames(List.of(guestName));
-        source.setNumberOfRooms(1);
-        if (clearAssignedRoom) {
-            source.setAssignedRoomNo(null);
-            source.setFloor(null);
-        }
-        return source;
+private ReservationBookingRequestDto requestForRoom(
+        ReservationBookingRequestDto source,
+        String guestName,
+        boolean clearAssignedRoom
+) {
+    ReservationBookingRequestDto copy = new ReservationBookingRequestDto();
+    org.springframework.beans.BeanUtils.copyProperties(source, copy);
+
+    copy.setGuestName(guestName);
+    copy.setGuestNames(List.of(guestName));
+    copy.setNumberOfRooms(1);
+    if (clearAssignedRoom) {
+        copy.setAssignedRoomNo(null);
+        copy.setFloor(null);
     }
+    return copy;
+}
 
     @Override
     public HousekeepingSyncResponse syncHousekeepingStatuses() {
@@ -169,7 +172,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             }
             processed++;
             try {
-                UUID propertyId = UUID.fromString(booking.getPropertyId());
+                String propertyId = booking.getPropertyId();
                 if (checkedIn) {
                     housekeepingRoomStatusClient.updateCheckedInStay(propertyId, booking.getArrivalDate(),
                             booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
@@ -180,10 +183,6 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                             booking.getConfirmationNumber());
                 }
                 updated++;
-            } catch (IllegalArgumentException ex) {
-                skipped++;
-                log.warn("Skipping housekeeping sync for confirmation {} because propertyId is not a UUID: {}",
-                        booking.getConfirmationNumber(), booking.getPropertyId());
             } catch (ExternalServiceException ex) {
                 failed++;
                 log.warn("Housekeeping sync failed for confirmation {}", booking.getConfirmationNumber(), ex);
@@ -197,7 +196,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
         try {
-            UUID propertyId = UUID.fromString(booking.getPropertyId());
+            String propertyId = booking.getPropertyId();
             if (STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
                 housekeepingRoomStatusClient.updateCheckedInStay(
                         propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
@@ -207,10 +206,12 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                         propertyId, booking.getArrivalDate(), booking.getDepartureDate(),
                         booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
             }
+
         } catch (IllegalArgumentException ex) {
             throw new ExternalServiceException(
                     "Cannot synchronize the assigned room with Housekeeping because propertyId is not a UUID: "
                             + booking.getPropertyId(), ex);
+
         } catch (ExternalServiceException ex) {
             throw ex;
         }
@@ -332,6 +333,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 : null;
     }
 
+
     private void clearPreviousHousekeepingStay(
             String propertyIdValue,
             String confirmationNumber,
@@ -356,6 +358,11 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             throw ex;
         }
     }
+
+    /* private void clearHousekeepingAssignments(ReservationBookingRecord booking) {
+        housekeepingRoomStatusClient.clearReservationAssignments(
+                booking.getPropertyId(), booking.getConfirmationNumber());
+    } */
 
         @Override
         @Transactional(readOnly = true)
