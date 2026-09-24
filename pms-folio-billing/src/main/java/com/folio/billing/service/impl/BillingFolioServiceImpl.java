@@ -50,7 +50,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,25 +100,11 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     private void initializePersistedFolios(List<Folio> persistedFolios) {
-        Map<String, HashSet<String>> usedCodesByConfirmation = new LinkedHashMap<>();
-        persistedFolios.forEach(folio -> usedCodesByConfirmation
-                .computeIfAbsent(normalize(folio.getConfirmationNumber()), key -> new HashSet<>())
-                .add(normalize(folio.getFolioCode())));
-
         persistedFolios.forEach(folio -> {
             String confirmationNumber = normalize(folio.getConfirmationNumber());
             String folioCode = normalize(folio.getFolioCode());
-            if (folioCode.startsWith(DEFAULT_FOLIO_CODE + "-B")) {
-                HashSet<String> usedCodes = usedCodesByConfirmation.get(confirmationNumber);
-                usedCodes.remove(folioCode);
-                String replacementCode = nextAvailableFolioCode(usedCodes);
-                folio.setFolioCode(replacementCode);
-                usedCodes.add(replacementCode);
-                folioRepository.save(folio);
-            }
-
-                foliosByKey.put(folioKey(confirmationNumber, folio.getFolioCode(), folio.getBookingId()),
-                    new FolioState(confirmationNumber, folio.getBookingId(), folio.getFolioCode(), folio.getGuestName(), folio.getRoomNo(),
+            foliosByKey.put(folioKey(confirmationNumber, folioCode, folio.getBookingId()),
+                    new FolioState(confirmationNumber, folio.getBookingId(), folioCode, folio.getGuestName(), folio.getRoomNo(),
                             folio.getTotalCharges(), folio.getTotalPayment(), folio.getOutstandingBalance(),
                             folio.getCreatedAt(), folio.getLastUpdatedAt()));
         });
@@ -1553,16 +1538,6 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             }
         }
         throw badRequest("No folio codes available for confirmationNumber: " + normalizedConfirmationNumber);
-    }
-
-    private String nextAvailableFolioCode(HashSet<String> usedCodes) {
-        for (char code = 'A'; code <= 'Z'; code++) {
-            String candidate = String.valueOf(code);
-            if (!usedCodes.contains(candidate)) {
-                return candidate;
-            }
-        }
-        throw badRequest("No folio codes available");
     }
 
     private List<GuestDetail> applyDueToGuestProfiles(List<GuestDetail> guestDetails, BigDecimal dueAmount) {

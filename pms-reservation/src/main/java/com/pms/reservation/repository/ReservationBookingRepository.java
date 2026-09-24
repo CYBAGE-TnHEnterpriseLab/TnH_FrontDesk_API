@@ -15,7 +15,7 @@ import org.springframework.data.jpa.repository.Modifying;
 public interface ReservationBookingRepository
 	extends JpaRepository<ReservationBookingRecord, Long>, JpaSpecificationExecutor<ReservationBookingRecord> {
 
-    Optional<ReservationBookingRecord> findByConfirmationNumber(String confirmationNumber);
+    List<ReservationBookingRecord> findByConfirmationNumber(String confirmationNumber);
 
     Optional<ReservationBookingRecord> findByIdAndConfirmationNumber(Long id, String confirmationNumber);
 

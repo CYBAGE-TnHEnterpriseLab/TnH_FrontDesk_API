@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.time.temporal.ChronoUnit;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import lombok.RequiredArgsConstructor;
@@ -217,12 +218,13 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     }
 
     private ReservationBookingRecord getBookingOrThrow(String confirmationNumber) {
-        try {
-            return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                    .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
-        } catch (IncorrectResultSizeDataAccessException ex) {
+        List<ReservationBookingRecord> bookings = reservationBookingRepository
+            .findByConfirmationNumber(confirmationNumber);
+        if (bookings.size() > 1) {
             throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
         }
+        return bookings.stream().findFirst()
+            .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
     }
 
     private ReservationBookingRecord getBookingOrThrow(String confirmationNumber, Long bookingId) {
