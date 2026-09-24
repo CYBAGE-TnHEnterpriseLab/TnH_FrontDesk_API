@@ -15,6 +15,7 @@ import com.frontdesk.pms.rate_management.entity.MasterRoom;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
 import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
 import com.frontdesk.pms.rate_management.enums.OccupancyType;
+import com.frontdesk.pms.rate_management.enums.DifferentialType;
 import com.frontdesk.pms.rate_management.exception.MasterRoomNotFoundException;
 import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
 import com.frontdesk.pms.rate_management.mapper.MasterRoomMapper;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 @Service
 public class MasterRoomService {
@@ -160,11 +162,47 @@ public class MasterRoomService {
 
     @Transactional
     public MasterRoomRoomTypeMappingResponseDTO mapRoomType(String propertyId, Long masterRoomId, MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
-        return upsertRoomTypeMapping(propertyId, mappingRequestDTO.getRoomTypeId(), masterRoomId);
+        return upsertRoomTypeMapping(propertyId, mappingRequestDTO, masterRoomId);
+    }
+
+    private void validateDifferential(
+            DifferentialType differentialType,
+            BigDecimal differentialValue) {
+
+        if (differentialType == null) {
+            if (differentialValue != null) {
+                throw new IllegalArgumentException(
+                        "differentialType is required when differentialValue is provided"
+                );
+            }
+            return;
+        }
+
+        if (differentialValue == null) {
+            throw new IllegalArgumentException(
+                    "differentialValue is required when differentialType is provided"
+            );
+        }
+
+        if (differentialValue.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException(
+                    "differentialValue cannot be negative"
+            );
+        }
+
+        if (differentialType == DifferentialType.PERCENTAGE
+                && differentialValue.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new IllegalArgumentException(
+                    "Percentage differential cannot be greater than 100"
+            );
+        }
     }
 
     @Transactional
-    public MasterRoomRoomTypeMappingResponseDTO upsertRoomTypeMapping(String propertyId, Long roomTypeId, Long masterRoomId) {
+    public MasterRoomRoomTypeMappingResponseDTO upsertRoomTypeMapping(String propertyId,  MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO, Long masterRoomId) {
+        Long roomTypeId = mappingRequestDTO.getRoomTypeId();
+        DifferentialType differentialType = mappingRequestDTO.getDifferentialType();
+        BigDecimal differentialValue = mappingRequestDTO.getDifferentialValue();
         if (roomTypeId == null) {
             throw new IllegalArgumentException("roomTypeId is required");
         }
@@ -174,12 +212,16 @@ public class MasterRoomService {
 
         MasterRoom masterRoom = getMasterRoomInProperty(propertyId, masterRoomId);
 
+        validateDifferential(differentialType, differentialValue);
+
         MasterRoomRoomTypeMapping mapping = mappingRepository
                 .findByMasterRoomPropertyIdAndRoomTypeId(propertyId, roomTypeId)
                 .orElseGet(MasterRoomRoomTypeMapping::new);
 
         mapping.setMasterRoom(masterRoom);
         mapping.setRoomTypeId(roomTypeId);
+        mapping.setDifferentialType(differentialType);
+        mapping.setDifferentialValue(differentialValue);
         MasterRoomRoomTypeMapping saved = mappingRepository.save(mapping);
 
         // Inherit all pricing from selected master room to this room type.
@@ -258,6 +300,28 @@ public class MasterRoomService {
                 .collect(Collectors.toList());
     }
 
+    private Double calculateDifferentialPrice(
+            Double basePrice,
+            DifferentialType differentialType,
+            BigDecimal differentialValue) {
+
+        if (basePrice == null
+                || differentialType == null
+                || differentialValue == null) {
+            return basePrice;
+        }
+
+        double differential = differentialValue.doubleValue();
+
+        return switch (differentialType) {
+            case FIXED ->
+                    basePrice + differential;
+
+            case PERCENTAGE ->
+                    basePrice + (basePrice * differential / 100);
+        };
+    }
+
     public List<PropertyRoomTypeMappingResponseDTO> getMappingsByPropertyId(String propertyId) {
         List<MasterRoomRoomTypeMapping> mappings = mappingRepository.findByMasterRoomPropertyId(propertyId);
         Map<Long, MasterRoomRoomTypeMapping> mappingByRoomTypeId = mappings.stream()
@@ -291,11 +355,32 @@ public class MasterRoomService {
                         dto.setMappingId(mapping.getId());
                         dto.setMasterRoomId(mapping.getMasterRoom().getId());
                         dto.setMasterRoomName(mapping.getMasterRoom().getName());
+                        dto.setDifferentialType(mapping.getDifferentialType());
+                        dto.setDifferentialValue(mapping.getDifferentialValue());
                     }
 
-                    dto.setInheritedRates(masterRoomPricingRepository.findByRoomTypeId(roomType.getId()).stream()
-                            .map(masterRoomMapper::toPricingResponseDTO)
-                            .collect(Collectors.toList()));
+                    List<MasterRoomPricingResponseDTO> inheritedRates =
+                            mapping == null
+                                    ? List.of()
+                                    : masterRoomPricingRepository
+                                    .findByMasterRoomIdAndRoomTypeIdIsNull(
+                                            mapping.getMasterRoom().getId()
+                                    )
+                                    .stream()
+                                    .map(masterRoomMapper::toPricingResponseDTO)
+                                    .map(rate -> {
+                                        rate.setPrice(
+                                                calculateDifferentialPrice(
+                                                        rate.getPrice(),
+                                                        mapping.getDifferentialType(),
+                                                        mapping.getDifferentialValue()
+                                                )
+                                        );
+                                        return rate;
+                                    })
+                                    .collect(Collectors.toList());
+
+                    dto.setInheritedRates(inheritedRates);
                     return dto;
                 })
                 .collect(Collectors.toList());

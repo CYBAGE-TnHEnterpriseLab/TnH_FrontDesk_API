@@ -69,7 +69,7 @@ public class MasterRoomController {
     public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable String propertyId,
             @PathVariable Long id, @RequestBody MasterRoomRoomTypeMappingRequestDTO mappingRequestDTO) {
         MasterRoomRoomTypeMappingResponseDTO saved = masterRoomService.upsertRoomTypeMapping(propertyId,
-                mappingRequestDTO.getRoomTypeId(), id);
+                mappingRequestDTO, id);
         return ResponseEntity.ok(saved);
     }
 
