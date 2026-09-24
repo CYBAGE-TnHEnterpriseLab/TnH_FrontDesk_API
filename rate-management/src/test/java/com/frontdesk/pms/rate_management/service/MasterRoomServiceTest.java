@@ -18,6 +18,7 @@ import com.frontdesk.pms.rate_management.repository.MasterRoomRepository;
 import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingRequestDTO;
 import com.frontdesk.pms.rate_management.enums.DifferentialType;
+import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -40,6 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 class MasterRoomServiceTest {
@@ -56,8 +58,8 @@ class MasterRoomServiceTest {
     @Mock
     private MasterRoomMapper masterRoomMapper;
 
-        @Mock
-        private PropertyWizardClient propertyWizardClient;
+    @Mock
+    private PropertyWizardClient propertyWizardClient;
 
     @InjectMocks
     private MasterRoomService masterRoomService;
@@ -363,20 +365,23 @@ class MasterRoomServiceTest {
 
                 when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{roomType});
                 when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(mapping));
-                when(masterRoomPricingRepository.findByRoomTypeId(501L)).thenReturn(List.of(inheritedPricing));
-                when(masterRoomMapper.toPricingResponseDTO(inheritedPricing)).thenReturn(pricingResponse);
+                when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeId(5L, 501L))
+                        .thenReturn(List.of(inheritedPricing));
+            when(masterRoomMapper.toPricingResponseDTO(inheritedPricing))
+                    .thenReturn(pricingResponse);
 
-                List<PropertyRoomTypeMappingResponseDTO> result = masterRoomService.getMappingsByPropertyId(propertyId);
+            List<PropertyRoomTypeMappingResponseDTO> result =
+                    masterRoomService.getMappingsByPropertyId(propertyId);
 
-                assertEquals(1, result.size());
-                assertEquals(50L, result.get(0).getMappingId());
-                assertEquals(501L, result.get(0).getRoomTypeId());
-                assertEquals("Standard King", result.get(0).getRoomTypeName());
-                assertEquals(true, result.get(0).isMapped());
-                assertEquals(5L, result.get(0).getMasterRoomId());
-                assertEquals("Standard Master", result.get(0).getMasterRoomName());
-                assertEquals(1, result.get(0).getInheritedRates().size());
-                assertEquals("2 Guest", result.get(0).getInheritedRates().get(0).getOccupancyType());
+            assertEquals(1, result.size());
+            assertEquals(50L, result.get(0).getMappingId());
+            assertEquals(501L, result.get(0).getRoomTypeId());
+            assertEquals("Standard King", result.get(0).getRoomTypeName());
+            assertTrue(result.get(0).isMapped());
+            assertEquals(5L, result.get(0).getMasterRoomId());
+            assertEquals("Standard Master", result.get(0).getMasterRoomName());
+            assertEquals(1, result.get(0).getInheritedRates().size());
+            assertEquals("2 Guest", result.get(0).getInheritedRates().get(0).getOccupancyType());
         }
 
         @Test
@@ -405,33 +410,36 @@ class MasterRoomServiceTest {
 
         @Test
         void getMappingsByPropertyId_shouldDeleteStaleMappingsWhenRoomTypeMissingInPropertyWizard() {
-                String propertyId = "11111111-1111-1111-1111-111111111111";
+            String propertyId = "11111111-1111-1111-1111-111111111111";
 
-                MasterRoom masterRoom = new MasterRoom();
-                masterRoom.setId(9L);
-                masterRoom.setName("Strict Sync Master");
-                masterRoom.setPropertyId(propertyId);
+            MasterRoom masterRoom = new MasterRoom();
+            masterRoom.setId(9L);
+            masterRoom.setName("Strict Sync Master");
+            masterRoom.setPropertyId(propertyId);
 
-                MasterRoomRoomTypeMapping staleMapping = new MasterRoomRoomTypeMapping();
-                staleMapping.setId(90L);
-                staleMapping.setMasterRoom(masterRoom);
-                staleMapping.setRoomTypeId(901L);
+            MasterRoomRoomTypeMapping staleMapping = new MasterRoomRoomTypeMapping();
+            staleMapping.setId(90L);
+            staleMapping.setMasterRoom(masterRoom);
+            staleMapping.setRoomTypeId(901L);
 
-                RoomDTO currentRoomType = new RoomDTO();
-                currentRoomType.setId(902L);
-                currentRoomType.setName("Current Room Type");
+            RoomDTO currentRoomType = new RoomDTO();
+            currentRoomType.setId(902L);
+            currentRoomType.setName("Current Room Type");
 
-                when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{currentRoomType});
-                when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(staleMapping));
-                when(masterRoomPricingRepository.findByRoomTypeId(901L)).thenReturn(List.of());
-                when(masterRoomPricingRepository.findByRoomTypeId(902L)).thenReturn(List.of());
+            when(propertyWizardClient.getRoomTypesByProperty(propertyId))
+                    .thenReturn(new RoomDTO[]{currentRoomType});
 
-                List<PropertyRoomTypeMappingResponseDTO> result = masterRoomService.getMappingsByPropertyId(propertyId);
+            when(mappingRepository.findByMasterRoomPropertyId(propertyId))
+                    .thenReturn(List.of(staleMapping));
 
-                assertEquals(1, result.size());
-                assertEquals(902L, result.get(0).getRoomTypeId());
-                assertEquals(false, result.get(0).isMapped());
-                verify(mappingRepository, times(1)).deleteAll(anyList());
+            List<PropertyRoomTypeMappingResponseDTO> result =
+                    masterRoomService.getMappingsByPropertyId(propertyId);
+
+            assertEquals(1, result.size());
+            assertEquals(902L, result.get(0).getRoomTypeId());
+            assertEquals(false, result.get(0).isMapped());
+
+            verify(mappingRepository, times(1)).deleteAll(anyList());
         }
 
     @Test
@@ -628,4 +636,3 @@ class MasterRoomServiceTest {
                 verify(masterRoomRepository, never()).save(any(MasterRoom.class));
         }
 }
-

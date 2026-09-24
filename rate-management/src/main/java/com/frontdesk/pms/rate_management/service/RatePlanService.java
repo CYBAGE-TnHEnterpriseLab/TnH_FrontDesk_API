@@ -340,7 +340,8 @@ public class RatePlanService {
 
         MasterRoomPricing pricing =
                 masterRoomPricingRepository
-                        .findByRoomTypeIdAndOccupancyType(
+                        .findByMasterRoomIdAndRoomTypeIdAndOccupancyType(
+                                mapping.getMasterRoom().getId(),
                                 roomTypeId,
                                 normalizedOccupancyType)
                         .orElseThrow(() -> new InvalidRatePlanException(

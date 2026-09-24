@@ -363,8 +363,9 @@ public class MasterRoomService {
                             mapping == null
                                     ? List.of()
                                     : masterRoomPricingRepository
-                                    .findByMasterRoomIdAndRoomTypeIdIsNull(
-                                            mapping.getMasterRoom().getId()
+                                    .findByMasterRoomIdAndRoomTypeId(
+                                            mapping.getMasterRoom().getId(),
+                                            roomType.getId()
                                     )
                                     .stream()
                                     .map(masterRoomMapper::toPricingResponseDTO)
