@@ -47,11 +47,14 @@ public class ReservationCheckoutController {
     @Operation(summary = "Complete normal as well as early check-out with penalty recalculation")
     public ResponseEntity<ApiResponse<CheckoutCompletionResponseDto>> completeCheckout(
             @PathVariable String confirmationNumber,
+            @RequestParam(required = false) Long bookingId,
             @Valid @RequestBody CheckoutRequestDto request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Check-out completed successfully",
-                reservationCheckoutService.completeCheckout(confirmationNumber, request)
+                bookingId == null
+                        ? reservationCheckoutService.completeCheckout(confirmationNumber, request)
+                        : reservationCheckoutService.completeCheckout(confirmationNumber, bookingId, request)
         ));
     }
 
@@ -59,11 +62,14 @@ public class ReservationCheckoutController {
     @Operation(summary = "Cancel same-day check-out and re-check in the guest")
     public ResponseEntity<ApiResponse<CheckoutCompletionResponseDto>> cancelCheckout(
             @PathVariable String confirmationNumber,
+            @RequestParam(required = false) Long bookingId,
             @Valid @RequestBody CheckoutRequestDto request
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Check-out cancelled successfully",
-                reservationCheckoutService.cancelCheckout(confirmationNumber, request)
+                bookingId == null
+                        ? reservationCheckoutService.cancelCheckout(confirmationNumber, request)
+                        : reservationCheckoutService.cancelCheckout(confirmationNumber, bookingId, request)
         ));
     }
 }

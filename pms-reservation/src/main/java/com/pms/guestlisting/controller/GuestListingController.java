@@ -61,7 +61,7 @@ public class GuestListingController {
         private static final Set<String> SUPPORTED_RESERVATION_STATUSES = Set.of(
             STATUS_CONFIRMED, "CHECKED_IN", "CHECKED_OUT", STATUS_NO_SHOW);
 
-    private record RoomStatusSnapshot(String roomStatus, String roomNo) {
+    private record RoomStatusSnapshot(String roomStatus, String roomNo, Long bookingId) {
     }
 
     private final ReservationBookingRepository reservationBookingRepository;
@@ -146,6 +146,13 @@ public class GuestListingController {
                 pageable
         );
 
+        Map<Long, RoomStatusSnapshot> roomStatusByBooking = loadRoomStatusByBooking(
+            propertyId,
+            businessDate,
+            bookingPage.getContent().stream()
+                .map(ReservationBookingRecord::getId)
+                .collect(Collectors.toSet())
+        );
         Map<String, RoomStatusSnapshot> roomStatusByConfirmation = loadRoomStatusByConfirmation(
             propertyId,
             businessDate,
@@ -160,7 +167,8 @@ public class GuestListingController {
                 booking,
                 businessDate,
                 normalizedView,
-                roomStatusByConfirmation.get(booking.getConfirmationNumber())
+                roomStatusByBooking.getOrDefault(booking.getId(),
+                    roomStatusByConfirmation.get(booking.getConfirmationNumber()))
             ))
                 .toList();
 
@@ -480,6 +488,9 @@ public class GuestListingController {
     }
 
     private String resolveRoomNo(ReservationBookingRecord booking, RoomStatusSnapshot roomSnapshot) {
+        if (StringUtils.hasText(booking.getAssignedRoomNo())) {
+            return booking.getAssignedRoomNo();
+        }
         if (roomSnapshot != null && StringUtils.hasText(roomSnapshot.roomNo())) {
             return roomSnapshot.roomNo();
         }
@@ -547,6 +558,27 @@ public class GuestListingController {
         return new HashSet<>(confirmations);
     }
 
+        private Map<Long, RoomStatusSnapshot> loadRoomStatusByBooking(
+            String propertyId,
+            LocalDate businessDate,
+            Set<Long> bookingIds
+    ) {
+        if (bookingIds == null || bookingIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return housekeepingRoomStatusRepository
+                .findByPropertyIdAndBusinessDateAndBookingIdIn(propertyId, businessDate, bookingIds)
+                .stream()
+                .filter(status -> status.getBookingId() != null)
+                .collect(Collectors.toMap(
+                        HousekeepingRoomStatusRecord::getBookingId,
+                        status -> new RoomStatusSnapshot(status.getRoomStatus(), status.getRoomNo(), status.getBookingId()),
+                        (left, right) -> right,
+                        java.util.LinkedHashMap::new
+                ));
+    }
+
         private Map<String, RoomStatusSnapshot> loadRoomStatusByConfirmation(
             String propertyId,
             LocalDate businessDate,
@@ -567,7 +599,7 @@ public class GuestListingController {
                 .filter(status -> StringUtils.hasText(status.getConfirmationNumber()))
                 .collect(Collectors.toMap(
                         HousekeepingRoomStatusRecord::getConfirmationNumber,
-                status -> new RoomStatusSnapshot(status.getRoomStatus(), status.getRoomNo()),
+                status -> new RoomStatusSnapshot(status.getRoomStatus(), status.getRoomNo(), status.getBookingId()),
                         (left, right) -> right,
                         java.util.LinkedHashMap::new
                 ));

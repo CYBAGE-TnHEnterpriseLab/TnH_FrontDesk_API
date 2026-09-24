@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -72,6 +73,11 @@ public class InventoryServiceClient {
                     new HttpEntity<>(new ChangeAssignedRoomTypeRequest(assignedRoomTypeId), headers()),
                     InventoryReservationResponse.class
             );
+        } catch (HttpStatusCodeException ex) {
+            String responseBody = ex.getResponseBodyAsString();
+            String detail = StringUtils.hasText(responseBody) ? ": " + responseBody : "";
+            throw new ExternalServiceException(
+                    "Failed to change assigned inventory room type" + detail, ex);
         } catch (RestClientException ex) {
             throw new ExternalServiceException("Failed to change assigned inventory room type", ex);
         }

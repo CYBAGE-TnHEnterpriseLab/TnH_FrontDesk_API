@@ -18,7 +18,7 @@ import com.pms.reservation.repository.ReservationCheckInAuditRepository;
 import com.pms.reservation.integration.FolioServiceClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Optional;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,7 +66,7 @@ class ReservationCheckoutServiceImplTest {
 
     @Test
     void completeCheckoutShouldUpdateStatusTimestampAndRoomOccupancy() {
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         CheckoutCompletionResponseDto response = service.completeCheckout("CONF-101", request);
 
@@ -82,7 +82,7 @@ class ReservationCheckoutServiceImplTest {
     @Test
     void completeCheckoutShouldRejectReservationThatIsNotCheckedIn() {
         booking.setReservationStatus("CONFIRMED");
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
                 .isInstanceOf(BadRequestException.class)
@@ -95,7 +95,7 @@ class ReservationCheckoutServiceImplTest {
     @Test
     void completeCheckoutShouldRequireDepartureBusinessDate() {
         request.setBusinessDate(LocalDate.of(2026, 8, 10));
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
                 .isInstanceOf(BadRequestException.class)
@@ -110,7 +110,7 @@ class ReservationCheckoutServiceImplTest {
         booking.setCheckOutBusinessDate(LocalDate.of(2026, 8, 11));
         booking.setCheckOutCompletedAt(java.time.LocalDateTime.now());
         booking.setCheckOutCompletedBy("front-desk-user");
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         CheckoutCompletionResponseDto response = service.cancelCheckout("CONF-101", request);
 
@@ -125,7 +125,7 @@ class ReservationCheckoutServiceImplTest {
     void cancelCheckoutShouldOnlyAllowSameBusinessDate() {
         booking.setReservationStatus("CHECKED_OUT");
         booking.setCheckOutBusinessDate(LocalDate.of(2026, 8, 10));
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         assertThatThrownBy(() -> service.cancelCheckout("CONF-101", request))
                 .isInstanceOf(BadRequestException.class)

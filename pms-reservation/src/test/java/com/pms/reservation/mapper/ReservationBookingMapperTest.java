@@ -22,6 +22,7 @@ class ReservationBookingMapperTest {
         ReservationBookingRequestDto request = validRequest();
         request.setRate(new BigDecimal("2500.00"));
         request.setNumberOfRooms(2);
+        request.setGuestNames(List.of("Alex Johnson", "Priya Rao"));
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
@@ -35,6 +36,19 @@ class ReservationBookingMapperTest {
         assertThat(entity.getAssignedRoomNo()).isEqualTo("1203");
         assertThat(entity.getFloor()).isEqualTo(12);
         assertThat(entity.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    void toResponseShouldKeepOneGuestNamePerSelectedRoom() {
+        ReservationBookingRequestDto request = validRequest();
+        request.setNumberOfRooms(2);
+        request.setGuestNames(List.of("Alex Johnson", "Priya Rao"));
+
+        ReservationBookingRecord entity = mapper.toEntity(request);
+        ReservationBookingResponseDto response = mapper.toResponse(entity);
+
+        assertThat(response.getNumberOfRooms()).isEqualTo(2);
+        assertThat(response.getGuestNames()).containsExactly("Alex Johnson", "Priya Rao");
     }
 
     @Test

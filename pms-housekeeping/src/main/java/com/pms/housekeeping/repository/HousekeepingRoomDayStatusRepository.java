@@ -39,6 +39,16 @@ public interface HousekeepingRoomDayStatusRepository
             String propertyId,
             String confirmationId);
 
+        List<HousekeepingRoomDayStatus> findAllByPropertyIdAndRoomNumberIgnoreCase(
+            String propertyId,
+            String roomNumber);
+
+            List<HousekeepingRoomDayStatus> findAllByPropertyIdAndRoomNumberIgnoreCaseAndBusinessDateGreaterThanEqualAndBusinessDateLessThan(
+                    String propertyId,
+                    String roomNumber,
+                    LocalDate arrivalDate,
+                    LocalDate departureDate);
+
     List<HousekeepingRoomDayStatus> findTop200ByPropertyIdAndBusinessDateAndRoomTypeIdAndSellableTrueAndConfirmationIdIsNullAndCleaningStatusInAndFrontOfficeStatusOrderByRoomNumberAsc(
             String propertyId,
             LocalDate businessDate,

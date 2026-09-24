@@ -8,20 +8,25 @@ import com.pms.reservation.config.RateManagementServiceProperties;
 import com.pms.reservation.integration.dto.RateManagementPlanDto;
 import com.pms.reservation.integration.dto.RatePlanCalculatedPriceResponseDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
+import com.pms.reservation.support.TtlCache;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -29,6 +34,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
@@ -44,7 +52,9 @@ public class RateManagementServiceClient implements RateManagementPort {
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
-    private final Map<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache = new ConcurrentHashMap<>();
+    private final TtlCache<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache;
+    private final TtlCache<String, String> getResponseCache;
+    private final TtlCache<String, ExternalServiceException> getFailureCache;
 
     public RateManagementServiceClient(
             @Qualifier("rateManagementRestTemplate") RestTemplate restTemplate,
@@ -52,6 +62,9 @@ public class RateManagementServiceClient implements RateManagementPort {
     ) {
         this.restTemplate = restTemplate;
         this.properties = properties;
+        this.getResponseCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
+        this.getFailureCache = new TtlCache<>(properties.getFailureCacheTtlMs(), properties.getResponseCacheMaxSize());
+        this.masterRoomPricingCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
     }
 
     @Override
@@ -308,6 +321,66 @@ public class RateManagementServiceClient implements RateManagementPort {
     }
 
     private String executeGetWithRetry(String operation, String url, Map<String, Object> context) {
+        if (properties.getResponseCacheTtlMs() <= 0L && properties.getFailureCacheTtlMs() <= 0L) {
+            return executeGet(operation, url, context);
+        }
+
+        // Key includes a digest of the caller token so cached bodies never cross authorization scopes.
+        String cacheKey = authorizationScope() + '|' + url;
+
+        ExternalServiceException cachedFailure = getFailureCache.getIfPresent(cacheKey);
+        if (cachedFailure != null) {
+            log.debug("Rate Management call short-circuited by negative cache operation={} url={}", operation, url);
+            throw cachedFailure;
+        }
+
+        if (properties.getResponseCacheTtlMs() <= 0L) {
+            return executeGetAndCacheFailure(operation, url, context, cacheKey);
+        }
+        return getResponseCache.get(cacheKey, () -> executeGetAndCacheFailure(operation, url, context, cacheKey));
+    }
+
+    /**
+     * Remembers failures briefly so one broken URL is not re-attempted once per rate plan, per room
+     * type and per forecast day within a single availability lookup.
+     */
+    private String executeGetAndCacheFailure(
+            String operation,
+            String url,
+            Map<String, Object> context,
+            String cacheKey
+    ) {
+        try {
+            return executeGet(operation, url, context);
+        } catch (ExternalServiceException ex) {
+            getFailureCache.put(cacheKey, ex);
+            throw ex;
+        }
+    }
+
+    private String authorizationScope() {
+        String token = properties.getServiceAuthToken();
+        if (!StringUtils.hasText(token)) {
+            RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes instanceof ServletRequestAttributes servletRequestAttributes) {
+                token = servletRequestAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+            }
+        }
+
+        if (!StringUtils.hasText(token)) {
+            return "anonymous";
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(token.trim().getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 digest unavailable", ex);
+        }
+    }
+
+    private String executeGet(String operation, String url, Map<String, Object> context) {
         int maxAttempts = Math.max(1, properties.getRetryMaxAttempts());
         int attempt = 0;
 
@@ -597,14 +670,13 @@ public class RateManagementServiceClient implements RateManagementPort {
             RateManagementPlanDto plan,
             String requestedOccupancyType
     ) {
-        if (plan.getId() == null) {
+        Long planId = plan.getId();
+        if (planId == null) {
             return null;
         }
 
-        List<MasterRoomPricingEntry> pricingEntries = masterRoomPricingCache.computeIfAbsent(
-            plan.getId(),
-            this::loadMasterRoomPricingEntries
-        );
+        List<MasterRoomPricingEntry> pricingEntries =
+            masterRoomPricingCache.get(planId, () -> loadMasterRoomPricingEntries(planId));
         if (pricingEntries.isEmpty()) {
             return null;
         }

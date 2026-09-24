@@ -6,4 +6,7 @@ import com.pms.reservation.dto.CheckInCompletionResponseDto;
 public interface ReservationCheckInWorkflowService {
 
     CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, CheckInCompleteRequestDto request);
+
+    CheckInCompletionResponseDto completeCheckIn(String confirmationNumber, Long bookingId,
+                                                 CheckInCompleteRequestDto request);
 }

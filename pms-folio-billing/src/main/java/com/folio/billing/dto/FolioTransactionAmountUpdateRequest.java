@@ -10,5 +10,11 @@ public record FolioTransactionAmountUpdateRequest(
         @NotBlank String confirmationNumber,
         @NotBlank String referenceNumber,
         @NotNull @DecimalMin("0.01") BigDecimal amount,
-        String userId
-) {}
+        String userId,
+        Long bookingId
+) {
+    public FolioTransactionAmountUpdateRequest(String confirmationNumber, String referenceNumber,
+                                               BigDecimal amount, String userId) {
+        this(confirmationNumber, referenceNumber, amount, userId, null);
+    }
+}
