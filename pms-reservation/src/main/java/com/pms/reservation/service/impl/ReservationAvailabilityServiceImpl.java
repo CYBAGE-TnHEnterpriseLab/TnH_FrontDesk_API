@@ -202,7 +202,8 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             List<RatePlanPricingQuoteDto> rateQuotes = lookupContext.rateQuotes(
                 arrivalDate,
                 departureDate,
-                () -> fetchRateQuotesWithRoomTypeFallback(request, arrivalDate, departureDate, baseInventory)
+                () -> fetchRateQuotesWithRoomTypeFallback(
+                    request, arrivalDate, departureDate, baseInventory, lookupContext)
             );
 
         inventory = enrichInventoryFromRateQuotes(
@@ -427,8 +428,14 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         ReservationAvailabilityRequestDto request,
         LocalDate arrivalDate,
         LocalDate departureDate,
-        List<PropertyRoomInventoryDto> inventory
+        List<PropertyRoomInventoryDto> inventory,
+        AvailabilityLookupContext lookupContext
     ) {
+        // Authorization does not vary by stay date, so one 401/403 must not be retried for every forecast day.
+        if (lookupContext.isRateManagementUnauthorized()) {
+            return List.of();
+        }
+
         Map<String, PropertyRoomInventoryDto> roomTypeCandidates = buildRoomTypeCandidates(inventory);
 
         try {
@@ -462,6 +469,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     arrivalDate,
                     departureDate,
                     roomTypeCandidates,
+                    lookupContext,
                     "direct fetch returned quotes without joinable room-type context"
                 );
 
@@ -495,10 +503,12 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 roomTypeCandidates,
+                lookupContext,
                 "direct fetch returned empty"
             );
         } catch (ExternalServiceException ex) {
             if (isUnauthorizedRateManagementFailure(ex)) {
+                lookupContext.markRateManagementUnauthorized();
                 log.warn(
                     "Rate quote fetch unauthorized for propertyId={} arrival={} departure={}; skipping per-room fallback to avoid repeated unauthorized calls. reason={}",
                     request.getPropertyId(),
@@ -534,6 +544,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 roomTypeCandidates,
+                lookupContext,
                 ex.getMessage()
             );
         }
@@ -656,17 +667,17 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         LocalDate arrivalDate,
         LocalDate departureDate,
         Map<String, PropertyRoomInventoryDto> roomTypeCandidates,
+        AvailabilityLookupContext lookupContext,
         String reason
     ) {
         List<RatePlanPricingQuoteDto> aggregated = new ArrayList<>();
-        AtomicBoolean unauthorizedEncountered = new AtomicBoolean(false);
 
         List<List<RatePlanPricingQuoteDto>> perCandidateQuotes = parallelExecutor.mapIo(
             new ArrayList<>(roomTypeCandidates.values()),
             candidate -> {
                 String roomType = candidate.getRoomType();
                 Long roomTypeId = candidate.getRoomTypeId();
-                if (unauthorizedEncountered.get()) {
+                if (lookupContext.isRateManagementUnauthorized()) {
                     return List.<RatePlanPricingQuoteDto>of();
                 }
 
@@ -684,7 +695,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     return perRoomQuotes == null ? List.<RatePlanPricingQuoteDto>of() : perRoomQuotes;
                 } catch (ExternalServiceException perRoomEx) {
                     if (isUnauthorizedRateManagementFailure(perRoomEx)) {
-                        unauthorizedEncountered.set(true);
+                        lookupContext.markRateManagementUnauthorized();
                         log.warn(
                             "Rate quote fetch unauthorized for propertyId={} roomType={} roomTypeId={} arrival={} departure={}; skipping remaining per-room retries. reason={}",
                             request.getPropertyId(),
@@ -972,11 +983,20 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             new TtlCache<>(REQUEST_SCOPED_TTL_MS, 512);
         private final TtlCache<String, List<RatePlanPricingQuoteDto>> rateQuoteCache =
             new TtlCache<>(REQUEST_SCOPED_TTL_MS, 128);
+        private final AtomicBoolean rateManagementUnauthorized = new AtomicBoolean(false);
 
         private AvailabilityLookupContext(String propertyId, LocalDate windowStart, LocalDate windowEnd) {
             this.propertyId = propertyId;
             this.windowStart = windowStart;
             this.windowEnd = windowEnd;
+        }
+
+        private boolean isRateManagementUnauthorized() {
+            return rateManagementUnauthorized.get();
+        }
+
+        private void markRateManagementUnauthorized() {
+            rateManagementUnauthorized.set(true);
         }
 
         private String propertyId() {
