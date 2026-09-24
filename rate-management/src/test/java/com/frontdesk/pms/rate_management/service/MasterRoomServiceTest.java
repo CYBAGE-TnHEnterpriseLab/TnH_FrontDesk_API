@@ -16,6 +16,9 @@ import com.frontdesk.pms.rate_management.mapper.MasterRoomMapper;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.MasterRoomRepository;
 import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
+import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingRequestDTO;
+import com.frontdesk.pms.rate_management.enums.DifferentialType;
+import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,6 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 class MasterRoomServiceTest {
@@ -53,8 +58,8 @@ class MasterRoomServiceTest {
     @Mock
     private MasterRoomMapper masterRoomMapper;
 
-        @Mock
-        private PropertyWizardClient propertyWizardClient;
+    @Mock
+    private PropertyWizardClient propertyWizardClient;
 
     @InjectMocks
     private MasterRoomService masterRoomService;
@@ -117,87 +122,180 @@ class MasterRoomServiceTest {
 
         @Test
         void upsertRoomTypeMapping_shouldCreateWhenNotExists() {
-                String propertyId = "11111111-1111-1111-1111-111111111111";
-                Long roomTypeId = 601L;
-                Long masterRoomId = 6L;
+            String propertyId = "11111111-1111-1111-1111-111111111111";
+            Long roomTypeId = 601L;
+            Long masterRoomId = 6L;
 
-                MasterRoom masterRoom = new MasterRoom();
-                masterRoom.setId(masterRoomId);
-                masterRoom.setPropertyId(propertyId);
+            MasterRoom masterRoom = new MasterRoom();
+            masterRoom.setId(masterRoomId);
+            masterRoom.setPropertyId(propertyId);
 
-                MasterRoomPricing masterPricing = new MasterRoomPricing();
-                masterPricing.setId(6001L);
-                masterPricing.setMasterRoom(masterRoom);
-                masterPricing.setOccupancyType("2 Guest");
-                masterPricing.setPrice(2600.0);
+            MasterRoomPricing masterPricing = new MasterRoomPricing();
+            masterPricing.setId(6001L);
+            masterPricing.setMasterRoom(masterRoom);
+            masterPricing.setOccupancyType("2 Guest");
+            masterPricing.setPrice(2600.0);
 
-                MasterRoomRoomTypeMapping savedMapping = new MasterRoomRoomTypeMapping();
-                savedMapping.setId(61L);
-                savedMapping.setMasterRoom(masterRoom);
-                savedMapping.setRoomTypeId(roomTypeId);
+            MasterRoomRoomTypeMapping savedMapping =
+                    new MasterRoomRoomTypeMapping();
+            savedMapping.setId(61L);
+            savedMapping.setMasterRoom(masterRoom);
+            savedMapping.setRoomTypeId(roomTypeId);
+            savedMapping.setDifferentialType(DifferentialType.PERCENTAGE);
+            savedMapping.setDifferentialValue(BigDecimal.TEN);
 
-                MasterRoomRoomTypeMappingResponseDTO responseDTO = new MasterRoomRoomTypeMappingResponseDTO();
-                responseDTO.setId(61L);
-                responseDTO.setRoomTypeId(roomTypeId);
+            MasterRoomRoomTypeMappingResponseDTO responseDTO =
+                    new MasterRoomRoomTypeMappingResponseDTO();
+            responseDTO.setId(61L);
+            responseDTO.setRoomTypeId(roomTypeId);
 
-                when(masterRoomRepository.findById(masterRoomId)).thenReturn(Optional.of(masterRoom));
-                when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(propertyId, roomTypeId)).thenReturn(Optional.empty());
-                when(mappingRepository.save(any(MasterRoomRoomTypeMapping.class))).thenReturn(savedMapping);
-                when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId)).thenReturn(List.of(masterPricing));
-                when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "2 Guest")).thenReturn(Optional.empty());
-                when(masterRoomMapper.toMappingResponseDTO(savedMapping)).thenReturn(responseDTO);
+            MasterRoomRoomTypeMappingRequestDTO requestDTO =
+                    new MasterRoomRoomTypeMappingRequestDTO();
 
-                MasterRoomRoomTypeMappingResponseDTO result = masterRoomService.upsertRoomTypeMapping(propertyId, roomTypeId, masterRoomId);
+            requestDTO.setRoomTypeId(roomTypeId);
+            requestDTO.setDifferentialType(DifferentialType.PERCENTAGE);
+            requestDTO.setDifferentialValue(BigDecimal.TEN);
 
-                assertEquals(61L, result.getId());
-                assertEquals(roomTypeId, result.getRoomTypeId());
-                verify(mappingRepository, times(1)).save(any(MasterRoomRoomTypeMapping.class));
-                verify(masterRoomPricingRepository, times(1)).save(any(MasterRoomPricing.class));
+            when(masterRoomRepository.findById(masterRoomId))
+                    .thenReturn(Optional.of(masterRoom));
+
+            when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(
+                    propertyId, roomTypeId))
+                    .thenReturn(Optional.empty());
+
+            when(mappingRepository.save(any(MasterRoomRoomTypeMapping.class)))
+                    .thenReturn(savedMapping);
+
+            when(masterRoomPricingRepository.findByMasterRoomId(masterRoomId))
+                    .thenReturn(List.of(masterPricing));
+
+            when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(
+                    roomTypeId, "2 Guest"))
+                    .thenReturn(Optional.empty());
+
+            when(masterRoomMapper.toMappingResponseDTO(savedMapping))
+                    .thenReturn(responseDTO);
+
+            MasterRoomRoomTypeMappingResponseDTO result =
+                    masterRoomService.upsertRoomTypeMapping(
+                            propertyId,
+                            requestDTO,
+                            masterRoomId
+                    );
+
+            assertEquals(61L, result.getId());
+            assertEquals(roomTypeId, result.getRoomTypeId());
+
+            ArgumentCaptor<MasterRoomRoomTypeMapping> mappingCaptor =
+                    ArgumentCaptor.forClass(MasterRoomRoomTypeMapping.class);
+
+            verify(mappingRepository, times(1))
+                    .save(mappingCaptor.capture());
+
+            MasterRoomRoomTypeMapping savedMappingArgument =
+                    mappingCaptor.getValue();
+
+            assertEquals(roomTypeId, savedMappingArgument.getRoomTypeId());
+            assertEquals(
+                    DifferentialType.PERCENTAGE,
+                    savedMappingArgument.getDifferentialType()
+            );
+            assertEquals(
+                    BigDecimal.TEN,
+                    savedMappingArgument.getDifferentialValue()
+            );
+
+            verify(masterRoomPricingRepository, times(1))
+                    .save(any(MasterRoomPricing.class));
         }
 
         @Test
         void upsertRoomTypeMapping_shouldUpdateWhenExists() {
-                String propertyId = "11111111-1111-1111-1111-111111111111";
-                Long roomTypeId = 701L;
-                Long oldMasterRoomId = 7L;
-                Long newMasterRoomId = 8L;
+            String propertyId = "11111111-1111-1111-1111-111111111111";
+            Long roomTypeId = 701L;
+            Long oldMasterRoomId = 7L;
+            Long newMasterRoomId = 8L;
 
-                MasterRoom oldMasterRoom = new MasterRoom();
-                oldMasterRoom.setId(oldMasterRoomId);
-                oldMasterRoom.setPropertyId(propertyId);
+            MasterRoom oldMasterRoom = new MasterRoom();
+            oldMasterRoom.setId(oldMasterRoomId);
+            oldMasterRoom.setPropertyId(propertyId);
 
-                MasterRoom newMasterRoom = new MasterRoom();
-                newMasterRoom.setId(newMasterRoomId);
-                newMasterRoom.setPropertyId(propertyId);
+            MasterRoom newMasterRoom = new MasterRoom();
+            newMasterRoom.setId(newMasterRoomId);
+            newMasterRoom.setPropertyId(propertyId);
 
-                MasterRoomRoomTypeMapping existingMapping = new MasterRoomRoomTypeMapping();
-                existingMapping.setId(71L);
-                existingMapping.setMasterRoom(oldMasterRoom);
-                existingMapping.setRoomTypeId(roomTypeId);
+            MasterRoomRoomTypeMapping existingMapping =
+                    new MasterRoomRoomTypeMapping();
+            existingMapping.setId(71L);
+            existingMapping.setMasterRoom(oldMasterRoom);
+            existingMapping.setRoomTypeId(roomTypeId);
 
-                MasterRoomPricing newMasterPricing = new MasterRoomPricing();
-                newMasterPricing.setId(8001L);
-                newMasterPricing.setMasterRoom(newMasterRoom);
-                newMasterPricing.setOccupancyType("2 Guest");
-                newMasterPricing.setPrice(2800.0);
+            MasterRoomPricing newMasterPricing = new MasterRoomPricing();
+            newMasterPricing.setId(8001L);
+            newMasterPricing.setMasterRoom(newMasterRoom);
+            newMasterPricing.setOccupancyType("2 Guest");
+            newMasterPricing.setPrice(2800.0);
 
-                MasterRoomRoomTypeMappingResponseDTO responseDTO = new MasterRoomRoomTypeMappingResponseDTO();
-                responseDTO.setId(71L);
-                responseDTO.setRoomTypeId(roomTypeId);
+            MasterRoomRoomTypeMappingResponseDTO responseDTO =
+                    new MasterRoomRoomTypeMappingResponseDTO();
+            responseDTO.setId(71L);
+            responseDTO.setRoomTypeId(roomTypeId);
 
-                when(masterRoomRepository.findById(newMasterRoomId)).thenReturn(Optional.of(newMasterRoom));
-                when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(propertyId, roomTypeId)).thenReturn(Optional.of(existingMapping));
-                when(mappingRepository.save(existingMapping)).thenReturn(existingMapping);
-                when(masterRoomPricingRepository.findByMasterRoomId(newMasterRoomId)).thenReturn(List.of(newMasterPricing));
-                when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(roomTypeId, "2 Guest")).thenReturn(Optional.empty());
-                when(masterRoomMapper.toMappingResponseDTO(existingMapping)).thenReturn(responseDTO);
+            MasterRoomRoomTypeMappingRequestDTO requestDTO =
+                    new MasterRoomRoomTypeMappingRequestDTO();
 
-                MasterRoomRoomTypeMappingResponseDTO result = masterRoomService.upsertRoomTypeMapping(propertyId, roomTypeId, newMasterRoomId);
+            requestDTO.setRoomTypeId(roomTypeId);
+            requestDTO.setDifferentialType(DifferentialType.FIXED);
+            requestDTO.setDifferentialValue(BigDecimal.valueOf(50));
 
-                assertEquals(71L, result.getId());
-                assertEquals(newMasterRoomId, existingMapping.getMasterRoom().getId());
-                verify(mappingRepository, times(1)).save(existingMapping);
-                verify(masterRoomPricingRepository, times(1)).save(any(MasterRoomPricing.class));
+            when(masterRoomRepository.findById(newMasterRoomId))
+                    .thenReturn(Optional.of(newMasterRoom));
+
+            when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(
+                    propertyId, roomTypeId))
+                    .thenReturn(Optional.of(existingMapping));
+
+            when(mappingRepository.save(existingMapping))
+                    .thenReturn(existingMapping);
+
+            when(masterRoomPricingRepository.findByMasterRoomId(newMasterRoomId))
+                    .thenReturn(List.of(newMasterPricing));
+
+            when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(
+                    roomTypeId, "2 Guest"))
+                    .thenReturn(Optional.empty());
+
+            when(masterRoomMapper.toMappingResponseDTO(existingMapping))
+                    .thenReturn(responseDTO);
+
+            MasterRoomRoomTypeMappingResponseDTO result =
+                    masterRoomService.upsertRoomTypeMapping(
+                            propertyId,
+                            requestDTO,
+                            newMasterRoomId
+                    );
+
+            assertEquals(71L, result.getId());
+            assertEquals(
+                    newMasterRoomId,
+                    existingMapping.getMasterRoom().getId()
+            );
+
+            assertEquals(
+                    DifferentialType.FIXED,
+                    existingMapping.getDifferentialType()
+            );
+
+            assertEquals(
+                    BigDecimal.valueOf(50),
+                    existingMapping.getDifferentialValue()
+            );
+
+            verify(mappingRepository, times(1))
+                    .save(existingMapping);
+
+            verify(masterRoomPricingRepository, times(1))
+                    .save(any(MasterRoomPricing.class));
         }
 
     @Test
@@ -267,20 +365,23 @@ class MasterRoomServiceTest {
 
                 when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{roomType});
                 when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(mapping));
-                when(masterRoomPricingRepository.findByRoomTypeId(501L)).thenReturn(List.of(inheritedPricing));
-                when(masterRoomMapper.toPricingResponseDTO(inheritedPricing)).thenReturn(pricingResponse);
+                when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeId(5L, 501L))
+                        .thenReturn(List.of(inheritedPricing));
+            when(masterRoomMapper.toPricingResponseDTO(inheritedPricing))
+                    .thenReturn(pricingResponse);
 
-                List<PropertyRoomTypeMappingResponseDTO> result = masterRoomService.getMappingsByPropertyId(propertyId);
+            List<PropertyRoomTypeMappingResponseDTO> result =
+                    masterRoomService.getMappingsByPropertyId(propertyId);
 
-                assertEquals(1, result.size());
-                assertEquals(50L, result.get(0).getMappingId());
-                assertEquals(501L, result.get(0).getRoomTypeId());
-                assertEquals("Standard King", result.get(0).getRoomTypeName());
-                assertEquals(true, result.get(0).isMapped());
-                assertEquals(5L, result.get(0).getMasterRoomId());
-                assertEquals("Standard Master", result.get(0).getMasterRoomName());
-                assertEquals(1, result.get(0).getInheritedRates().size());
-                assertEquals("2 Guest", result.get(0).getInheritedRates().get(0).getOccupancyType());
+            assertEquals(1, result.size());
+            assertEquals(50L, result.get(0).getMappingId());
+            assertEquals(501L, result.get(0).getRoomTypeId());
+            assertEquals("Standard King", result.get(0).getRoomTypeName());
+            assertTrue(result.get(0).isMapped());
+            assertEquals(5L, result.get(0).getMasterRoomId());
+            assertEquals("Standard Master", result.get(0).getMasterRoomName());
+            assertEquals(1, result.get(0).getInheritedRates().size());
+            assertEquals("2 Guest", result.get(0).getInheritedRates().get(0).getOccupancyType());
         }
 
         @Test
@@ -309,33 +410,36 @@ class MasterRoomServiceTest {
 
         @Test
         void getMappingsByPropertyId_shouldDeleteStaleMappingsWhenRoomTypeMissingInPropertyWizard() {
-                String propertyId = "11111111-1111-1111-1111-111111111111";
+            String propertyId = "11111111-1111-1111-1111-111111111111";
 
-                MasterRoom masterRoom = new MasterRoom();
-                masterRoom.setId(9L);
-                masterRoom.setName("Strict Sync Master");
-                masterRoom.setPropertyId(propertyId);
+            MasterRoom masterRoom = new MasterRoom();
+            masterRoom.setId(9L);
+            masterRoom.setName("Strict Sync Master");
+            masterRoom.setPropertyId(propertyId);
 
-                MasterRoomRoomTypeMapping staleMapping = new MasterRoomRoomTypeMapping();
-                staleMapping.setId(90L);
-                staleMapping.setMasterRoom(masterRoom);
-                staleMapping.setRoomTypeId(901L);
+            MasterRoomRoomTypeMapping staleMapping = new MasterRoomRoomTypeMapping();
+            staleMapping.setId(90L);
+            staleMapping.setMasterRoom(masterRoom);
+            staleMapping.setRoomTypeId(901L);
 
-                RoomDTO currentRoomType = new RoomDTO();
-                currentRoomType.setId(902L);
-                currentRoomType.setName("Current Room Type");
+            RoomDTO currentRoomType = new RoomDTO();
+            currentRoomType.setId(902L);
+            currentRoomType.setName("Current Room Type");
 
-                when(propertyWizardClient.getRoomTypesByProperty(propertyId)).thenReturn(new RoomDTO[]{currentRoomType});
-                when(mappingRepository.findByMasterRoomPropertyId(propertyId)).thenReturn(List.of(staleMapping));
-                when(masterRoomPricingRepository.findByRoomTypeId(901L)).thenReturn(List.of());
-                when(masterRoomPricingRepository.findByRoomTypeId(902L)).thenReturn(List.of());
+            when(propertyWizardClient.getRoomTypesByProperty(propertyId))
+                    .thenReturn(new RoomDTO[]{currentRoomType});
 
-                List<PropertyRoomTypeMappingResponseDTO> result = masterRoomService.getMappingsByPropertyId(propertyId);
+            when(mappingRepository.findByMasterRoomPropertyId(propertyId))
+                    .thenReturn(List.of(staleMapping));
 
-                assertEquals(1, result.size());
-                assertEquals(902L, result.get(0).getRoomTypeId());
-                assertEquals(false, result.get(0).isMapped());
-                verify(mappingRepository, times(1)).deleteAll(anyList());
+            List<PropertyRoomTypeMappingResponseDTO> result =
+                    masterRoomService.getMappingsByPropertyId(propertyId);
+
+            assertEquals(1, result.size());
+            assertEquals(902L, result.get(0).getRoomTypeId());
+            assertEquals(false, result.get(0).isMapped());
+
+            verify(mappingRepository, times(1)).deleteAll(anyList());
         }
 
     @Test
@@ -532,4 +636,3 @@ class MasterRoomServiceTest {
                 verify(masterRoomRepository, never()).save(any(MasterRoom.class));
         }
 }
-
