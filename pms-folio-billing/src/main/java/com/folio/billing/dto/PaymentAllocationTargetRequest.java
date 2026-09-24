@@ -11,7 +11,11 @@ public record PaymentAllocationTargetRequest(
         String confirmationNumber,
         @NotNull(message = "amount is required")
         @DecimalMin(value = "0.01", message = "amount must be greater than zero")
-        BigDecimal amount
+                BigDecimal amount,
+                Long bookingId
 ) {
+        public PaymentAllocationTargetRequest(String confirmationNumber, BigDecimal amount) {
+                this(confirmationNumber, amount, null);
+        }
 }
 

@@ -5,10 +5,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "folios", uniqueConstraints = @UniqueConstraint(columnNames = {"confirmation_number", "folio_code"}))
+@Table(name = "folios", uniqueConstraints = @UniqueConstraint(columnNames = {"booking_id", "folio_code"}))
 public class Folio {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @Column(name = "confirmation_number", nullable = false) private String confirmationNumber;
+    @Column(name = "booking_id") private Long bookingId;
     @Column(name = "folio_code", nullable = false) private String folioCode;
     @Column(nullable = false) private String guestName;
     @Column(nullable = false) private String roomNo;
@@ -30,8 +31,11 @@ public class Folio {
         this.createdAt = createdAt; this.lastUpdatedAt = lastUpdatedAt;
     }
     public Long getId() { return id; }
+    public Long getBookingId() { return bookingId; }
+    public void setBookingId(Long bookingId) { this.bookingId = bookingId; }
     public String getConfirmationNumber() { return confirmationNumber; }
     public String getFolioCode() { return folioCode; }
+    public void setFolioCode(String folioCode) { this.folioCode = folioCode; }
     public String getGuestName() { return guestName; }
     public String getRoomNo() { return roomNo; }
     public BigDecimal getTotalCharges() { return totalCharges; }

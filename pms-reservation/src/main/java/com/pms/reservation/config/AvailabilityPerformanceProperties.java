@@ -18,6 +18,17 @@ public class AvailabilityPerformanceProperties {
     @Min(value = 1, message = "reservation.availability.parallelism must be >= 1")
     private int parallelism = 12;
 
+    /**
+     * Threads for downstream calls. Day-level tasks block while their IO fan-out runs, so this pool
+     * must be comfortably larger than {@link #parallelism}. Defaults to {@code parallelism * 4}.
+     */
+    @Min(value = 1, message = "reservation.availability.io-parallelism must be >= 1")
+    private Integer ioParallelism;
+
+    public int resolveIoParallelism() {
+        return ioParallelism == null ? Math.max(1, parallelism) * 4 : ioParallelism;
+    }
+
     @Min(value = 1, message = "reservation.availability.forecast-days must be >= 1")
     private int forecastDays = 15;
 

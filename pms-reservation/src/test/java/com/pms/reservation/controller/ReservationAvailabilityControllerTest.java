@@ -240,4 +240,17 @@ class ReservationAvailabilityControllerTest {
 
         verify(reservationAvailabilityService).getAvailability(any());
     }
+
+        @Test
+        void getAvailabilityShouldRejectMoreThanNineRooms() throws Exception {
+                mockMvc.perform(get("/api/v1/reservations/availability")
+                                                .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
+                                                .param("date", "2026-07-01")
+                                                .param("night", "2")
+                                                .param("numberOfRooms", "10"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Validation failed"))
+                                .andExpect(jsonPath("$.errors").value("getAvailability.numberOfRooms: numberOfRooms must be <= 9"));
+        }
 }

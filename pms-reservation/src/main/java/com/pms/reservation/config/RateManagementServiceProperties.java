@@ -44,6 +44,13 @@ public class RateManagementServiceProperties {
     @Min(value = 0, message = "rate-management.response-cache-ttl-ms must be >= 0")
     private long responseCacheTtlMs = 60_000;
 
+    /**
+     * Negative cache for failed idempotent GETs. Without it a single broken URL is re-attempted
+     * (with retries and backoff) once per rate plan, per room type and per forecast day.
+     */
+    @Min(value = 0, message = "rate-management.failure-cache-ttl-ms must be >= 0")
+    private long failureCacheTtlMs = 5_000;
+
     @Min(value = 1, message = "rate-management.response-cache-max-size must be >= 1")
     private int responseCacheMaxSize = 5_000;
 }

@@ -15,6 +15,7 @@ public class FolioChargePostRequest {
     @JsonAlias("confirmationNo")
     @NotBlank(message = "confirmationNumber is required")
     private String confirmationNumber;
+    private Long bookingId;
     private String folioId;
     private String folioName;
     private String guestName;
@@ -51,6 +52,7 @@ public class FolioChargePostRequest {
     }
 
     public String confirmationNumber() { return confirmationNumber; }
+    public Long bookingId() { return bookingId; }
     public String folioId() { return folioId; }
     public String folioName() { return folioName; }
     public String guestName() { return guestName; }
@@ -72,6 +74,7 @@ public class FolioChargePostRequest {
 
     @JsonAlias("confirmationNo")
     public void setConfirmationNumber(String confirmationNumber) { this.confirmationNumber = confirmationNumber; }
+    public void setBookingId(Long bookingId) { this.bookingId = bookingId; }
     public void setFolioId(String folioId) { this.folioId = folioId; }
     public void setFolioName(String folioName) { this.folioName = folioName; }
     public void setGuestName(String guestName) { this.guestName = guestName; }

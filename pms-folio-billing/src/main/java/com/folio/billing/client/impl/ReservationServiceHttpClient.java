@@ -53,7 +53,7 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
     public List<FolioBillingRow> searchFolioBilling(FolioBillingFilter filter) {
         if (StringUtils.hasText(filter.confirmationNumber())) {
             Optional<ReservationSummary> summary = getReservationSummary(
-                    filter.confirmationNumber(), filter.roomNumber(), filter.guestName());
+                    filter.confirmationNumber(), filter.bookingId(), filter.roomNumber(), filter.guestName());
             if (summary.isPresent()) {
                 return List.of(toFolioBillingRow(summary.get()));
             }
@@ -117,9 +117,25 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         }
 
         JsonNode guestListingRow = listingRow.get();
-        Optional<JsonNode> reservationDetails = fetchReservationDetailsByBookingId(guestListingRow.path("id").asLong(-1));
+        Optional<JsonNode> reservationDetails = fetchReservationDetailsByBookingId(
+            text(guestListingRow, "confirmationNumber"), guestListingRow.path("id").asLong(-1));
 
         return Optional.of(toReservationSummary(guestListingRow, reservationDetails.orElse(null)));
+    }
+
+    @Override
+    public Optional<ReservationSummary> getReservationSummary(String confirmationNumber, Long bookingId,
+                                                               String roomNo, String guestName) {
+        if (bookingId == null) {
+            return getReservationSummary(confirmationNumber, roomNo, guestName);
+        }
+
+        Optional<JsonNode> reservationDetails = fetchReservationDetailsByBookingId(confirmationNumber, bookingId);
+        if (reservationDetails.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(toReservationSummary(reservationDetails.get(), reservationDetails.get(), bookingId));
     }
 
     private Optional<JsonNode> fetchReservationDetailsByConfirmationNumber(String confirmationNumber) {
@@ -169,7 +185,8 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         }
 
         JsonNode guestListingRow = listingRow.get();
-        Optional<JsonNode> reservationDetails = fetchReservationDetailsByBookingId(guestListingRow.path("id").asLong(-1));
+        Optional<JsonNode> reservationDetails = fetchReservationDetailsByBookingId(
+            text(guestListingRow, "confirmationNumber"), guestListingRow.path("id").asLong(-1));
 
         if (reservationDetails.isEmpty()) {
             return List.of(toGuestDetailFromListing(guestListingRow));
@@ -235,14 +252,15 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         }
     }
 
-    private Optional<JsonNode> fetchReservationDetailsByBookingId(long bookingId) {
-        if (bookingId <= 0 || !isBaseUrlConfigured()) {
+    private Optional<JsonNode> fetchReservationDetailsByBookingId(String confirmationNumber, long bookingId) {
+        if (!StringUtils.hasText(confirmationNumber) || bookingId <= 0 || !isBaseUrlConfigured()) {
             return Optional.empty();
         }
 
         try {
             String payload = restClient.get()
-                    .uri("/api/v1/reservations/bookings/{bookingId}", bookingId)
+                    .uri("/api/v1/reservations/bookings/{confirmationNumber}/rooms/{bookingId}",
+                            confirmationNumber, bookingId)
                     .accept(MediaType.APPLICATION_JSON)
                     .headers(this::addInboundAuthorizationHeader)
                     .retrieve()
@@ -260,10 +278,12 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
 
             return Optional.of(root);
         } catch (RestClientResponseException ex) {
-            LOGGER.warn("Reservation booking details API failed with status {} for bookingId {}", ex.getStatusCode().value(), bookingId);
+                LOGGER.warn("Reservation booking details API failed with status {} for confirmationNumber {} and bookingId {}",
+                    ex.getStatusCode().value(), confirmationNumber, bookingId);
             return Optional.empty();
         } catch (Exception ex) {
-            LOGGER.warn("Reservation booking details API call failed for bookingId {}: {}", bookingId, ex.getMessage());
+                LOGGER.warn("Reservation booking details API call failed for confirmationNumber {} and bookingId {}: {}",
+                    confirmationNumber, bookingId, ex.getMessage());
             return Optional.empty();
         }
     }
@@ -320,7 +340,8 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 intValue(node, "nights", 0),
                 text(node, "roomStatus"),
                 text(node, "roomType"),
-                text(node, "confirmationNumber")
+                text(node, "confirmationNumber"),
+                longValue(node, "id")
         );
     }
 
@@ -350,11 +371,16 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 summary.nights(),
                 "",
                 summary.roomType(),
-                summary.confirmationNumber()
+                summary.confirmationNumber(),
+                summary.bookingId()
         );
     }
 
     private ReservationSummary toReservationSummary(JsonNode guestListingRow, JsonNode reservationDetails) {
+        return toReservationSummary(guestListingRow, reservationDetails, null);
+    }
+
+    private ReservationSummary toReservationSummary(JsonNode guestListingRow, JsonNode reservationDetails, Long bookingId) {
         JsonNode guest = reservationDetails != null ? reservationDetails.path("guest") : null;
         JsonNode stay = reservationDetails != null ? reservationDetails.path("stay") : null;
         JsonNode room = reservationDetails != null ? reservationDetails.path("room") : null;
@@ -372,6 +398,15 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 amount(guestListingRow, "totalAmount"),
                 amount(guestListingRow, "amount")
         );
+        BigDecimal roomRate = amount(pricing, "roomRate");
+        int nights = intValue(stay, "nights", intValue(guestListingRow, "nights", 0));
+        if (bookingId != null && roomRate != null && roomRate.signum() > 0 && nights > 0) {
+            reservationAmount = roomRate.multiply(BigDecimal.valueOf(nights));
+        } else if (reservationAmount == null || reservationAmount.signum() <= 0) {
+            if (roomRate != null && roomRate.signum() > 0 && nights > 0) {
+                reservationAmount = roomRate.multiply(BigDecimal.valueOf(nights));
+            }
+        }
 
         String firstName = firstNonBlank(text(guest, "firstName"), text(guestListingRow, "firstName"));
         String lastName = firstNonBlank(text(guest, "lastName"), text(guestListingRow, "lastName"));
@@ -409,7 +444,8 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 checkOutDate,
                 intValue(stay, "nights", intValue(guestListingRow, "nights", 0)),
                 reservationComments,
-                reservationAmount
+                reservationAmount,
+                bookingId
         );
     }
 
@@ -555,6 +591,14 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
         }
         JsonNode value = node.path(field);
         return value.isNumber() ? value.intValue() : defaultValue;
+    }
+
+    private Long longValue(JsonNode node, String field) {
+        if (node == null) {
+            return null;
+        }
+        JsonNode value = node.path(field);
+        return value.isIntegralNumber() ? value.longValue() : null;
     }
 
     private LocalDate parseDate(String value) {

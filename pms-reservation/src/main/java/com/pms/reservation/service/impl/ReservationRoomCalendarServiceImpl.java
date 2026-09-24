@@ -113,7 +113,13 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         Map<String, Map<LocalDate, MutableCell>> grid = initializeGrid(roomMetaByNo.keySet(), dates);
 
         applyBookingStatuses(grid, overlappingBookings, arrivalDate, departureDate, requestedRoomTypes);
-        applyHousekeepingStatuses(grid, housekeepingStatuses, bookingRefByConfirmation, requestedRoomTypes, roomMetaByNo);
+        applyHousekeepingStatuses(
+            grid,
+            housekeepingStatuses,
+            bookingRefByConfirmation,
+            overlappingBookings,
+            requestedRoomTypes,
+            roomMetaByNo);
 
         List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> roomRows = buildRoomRows(roomMetaByNo, grid, dates);
         List<ReservationRoomCalendarResponseDto.RoomCalendarDaySummaryDto> summary = buildDaySummary(dates, roomRows);
@@ -379,6 +385,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             Map<String, Map<LocalDate, MutableCell>> grid,
             List<HousekeepingRoomStatusRecord> housekeepingStatuses,
             Map<String, BookingRef> bookingRefByConfirmation,
+            List<ReservationBookingRecord> overlappingBookings,
             Set<String> requestedRoomTypes,
             Map<String, RoomMeta> roomMetaByNo
     ) {
@@ -388,6 +395,9 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             }
 
             String roomNo = housekeepingStatus.getRoomNo().trim();
+            if (!matchesCurrentBookingRoom(housekeepingStatus, roomNo, overlappingBookings)) {
+                continue;
+            }
             RoomMeta roomMeta = roomMetaByNo.get(roomNo);
                 if (!requestedRoomTypes.isEmpty()
                     && roomMeta != null
@@ -421,6 +431,34 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                     bookingRef == null ? cell.reservationStatus : bookingRef.reservationStatus
             );
         }
+    }
+
+    private boolean matchesCurrentBookingRoom(
+            HousekeepingRoomStatusRecord housekeepingStatus,
+            String roomNo,
+            List<ReservationBookingRecord> overlappingBookings
+    ) {
+        if (overlappingBookings == null || overlappingBookings.isEmpty()) {
+            return true;
+        }
+
+        if (housekeepingStatus.getBookingId() != null) {
+            return overlappingBookings.stream()
+                    .filter(booking -> housekeepingStatus.getBookingId().equals(booking.getId()))
+                    .anyMatch(booking -> roomNo.equalsIgnoreCase(safeRoomNumber(booking.getAssignedRoomNo())));
+        }
+
+        if (!StringUtils.hasText(housekeepingStatus.getConfirmationNumber())) {
+            return true;
+        }
+
+        return overlappingBookings.stream()
+                .filter(booking -> housekeepingStatus.getConfirmationNumber().equals(booking.getConfirmationNumber()))
+                .anyMatch(booking -> roomNo.equalsIgnoreCase(safeRoomNumber(booking.getAssignedRoomNo())));
+    }
+
+    private String safeRoomNumber(String roomNumber) {
+        return roomNumber == null ? "" : roomNumber.trim();
     }
 
     private List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> buildRoomRows(

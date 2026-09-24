@@ -38,7 +38,8 @@ public class HousekeepingController {
 
     @GetMapping("/rooms")
     @Operation(summary = "Get housekeeping rooms")
-    public HousekeepingRoomsPageResponse rooms(@Valid @ModelAttribute HousekeepingRoomFilterRequest request
+    public HousekeepingRoomsPageResponse rooms(
+            @Valid @ModelAttribute HousekeepingRoomFilterRequest request
     ) {
         return housekeepingService.rooms(request);
     }
@@ -91,8 +92,12 @@ public class HousekeepingController {
     @Operation(summary = "Release all housekeeping room assignments for a reservation")
     public int releaseReservationAssignment(
             @PathVariable String confirmationId,
-            @RequestParam @NotNull String propertyId
+            @RequestParam @NotNull String propertyId,
+            @RequestParam(required = false) String roomNumber,
+            @RequestParam(required = false) LocalDate arrivalDate,
+            @RequestParam(required = false) LocalDate departureDate
     ) {
-        return housekeepingService.releaseReservationAssignment(propertyId, confirmationId);
+        return housekeepingService.releaseReservationAssignment(
+                propertyId, confirmationId, roomNumber, arrivalDate, departureDate);
     }
 }

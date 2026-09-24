@@ -18,7 +18,13 @@ public record FolioChargeAdjustmentRequest(
         BigDecimal amount,
         @NotBlank(message = "reason is required")
         String reason,
-        String userId
+                String userId,
+                Long bookingId
 ) {
+        public FolioChargeAdjustmentRequest(String confirmationNumber, String originalReferenceNumber,
+                                                                                ChargeAdjustmentType adjustmentType, BigDecimal amount,
+                                                                                String reason, String userId) {
+                this(confirmationNumber, originalReferenceNumber, adjustmentType, amount, reason, userId, null);
+        }
 }
 

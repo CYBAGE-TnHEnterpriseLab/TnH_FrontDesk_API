@@ -16,7 +16,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.time.temporal.ChronoUnit;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,12 +40,25 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     @Transactional
     public CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, CheckoutRequestDto request) {
         ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        return completeCheckoutForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, Long bookingId,
+                                                          CheckoutRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber, bookingId);
+        return completeCheckoutForBooking(booking, request);
+    }
+
+    private CheckoutCompletionResponseDto completeCheckoutForBooking(ReservationBookingRecord booking,
+                                                                      CheckoutRequestDto request) {
 
         if (!STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
         }
 
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(confirmationNumber);
+        BigDecimal folioBalance = folioServiceClient.getFolioBalance(booking.getConfirmationNumber());
         if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
             throw new BadRequestException(
                     "Check-out denied: folio has outstanding balance of "
@@ -170,6 +185,19 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     @Transactional
     public CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, CheckoutRequestDto request) {
         ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        return cancelCheckoutForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, Long bookingId,
+                                                        CheckoutRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber, bookingId);
+        return cancelCheckoutForBooking(booking, request);
+    }
+
+    private CheckoutCompletionResponseDto cancelCheckoutForBooking(ReservationBookingRecord booking,
+                                                                    CheckoutRequestDto request) {
 
         if (!STATUS_CHECKED_OUT.equalsIgnoreCase(booking.getReservationStatus())) {
             throw new BadRequestException("Only a checked-out reservation can have its check-out cancelled");
@@ -190,8 +218,18 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     }
 
     private ReservationBookingRecord getBookingOrThrow(String confirmationNumber) {
-        return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        List<ReservationBookingRecord> bookings = reservationBookingRepository
+            .findByConfirmationNumber(confirmationNumber);
+        if (bookings.size() > 1) {
+            throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+        }
+        return bookings.stream().findFirst()
+            .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+    }
+
+    private ReservationBookingRecord getBookingOrThrow(String confirmationNumber, Long bookingId) {
+        return reservationBookingRepository.findByIdAndConfirmationNumber(bookingId, confirmationNumber)
+                .orElseThrow(() -> new BadRequestException("Reservation room booking not found"));
     }
 
     private void validateEarlyDeparture(ReservationBookingRecord booking, LocalDate earlyDepartureDate) {
@@ -254,6 +292,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
         housekeepingRequest.setPropertyId(booking.getPropertyId());
         housekeepingRequest.setBusinessDate(request.getBusinessDate());
         housekeepingRequest.setConfirmationNumber(booking.getConfirmationNumber());
+        housekeepingRequest.setBookingId(booking.getId());
         housekeepingRequest.setRoomNo(booking.getAssignedRoomNo());
         if (occupied) {
             housekeepingRoomStatusService.markOccupied(housekeepingRequest);

@@ -7,7 +7,13 @@ public interface ReservationCheckoutService {
 
     CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, CheckoutRequestDto request);
 
+    CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, Long bookingId,
+                                                   CheckoutRequestDto request);
+
     CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, CheckoutRequestDto request);
 
     CheckoutCompletionResponseDto previewEarlyCheckout(String confirmationNumber, CheckoutRequestDto request);
+    
+    CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, Long bookingId,
+                                                  CheckoutRequestDto request);
 }
