@@ -13,11 +13,16 @@ public interface MasterRoomPricingRepository extends JpaRepository<MasterRoomPri
 
 	List<MasterRoomPricing> findByRoomTypeId(Long roomTypeId);
 
+	List<MasterRoomPricing> findByMasterRoomIdAndRoomTypeId(Long masterRoomId, Long roomTypeId);
+
 	Optional<MasterRoomPricing> findByMasterRoomIdAndOccupancyType(Long masterRoomId, String occupancyType);
 
 	Optional<MasterRoomPricing> findByMasterRoomIdAndRoomTypeIdIsNullAndOccupancyType(Long masterRoomId, String occupancyType);
 
 	Optional<MasterRoomPricing> findByRoomTypeIdAndOccupancyType(Long roomTypeId, String occupancyType);
+
+	Optional<MasterRoomPricing> findByMasterRoomIdAndRoomTypeIdAndOccupancyType(
+			Long masterRoomId, Long roomTypeId, String occupancyType);
 
 	List<MasterRoomPricing> findByInheritedTrueAndParentPricingId(Long parentPricingId);
 }

@@ -5,6 +5,8 @@ import com.frontdesk.pms.rate_management.dto.RatePlanPriceResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
+import com.frontdesk.pms.rate_management.entity.MasterRoom;
+import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
 import com.frontdesk.pms.rate_management.entity.RatePlan;
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
@@ -14,6 +16,7 @@ import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
 import com.frontdesk.pms.rate_management.exception.RatePlanNotFoundException;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.RatePlanRepository;
+import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -48,6 +51,9 @@ class RatePlanServiceTest {
 
     @Mock
     private PropertyWizardClient propertyWizardClient;
+
+    @Mock
+    private MasterRoomRoomTypeMappingRepository mappingRepository;
 
     @InjectMocks
     private RatePlanService ratePlanService;
@@ -162,7 +168,8 @@ class RatePlanServiceTest {
         pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -187,7 +194,8 @@ class RatePlanServiceTest {
         pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -212,7 +220,8 @@ class RatePlanServiceTest {
         pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -247,7 +256,8 @@ class RatePlanServiceTest {
 
         when(ratePlanRepository.findByIdAndPropertyId(11L, PROPERTY_ID)).thenReturn(Optional.of(childPlan));
         when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(barPlan));
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -275,7 +285,8 @@ class RatePlanServiceTest {
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.findByIdAndPropertyId(30L, PROPERTY_ID)).thenReturn(Optional.of(plan));
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "1_GUEST"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "1_GUEST"))
             .thenReturn(Optional.of(pricingForOneGuest));
 
         RatePlanPriceResponseDTO responseDTO =
@@ -302,7 +313,8 @@ class RatePlanServiceTest {
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.findByIdAndPropertyId(31L, PROPERTY_ID)).thenReturn(Optional.of(plan));
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2_GUEST"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
             .thenReturn(Optional.of(pricingForTwoGuest));
 
         RatePlanPriceResponseDTO responseDTO =
@@ -556,6 +568,18 @@ class RatePlanServiceTest {
         return requestDTO;
     }
 
+    private void stubMasterRoomMapping(Long roomTypeId, Long masterRoomId) {
+        MasterRoom masterRoom = new MasterRoom();
+        masterRoom.setId(masterRoomId);
+
+        MasterRoomRoomTypeMapping mapping = new MasterRoomRoomTypeMapping();
+        mapping.setMasterRoom(masterRoom);
+        mapping.setRoomTypeId(roomTypeId);
+
+        when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(PROPERTY_ID, roomTypeId))
+                .thenReturn(Optional.of(mapping));
+    }
+
     private RoomDTO[] roomTypes(Long... roomTypeIds) {
         RoomDTO[] roomTypes = new RoomDTO[roomTypeIds.length];
         for (int i = 0; i < roomTypeIds.length; i++) {
@@ -567,4 +591,3 @@ class RatePlanServiceTest {
         return roomTypes;
     }
 }
-
