@@ -53,4 +53,8 @@ public class RateManagementServiceProperties {
 
     @Min(value = 1, message = "rate-management.response-cache-max-size must be >= 1")
     private int responseCacheMaxSize = 5_000;
+
+    /** Highest per-room guest occupancy Rate Management can price; keep in sync with its OccupancyType enum. */
+    @Min(value = 1, message = "rate-management.max-priced-occupancy must be >= 1")
+    private int maxPricedOccupancy = 4;
 }

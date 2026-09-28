@@ -49,7 +49,6 @@ public class RateManagementServiceClient implements RateManagementPort {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String MASTER_ROOM_PRICING_PATH = "/api/master-rooms/{id}/pricing";
-    private static final int MAX_PRICED_OCCUPANCY = 4;
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
@@ -84,7 +83,7 @@ public class RateManagementServiceClient implements RateManagementPort {
             : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
 
         // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
-        boolean supportedOccupancy = adultCount == null || adultCount <= MAX_PRICED_OCCUPANCY;
+        boolean supportedOccupancy = adultCount == null || adultCount <= properties.getMaxPricedOccupancy();
         String pricingOccupancyType = supportedOccupancy ? occupancyType : null;
         Integer pricingGuestCount = supportedOccupancy ? guestCount : null;
 

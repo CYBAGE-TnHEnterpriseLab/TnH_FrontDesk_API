@@ -72,6 +72,7 @@ rate-management:
   responseCacheTtlMs: 60000
   failureCacheTtlMs: 5000
   responseCacheMaxSize: 5000
+  maxPricedOccupancy: 4
 
 reservation:
   availability:
