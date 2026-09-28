@@ -38,7 +38,8 @@ public class AvailabilityParallelExecutor {
         this.properties = properties;
         int parallelism = Math.max(1, properties.getParallelism());
         this.dayExecutor = Executors.newFixedThreadPool(parallelism, threadFactory("availability-day-"));
-        this.ioExecutor = Executors.newFixedThreadPool(parallelism * 2, threadFactory("availability-io-"));
+        this.ioExecutor = Executors.newFixedThreadPool(
+            Math.max(1, properties.resolveIoParallelism()), threadFactory("availability-io-"));
     }
 
     /** Maps the outer (per stay-date) fan-out. */

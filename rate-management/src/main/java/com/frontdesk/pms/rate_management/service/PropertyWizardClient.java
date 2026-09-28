@@ -12,6 +12,10 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
 @Service
@@ -28,7 +32,62 @@ public class PropertyWizardClient {
     @Value("${services.property-wizard.endpoints.room-types-by-property}")
     private String roomTypesByPropertyPath;
 
+    @Value("${services.property-wizard.cache-ttl-ms:60000}")
+    private long cacheTtlMs;
+
+    private final ConcurrentHashMap<String, CachedValue<Boolean>> propertyExistsCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CachedValue<RoomDTO[]>> roomTypesCache = new ConcurrentHashMap<>();
+
     public boolean propertyExists(String propertyId) {
+        boolean exists = cached(propertyExistsCache, propertyId, () -> fetchPropertyExists(propertyId));
+        if (!exists && propertyId != null) {
+            // Newly created properties must become visible immediately.
+            propertyExistsCache.remove(propertyId);
+        }
+        return exists;
+    }
+
+    public RoomDTO[] getRoomTypesByProperty(String propertyId) {
+        return cached(roomTypesCache, propertyId, () -> fetchRoomTypesByProperty(propertyId));
+    }
+
+    /** Short TTL cache that collapses concurrent loads per key; failures are never cached. */
+    private <T> T cached(ConcurrentHashMap<String, CachedValue<T>> cache, String key, Supplier<T> loader) {
+        if (cacheTtlMs <= 0 || key == null) {
+            return loader.get();
+        }
+
+        long now = System.currentTimeMillis();
+        CachedValue<T> candidate = new CachedValue<>(new CompletableFuture<>(), now + cacheTtlMs);
+        CachedValue<T> winner = cache.compute(key,
+                (ignored, current) -> current != null && current.expiresAt() > now ? current : candidate);
+
+        if (winner != candidate) {
+            try {
+                return winner.future().join();
+            } catch (CompletionException ex) {
+                if (ex.getCause() instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                throw ex;
+            }
+        }
+
+        try {
+            T value = loader.get();
+            candidate.future().complete(value);
+            return value;
+        } catch (RuntimeException ex) {
+            cache.remove(key, candidate);
+            candidate.future().completeExceptionally(ex);
+            throw ex;
+        }
+    }
+
+    private record CachedValue<T>(CompletableFuture<T> future, long expiresAt) {
+    }
+
+    private boolean fetchPropertyExists(String propertyId) {
         try {
             JsonNode response = webClientBuilder.build()
                     .get()
@@ -86,7 +145,7 @@ public class PropertyWizardClient {
         return true;
     }
 
-    public RoomDTO[] getRoomTypesByProperty(String propertyId) {
+    private RoomDTO[] fetchRoomTypesByProperty(String propertyId) {
         try {
             JsonNode response = webClientBuilder.build()
                     .get()

@@ -56,6 +56,29 @@ public class TtlCache<K, V> {
         }
     }
 
+    /** Returns a resolved cached value, or {@code null} when absent, expired or still loading. */
+    public V getIfPresent(K key) {
+        if (ttlMs <= 0L) {
+            return null;
+        }
+
+        Entry<V> existing = store.get(key);
+        if (existing == null || existing.expiresAt <= System.currentTimeMillis() || !existing.future.isDone()) {
+            return null;
+        }
+        return await(existing);
+    }
+
+    public void put(K key, V value) {
+        if (ttlMs <= 0L) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        store.put(key, new Entry<>(CompletableFuture.completedFuture(value), now + ttlMs));
+        evictIfOversized(now);
+    }
+
     private V await(Entry<V> entry) {
         try {
             return entry.future.join();

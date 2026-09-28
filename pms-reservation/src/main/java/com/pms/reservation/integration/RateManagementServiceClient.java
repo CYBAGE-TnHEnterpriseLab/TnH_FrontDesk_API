@@ -22,7 +22,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -53,8 +52,9 @@ public class RateManagementServiceClient implements RateManagementPort {
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
-    private final Map<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache = new ConcurrentHashMap<>();
+    private final TtlCache<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache;
     private final TtlCache<String, String> getResponseCache;
+    private final TtlCache<String, ExternalServiceException> getFailureCache;
 
     public RateManagementServiceClient(
             @Qualifier("rateManagementRestTemplate") RestTemplate restTemplate,
@@ -63,6 +63,8 @@ public class RateManagementServiceClient implements RateManagementPort {
         this.restTemplate = restTemplate;
         this.properties = properties;
         this.getResponseCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
+        this.getFailureCache = new TtlCache<>(properties.getFailureCacheTtlMs(), properties.getResponseCacheMaxSize());
+        this.masterRoomPricingCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
     }
 
     @Override
@@ -79,6 +81,11 @@ public class RateManagementServiceClient implements RateManagementPort {
         Integer guestCount = adultCount == null && childCount == null
             ? null
             : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
+
+        // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
+        boolean supportedOccupancy = adultCount == null || adultCount <= properties.getMaxPricedOccupancy();
+        String pricingOccupancyType = supportedOccupancy ? occupancyType : null;
+        Integer pricingGuestCount = supportedOccupancy ? guestCount : null;
 
         List<RateManagementPlanDto> availablePlans = resolvePlansForBookingContext(
             propertyId,
@@ -115,13 +122,30 @@ public class RateManagementServiceClient implements RateManagementPort {
             }
 
             for (Long candidateRoomTypeId : candidateRoomTypeIds) {
-                BigDecimal resolvedFinalAmount = resolveFinalAmount(
-                    propertyId,
-                    plan,
-                    candidateRoomTypeId,
-                    occupancyType,
-                    guestCount
-                );
+                BigDecimal resolvedFinalAmount;
+                try {
+                    resolvedFinalAmount = resolveFinalAmount(
+                        propertyId,
+                        plan,
+                        candidateRoomTypeId,
+                        pricingOccupancyType,
+                        pricingGuestCount
+                    );
+                } catch (ExternalServiceException ex) {
+                    if (hasHttpStatus(ex, 401) || hasHttpStatus(ex, 403)) {
+                        throw ex;
+                    }
+                    // One misconfigured plan/room combo must not discard every other quote.
+                    log.warn(
+                        "Skipping rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
+                        propertyId,
+                        plan.getId(),
+                        resolveRateCode(plan),
+                        candidateRoomTypeId,
+                        ex.getMessage()
+                    );
+                    continue;
+                }
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomTypeId(candidateRoomTypeId);
@@ -319,11 +343,41 @@ public class RateManagementServiceClient implements RateManagementPort {
     }
 
     private String executeGetWithRetry(String operation, String url, Map<String, Object> context) {
-        if (properties.getResponseCacheTtlMs() <= 0L) {
+        if (properties.getResponseCacheTtlMs() <= 0L && properties.getFailureCacheTtlMs() <= 0L) {
             return executeGet(operation, url, context);
         }
+
         // Key includes a digest of the caller token so cached bodies never cross authorization scopes.
-        return getResponseCache.get(authorizationScope() + '|' + url, () -> executeGet(operation, url, context));
+        String cacheKey = authorizationScope() + '|' + url;
+
+        ExternalServiceException cachedFailure = getFailureCache.getIfPresent(cacheKey);
+        if (cachedFailure != null) {
+            log.debug("Rate Management call short-circuited by negative cache operation={} url={}", operation, url);
+            throw cachedFailure;
+        }
+
+        if (properties.getResponseCacheTtlMs() <= 0L) {
+            return executeGetAndCacheFailure(operation, url, context, cacheKey);
+        }
+        return getResponseCache.get(cacheKey, () -> executeGetAndCacheFailure(operation, url, context, cacheKey));
+    }
+
+    /**
+     * Remembers failures briefly so one broken URL is not re-attempted once per rate plan, per room
+     * type and per forecast day within a single availability lookup.
+     */
+    private String executeGetAndCacheFailure(
+            String operation,
+            String url,
+            Map<String, Object> context,
+            String cacheKey
+    ) {
+        try {
+            return executeGet(operation, url, context);
+        } catch (ExternalServiceException ex) {
+            getFailureCache.put(cacheKey, ex);
+            throw ex;
+        }
     }
 
     private String authorizationScope() {
@@ -638,14 +692,13 @@ public class RateManagementServiceClient implements RateManagementPort {
             RateManagementPlanDto plan,
             String requestedOccupancyType
     ) {
-        if (plan.getId() == null) {
+        Long planId = plan.getId();
+        if (planId == null) {
             return null;
         }
 
-        List<MasterRoomPricingEntry> pricingEntries = masterRoomPricingCache.computeIfAbsent(
-            plan.getId(),
-            this::loadMasterRoomPricingEntries
-        );
+        List<MasterRoomPricingEntry> pricingEntries =
+            masterRoomPricingCache.get(planId, () -> loadMasterRoomPricingEntries(planId));
         if (pricingEntries.isEmpty()) {
             return null;
         }

@@ -935,5 +935,6 @@ class RateManagementServiceClientTest {
         lenient().when(properties.getCalculatedPricePath()).thenReturn("/api/rate-plans/property/{propertyId}/{ratePlanId}/calculated-price");
         lenient().when(properties.getRetryMaxAttempts()).thenReturn(retryMaxAttempts);
         lenient().when(properties.getRetryBackoffMs()).thenReturn(retryBackoffMs);
+        lenient().when(properties.getMaxPricedOccupancy()).thenReturn(4);
     }
 }
