@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:8089}
+
+spring:
+  application:
+    name: pms-guest
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/PMSystem_db?CurrentSchema=frontdeskdb}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: frontdeskdb
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: false
+    create-schemas: true
+    schemas: frontdeskdb
+    default-schema: frontdeskdb
+    table: flyway_schema_history_guest
+    locations: classpath:db/migration
