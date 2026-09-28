@@ -82,6 +82,11 @@ public class RateManagementServiceClient implements RateManagementPort {
             ? null
             : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
 
+        // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
+        boolean supportedOccupancy = adultCount == null || adultCount <= properties.getMaxPricedOccupancy();
+        String pricingOccupancyType = supportedOccupancy ? occupancyType : null;
+        Integer pricingGuestCount = supportedOccupancy ? guestCount : null;
+
         List<RateManagementPlanDto> availablePlans = resolvePlansForBookingContext(
             propertyId,
             roomTypeId,
@@ -117,13 +122,30 @@ public class RateManagementServiceClient implements RateManagementPort {
             }
 
             for (Long candidateRoomTypeId : candidateRoomTypeIds) {
-                BigDecimal resolvedFinalAmount = resolveFinalAmount(
-                    propertyId,
-                    plan,
-                    candidateRoomTypeId,
-                    occupancyType,
-                    guestCount
-                );
+                BigDecimal resolvedFinalAmount;
+                try {
+                    resolvedFinalAmount = resolveFinalAmount(
+                        propertyId,
+                        plan,
+                        candidateRoomTypeId,
+                        pricingOccupancyType,
+                        pricingGuestCount
+                    );
+                } catch (ExternalServiceException ex) {
+                    if (hasHttpStatus(ex, 401) || hasHttpStatus(ex, 403)) {
+                        throw ex;
+                    }
+                    // One misconfigured plan/room combo must not discard every other quote.
+                    log.warn(
+                        "Skipping rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
+                        propertyId,
+                        plan.getId(),
+                        resolveRateCode(plan),
+                        candidateRoomTypeId,
+                        ex.getMessage()
+                    );
+                    continue;
+                }
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomTypeId(candidateRoomTypeId);

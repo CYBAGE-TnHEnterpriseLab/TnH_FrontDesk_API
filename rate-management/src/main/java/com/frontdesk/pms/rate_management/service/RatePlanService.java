@@ -45,6 +45,10 @@ public class RatePlanService {
     private final PropertyWizardClient propertyWizardClient;
     private final MasterRoomRoomTypeMappingRepository mappingRepository;
 
+    private static final long RECONCILE_INTERVAL_MS = 60_000L;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> lastReconciledAt =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     @Transactional
     public RatePlanResponseDTO createRatePlan(String propertyId, RatePlanRequestDTO requestDTO) {
         validateProperty(propertyId);
@@ -437,6 +441,29 @@ public class RatePlanService {
     }
 
     private void reconcileExistingRatePlansWithPropertyWizard(String propertyId) {
+        // Runs on read paths too; throttled so parallel price lookups don't issue concurrent saveAll on the same rows.
+        long now = System.currentTimeMillis();
+        boolean[] claimed = {false};
+        lastReconciledAt.compute(propertyId, (ignored, last) -> {
+            if (last != null && now - last < RECONCILE_INTERVAL_MS) {
+                return last;
+            }
+            claimed[0] = true;
+            return now;
+        });
+        if (!claimed[0]) {
+            return;
+        }
+
+        try {
+            doReconcileExistingRatePlansWithPropertyWizard(propertyId);
+        } catch (RuntimeException ex) {
+            lastReconciledAt.remove(propertyId, now);
+            throw ex;
+        }
+    }
+
+    private void doReconcileExistingRatePlansWithPropertyWizard(String propertyId) {
         Set<Long> availableRoomTypeIds = fetchRoomTypeIdsByProperty(propertyId);
         List<RatePlan> existingRatePlans = ratePlanRepository.findByPropertyId(propertyId);
         if (existingRatePlans == null || existingRatePlans.isEmpty()) {

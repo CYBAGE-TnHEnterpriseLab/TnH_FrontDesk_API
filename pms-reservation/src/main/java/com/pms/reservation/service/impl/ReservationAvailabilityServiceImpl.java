@@ -169,14 +169,25 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         return parallelExecutor.mapDays(dayOffsets, offset -> {
             LocalDate date = request.getArrivalDate().plusDays(offset);
 
-            AvailabilityRangeResult dailyRange = fetchAvailabilityForRange(
-                request,
-                date,
-                date.plusDays(1),
-                taxRules,
-                roomOutletTypes,
-                lookupContext
-            );
+            AvailabilityRangeResult dailyRange;
+            try {
+                dailyRange = fetchAvailabilityForRange(
+                    request,
+                    date,
+                    date.plusDays(1),
+                    taxRules,
+                    roomOutletTypes,
+                    lookupContext
+                );
+            } catch (RuntimeException ex) {
+                // The forecast strip is informational; a single failing day must not fail the whole search.
+                log.warn("Forecast availability failed propertyId={} date={}; returning empty day. reason={}",
+                    request.getPropertyId(), date, ex.toString());
+                return DailyAvailabilityPricingDto.builder()
+                    .date(date)
+                    .availability(List.of())
+                    .build();
+            }
 
             return DailyAvailabilityPricingDto.builder()
                 .date(date)
