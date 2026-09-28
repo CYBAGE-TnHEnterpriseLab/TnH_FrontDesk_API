@@ -49,6 +49,7 @@ public class RateManagementServiceClient implements RateManagementPort {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String MASTER_ROOM_PRICING_PATH = "/api/master-rooms/{id}/pricing";
+    private static final int MAX_PRICED_OCCUPANCY = 4;
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
@@ -81,6 +82,11 @@ public class RateManagementServiceClient implements RateManagementPort {
         Integer guestCount = adultCount == null && childCount == null
             ? null
             : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
+
+        // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
+        boolean supportedOccupancy = adultCount == null || adultCount <= MAX_PRICED_OCCUPANCY;
+        String pricingOccupancyType = supportedOccupancy ? occupancyType : null;
+        Integer pricingGuestCount = supportedOccupancy ? guestCount : null;
 
         List<RateManagementPlanDto> availablePlans = resolvePlansForBookingContext(
             propertyId,
@@ -117,13 +123,30 @@ public class RateManagementServiceClient implements RateManagementPort {
             }
 
             for (Long candidateRoomTypeId : candidateRoomTypeIds) {
-                BigDecimal resolvedFinalAmount = resolveFinalAmount(
-                    propertyId,
-                    plan,
-                    candidateRoomTypeId,
-                    occupancyType,
-                    guestCount
-                );
+                BigDecimal resolvedFinalAmount;
+                try {
+                    resolvedFinalAmount = resolveFinalAmount(
+                        propertyId,
+                        plan,
+                        candidateRoomTypeId,
+                        pricingOccupancyType,
+                        pricingGuestCount
+                    );
+                } catch (ExternalServiceException ex) {
+                    if (hasHttpStatus(ex, 401) || hasHttpStatus(ex, 403)) {
+                        throw ex;
+                    }
+                    // One misconfigured plan/room combo must not discard every other quote.
+                    log.warn(
+                        "Skipping rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
+                        propertyId,
+                        plan.getId(),
+                        resolveRateCode(plan),
+                        candidateRoomTypeId,
+                        ex.getMessage()
+                    );
+                    continue;
+                }
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomTypeId(candidateRoomTypeId);
