@@ -57,6 +57,10 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         this.currentUserProvider = currentUserProvider;
     }
 
+    /**
+     * Dashboard hit: fetch daily housekeeping dashboard counts.
+     * Used for Front Desk dashboard tile and room status overview.
+     */
     @Override
     @Transactional(readOnly = true)
     public HousekeepingDashboardResponse dashboard(String propertyId, LocalDate businessDate) {
@@ -82,7 +86,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         long outOfService = count(rows, r -> r.getCleaningStatus() == CleaningStatus.OUT_OF_SERVICE);
         long inspected = count(rows, r -> r.getCleaningStatus() == CleaningStatus.INSPECTED);
         long pickup = count(rows, r -> r.getCleaningStatus() == CleaningStatus.PICKUP);
-        long arrivals = count(rows, r -> r.getReservationStatus() == ReservationStatus.ARRIVAL);
+        long arrivals = count(rows, r -> r.getReservationStatus() == ReservationStatus.ARRIVAL
+                || (r.getReservationStatus() == ReservationStatus.IN_HOUSE && businessDate.equals(r.getArrivalDate())));
         long departures = count(rows, r -> r.getReservationStatus() == ReservationStatus.DEPARTURE);
 
         log.info(
@@ -106,6 +111,10 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
+    /**
+     * Room listing hit: fetch paginated room status rows for the given business date.
+     * Used by Front Desk guest listing and housekeeping room grid.
+     */
     @Override
     @Transactional(readOnly = true)
     public HousekeepingRoomsPageResponse rooms(HousekeepingRoomFilterRequest request) {
@@ -195,9 +204,13 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         return Sort.by(direction, entityField);
     }
 
+    /**
+     * Calendar hit: fetch calendar view data for a date range.
+     * Used by housekeeping and Front Desk calendar screens.
+     */
     @Override
     @Transactional(readOnly = true)
-    public HousekeepingCalendarResponse calendar(
+        public HousekeepingCalendarResponse calendar(
             String propertyId,
             LocalDate fromDate,
             LocalDate toDate,
@@ -423,6 +436,10 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         return out;
     }
 
+    /**
+     * Room status update hit: apply cleaning, front office, reservation, guest, and feature changes.
+     * Used on check-in, checkout, room assignment, and housekeeping status updates.
+     */
     @Override
     @Transactional
     public HousekeepingRoomDetailsUpdateResponse updateRoomDetails(
@@ -546,24 +563,28 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             }
         }
 
-        if (request.guestDisplayName() != null) {
-            log.info("HousekeepingService::updateRoomDetails - Guest display name changing from {} to {}",
-                    row.getGuestDisplayName(),
-                    request.guestDisplayName());
-            row.setGuestDisplayName(request.guestDisplayName());
-        }
-                boolean reservationRelease = request.sourceModule() == StatusChangeSource.RESERVATION
-                                && request.reservationStatus() == ReservationStatus.NOT_RESERVED;
-                if (reservationRelease) {
-                        row.setGuestDisplayName(null);
-                        row.setArrivalDate(null);
-                        row.setDepartureDate(null);
-                }
-                if (!reservationRelease && request.arrivalDate() != null) {
-            row.setArrivalDate(request.arrivalDate());
-        }
-                if (!reservationRelease && request.departureDate() != null) {
-            row.setDepartureDate(request.departureDate());
+        boolean reservationRelease = request.sourceModule() == StatusChangeSource.RESERVATION
+                && request.reservationStatus() == ReservationStatus.NOT_RESERVED
+                && request.guestDisplayName() == null
+                && request.confirmationId() == null;
+        if (reservationRelease) {
+            row.setGuestDisplayName(null);
+            row.setConfirmationId(null);
+            row.setArrivalDate(null);
+            row.setDepartureDate(null);
+        } else {
+            if (request.guestDisplayName() != null) {
+                log.info("HousekeepingService::updateRoomDetails - Guest display name changing from {} to {}",
+                        row.getGuestDisplayName(),
+                        request.guestDisplayName());
+                row.setGuestDisplayName(request.guestDisplayName());
+            }
+            if (request.arrivalDate() != null) {
+                row.setArrivalDate(request.arrivalDate());
+            }
+            if (request.departureDate() != null) {
+                row.setDepartureDate(request.departureDate());
+            }
         }
 
         row.setSellable(computeSellable(row));
@@ -604,6 +625,14 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
+    /**
+     * Assignable rooms hit: fetch rooms available for assignment on a business date.
+     * Used when walk-in or new reservation is created.
+     */
+        /**
+         * Reservation release hit: release assignment and clear guest details for a stay.
+         * Used when a reservation is cancelled, modified, or checked out.
+         */
         @Override
         @Transactional
         public int releaseReservationAssignment(

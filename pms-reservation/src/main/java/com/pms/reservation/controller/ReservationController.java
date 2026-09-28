@@ -72,7 +72,7 @@ public class ReservationController {
             description = "Updates an existing reservation booking by confirmation number")
     public ResponseEntity<ApiResponse<ReservationViewResponseDto>> updateBooking(
             @PathVariable String confirmationNumber,
-            @Valid @RequestBody ReservationBookingRequestDto request) {
+            @RequestBody ReservationBookingRequestDto request) {
         ReservationViewResponseDto response = reservationBookingService.updateBooking(confirmationNumber, request);
         return ResponseEntity.ok(ApiResponse.success("Reservation updated successfully", response));
     }
@@ -83,7 +83,7 @@ public class ReservationController {
         public ResponseEntity<ApiResponse<ReservationViewResponseDto>> updateRoomBooking(
             @PathVariable String confirmationNumber,
             @PathVariable Long bookingId,
-            @Valid @RequestBody ReservationBookingRequestDto request) {
+            @RequestBody ReservationBookingRequestDto request) {
         ReservationViewResponseDto response = reservationBookingService.updateBooking(
             confirmationNumber, bookingId, request);
         return ResponseEntity.ok(ApiResponse.success("Room booking updated successfully", response));
