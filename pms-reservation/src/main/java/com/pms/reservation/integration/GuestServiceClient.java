@@ -1,4 +1,4 @@
-package com.pms.reservation.integration.guest;
+package com.pms.reservation.integration;
 
 import com.pms.guestlisting.exception.ExternalServiceException;
 import com.pms.reservation.config.GuestServiceProperties;

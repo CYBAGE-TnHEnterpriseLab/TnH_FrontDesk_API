@@ -1,4 +1,4 @@
-package com.pms.reservation.integration.guest;
+package com.pms.reservation.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
