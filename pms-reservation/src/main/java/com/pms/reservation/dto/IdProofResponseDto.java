@@ -14,6 +14,7 @@ public class IdProofResponseDto {
     String idProofType;
     String idProofNumber;
     String contentType;
+    String checkInChannel;
     @JsonIgnore
     String payloadBase64;
     LocalDateTime uploadedAt;

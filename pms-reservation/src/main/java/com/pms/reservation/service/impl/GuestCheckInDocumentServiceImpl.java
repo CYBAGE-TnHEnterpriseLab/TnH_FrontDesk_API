@@ -43,6 +43,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
         record.setBookingId(booking.getId());
         record.setConfirmationNumber(booking.getConfirmationNumber());
         record.setPropertyId(booking.getPropertyId());
+        record.setCheckInChannel(normalizeCheckInChannel(request.getCheckInChannel()));
         record.setContentType(request.getContentType().trim());
         record.setPayloadBase64(payload);
         record.setSignedAt(LocalDateTime.now());
@@ -53,6 +54,14 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
     @Transactional
     public CheckInSignatureResponseDto saveDigitalSignature(Long bookingId, String confirmationNumber,
                                                               String propertyId, MultipartFile file) {
+        return saveDigitalSignature(bookingId, confirmationNumber, propertyId, IdTypes.FRONT_DESK, file);
+    }
+
+    @Override
+    @Transactional
+    public CheckInSignatureResponseDto saveDigitalSignature(Long bookingId, String confirmationNumber,
+                                                              String propertyId, String checkInChannel,
+                                                              MultipartFile file) {
         ReservationBookingRecord booking = resolveBooking(bookingId, confirmationNumber, propertyId);
         String contentType = file == null ? null : file.getContentType();
         String payload = encodeFile(file, contentType, "signature");
@@ -61,6 +70,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
         record.setBookingId(booking.getId());
         record.setConfirmationNumber(booking.getConfirmationNumber());
         record.setPropertyId(booking.getPropertyId());
+        record.setCheckInChannel(normalizeCheckInChannel(checkInChannel));
         record.setContentType(contentType.trim());
         record.setPayloadBase64(payload);
         record.setSignedAt(LocalDateTime.now());
@@ -88,6 +98,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
         record.setBookingId(booking.getId());
         record.setConfirmationNumber(booking.getConfirmationNumber());
         record.setPropertyId(booking.getPropertyId());
+        record.setCheckInChannel(normalizeCheckInChannel(request.getCheckInChannel()));
         record.setIdProofType(idProofType);
         record.setIdProofNumber(request.getIdProofNumber().trim());
         record.setContentType(request.getContentType().trim());
@@ -100,6 +111,15 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
     @Transactional
     public IdProofResponseDto uploadIdProofDetails(Long bookingId, String confirmationNumber, String propertyId,
                                                     String idProofType, String idProofNumber, MultipartFile file) {
+        return uploadIdProofDetails(bookingId, confirmationNumber, propertyId, idProofType, idProofNumber,
+            IdTypes.FRONT_DESK, file);
+        }
+
+        @Override
+        @Transactional
+        public IdProofResponseDto uploadIdProofDetails(Long bookingId, String confirmationNumber, String propertyId,
+                                String idProofType, String idProofNumber, String checkInChannel,
+                                MultipartFile file) {
         ReservationBookingRecord booking = resolveBooking(bookingId, confirmationNumber, propertyId);
         String contentType = file == null ? null : file.getContentType();
         String payload = encodeFile(file, contentType, "ID proof");
@@ -112,6 +132,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
         record.setBookingId(booking.getId());
         record.setConfirmationNumber(booking.getConfirmationNumber());
         record.setPropertyId(booking.getPropertyId());
+        record.setCheckInChannel(normalizeCheckInChannel(checkInChannel));
         record.setIdProofType(idProofType);
         record.setIdProofNumber(idProofNumber.trim());
         record.setContentType(contentType.trim());
@@ -151,6 +172,14 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
             throw new BadRequestException("idProofType must be AADHAAR, PAN, DRIVING_LICENSE, or PASSPORT");
         }
         return normalizedType;
+    }
+
+    private String normalizeCheckInChannel(String channel) {
+        String normalized = StringUtils.hasText(channel) ? channel.trim().toUpperCase(Locale.ROOT) : IdTypes.FRONT_DESK;
+        if (!IdTypes.isSupportedCheckInChannel(normalized)) {
+            throw new BadRequestException("checkInChannel must be FRONT_DESK, KIOSK, or ONLINE");
+        }
+        return normalized;
     }
 
     private String validateImage(String contentType, String payloadBase64, String documentName) {
@@ -202,6 +231,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
                 .propertyId(record.getPropertyId())
                 .contentType(record.getContentType())
                 .payloadBase64(record.getPayloadBase64())
+                .checkInChannel(record.getCheckInChannel())
                 .signedAt(record.getSignedAt())
                 .build();
     }
@@ -214,6 +244,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
                 .idProofType(record.getIdProofType())
                 .idProofNumber(record.getIdProofNumber())
                 .contentType(record.getContentType())
+                .checkInChannel(record.getCheckInChannel())
                 .payloadBase64(record.getPayloadBase64())
                 .uploadedAt(record.getUploadedAt())
                 .build();

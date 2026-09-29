@@ -13,12 +13,19 @@ public interface GuestCheckInDocumentService {
     CheckInSignatureResponseDto saveDigitalSignature(Long bookingId, String confirmationNumber,
                                                        String propertyId, MultipartFile file);
 
+    CheckInSignatureResponseDto saveDigitalSignature(Long bookingId, String confirmationNumber,
+                                                       String propertyId, String checkInChannel, MultipartFile file);
+
     CheckInSignatureResponseDto getDigitalSignature(Long bookingId, String confirmationNumber);
 
     IdProofResponseDto uploadIdProofDetails(IdProofRequestDto request);
 
     IdProofResponseDto uploadIdProofDetails(Long bookingId, String confirmationNumber, String propertyId,
                                             String idProofType, String idProofNumber, MultipartFile file);
+
+    IdProofResponseDto uploadIdProofDetails(Long bookingId, String confirmationNumber, String propertyId,
+                                            String idProofType, String idProofNumber, String checkInChannel,
+                                            MultipartFile file);
 
     IdProofResponseDto getUploadIdProofDetails(Long bookingId, String confirmationNumber);
 }

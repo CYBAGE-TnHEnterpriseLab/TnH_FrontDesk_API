@@ -35,7 +35,7 @@ class GuestCheckInDocumentControllerTest {
 
     @Test
     void saveDigitalSignatureShouldUseExactEndpoint() throws Exception {
-        when(documentService.saveDigitalSignature(any(), any(), any(), any()))
+        when(documentService.saveDigitalSignature(any(), any(), any(), any(), any()))
                 .thenReturn(CheckInSignatureResponseDto.builder()
                 .bookingId(10L).confirmationNumber("CONF-101").propertyId("PROPERTY-001")
                 .contentType("image/png").payloadBase64("c2lnbmF0dXJl")
@@ -70,7 +70,7 @@ class GuestCheckInDocumentControllerTest {
 
     @Test
     void uploadIdProofDetailsShouldUseExactEndpoint() throws Exception {
-        when(documentService.uploadIdProofDetails(any(), any(), any(), any(), any(), any()))
+        when(documentService.uploadIdProofDetails(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(IdProofResponseDto.builder()
                 .bookingId(10L).confirmationNumber("CONF-101").idProofType("PASSPORT").build());
 

@@ -782,7 +782,6 @@ private ReservationBookingRequestDto requestForRoom(
     ) {
         BigDecimal folioOutstanding = folioBalance != null ? folioBalance : BigDecimal.ZERO;
 
-            private ReservationViewResponseDto.PricingDto buildPricing(ReservationBookingRecord booking, TaxSummary taxSummary) {
         return ReservationViewResponseDto.PricingDto.builder()
                 .currency(DEFAULT_CURRENCY)
                 .roomRate(booking.getRate())

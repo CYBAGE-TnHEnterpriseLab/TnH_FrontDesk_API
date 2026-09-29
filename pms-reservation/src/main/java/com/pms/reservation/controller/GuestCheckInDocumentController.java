@@ -32,10 +32,12 @@ public class GuestCheckInDocumentController {
                         @RequestParam Long bookingId,
                         @RequestParam String confirmationNumber,
                         @RequestParam String propertyId,
+                        @RequestParam(defaultValue = "FRONT_DESK") String checkInChannel,
                         @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(
                                 "Digital signature saved successfully",
-                                documentService.saveDigitalSignature(bookingId, confirmationNumber, propertyId, file)));
+                                documentService.saveDigitalSignature(bookingId, confirmationNumber, propertyId,
+                                    checkInChannel, file)));
     }
 
     @GetMapping("/getDetailsDigitalSignature")
@@ -55,11 +57,12 @@ public class GuestCheckInDocumentController {
             @RequestParam String propertyId,
             @RequestParam String idProofType,
             @RequestParam String idProofNumber,
+            @RequestParam(defaultValue = "FRONT_DESK") String checkInChannel,
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(
                 "ID proof details uploaded successfully",
                 documentService.uploadIdProofDetails(bookingId, confirmationNumber, propertyId,
-                        idProofType, idProofNumber, file)));
+                    idProofType, idProofNumber, checkInChannel, file)));
     }
 
     @GetMapping("/getUploadIdProofDetails")

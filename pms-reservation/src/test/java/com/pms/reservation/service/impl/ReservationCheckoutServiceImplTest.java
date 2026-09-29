@@ -103,7 +103,10 @@ class ReservationCheckoutServiceImplTest {
                 .hasMessage("Check-out can only be initiated for a checked-in reservation");
 
         verify(reservationBookingRepository, never()).save(any());
-        verify(housekeepingRoomStatusService, never()).markDirty(any());
+        verify(housekeepingRoomStatusClient, never()).markRoomDirty(
+            any(UUID.class), any(LocalDate.class), any(LocalDate.class),
+            any(LocalDate.class), any(String.class)
+        );
     }
 
     @Test
@@ -120,13 +123,13 @@ class ReservationCheckoutServiceImplTest {
     }
 
     @Test
-    void completeCheckoutShouldRequireDepartureBusinessDate() {
+    void completeCheckoutShouldRejectBusinessDateBeforeDeparture() {
         request.setBusinessDate(LocalDate.of(2026, 8, 10));
         when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessage("earlyDepartureDate is required for early checkout");
+                .hasMessage("Check-out businessDate must match the reservation departureDate");
 
         verify(reservationBookingRepository, never()).save(any());
     }

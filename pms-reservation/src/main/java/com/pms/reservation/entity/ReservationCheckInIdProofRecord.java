@@ -41,6 +41,9 @@ public class ReservationCheckInIdProofRecord extends BaseEntity {
     @Column(nullable = false, length = 40)
     private String propertyId;
 
+    @Column(length = 20)
+    private String checkInChannel;
+
     @Column(nullable = false, length = 40)
     private String idProofType;
 

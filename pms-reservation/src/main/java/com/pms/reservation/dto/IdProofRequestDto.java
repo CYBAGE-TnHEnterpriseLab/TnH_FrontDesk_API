@@ -21,6 +21,8 @@ public class IdProofRequestDto {
     @NotBlank(message = "propertyId is required")
     private String propertyId;
 
+    private String checkInChannel;
+
     @NotBlank(message = "idProofType is required")
         @Schema(description = "Guest proof of identity type", allowableValues = {
             IdTypes.AADHAAR,

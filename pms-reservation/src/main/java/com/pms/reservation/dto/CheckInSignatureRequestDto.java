@@ -18,6 +18,8 @@ public class CheckInSignatureRequestDto {
     @NotBlank(message = "propertyId is required")
     private String propertyId;
 
+    private String checkInChannel;
+
     @NotBlank(message = "contentType is required")
     private String contentType;
 

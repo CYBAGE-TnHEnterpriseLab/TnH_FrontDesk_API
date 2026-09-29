@@ -14,5 +14,6 @@ public class CheckInSignatureResponseDto {
     String contentType;
     @JsonIgnore
     String payloadBase64;
+    String checkInChannel;
     LocalDateTime signedAt;
 }
