@@ -68,7 +68,7 @@ class ReservationCheckoutServiceImplTest {
         request.setActor("front-desk-user");
         request.setBusinessDate(LocalDate.of(2026, 8, 11));
 
-        lenient().when(folioServiceClient.getFolioBalance("CONF-101")).thenReturn(BigDecimal.ZERO);
+        lenient().when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
     }
 
     @Test

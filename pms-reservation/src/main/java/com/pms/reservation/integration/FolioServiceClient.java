@@ -29,18 +29,33 @@ public class FolioServiceClient {
     private final RestTemplate restTemplate;
 
     public BigDecimal getFolioBalance(String confirmationNumber) {
+        return getFolioBalance(confirmationNumber, null);
+    }
+
+    /**
+     * Resolves the folio balance for a single room of a multi-room booking when {@code bookingId}
+     * is supplied; otherwise the balance across every folio of the confirmation is returned.
+     */
+    public BigDecimal getFolioBalance(String confirmationNumber, Long bookingId) {
         if (confirmationNumber == null || confirmationNumber.isBlank()) {
             return BigDecimal.ZERO;
         }
 
         try {
-            ResponseEntity<FolioServiceDto> response = restTemplate.exchange(
-                    baseUrl + "/api/v1/billingFolio/getFolioDetails?confirmationNumber={cn}",
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers()),
-                    FolioServiceDto.class,
-                    confirmationNumber
-            );
+            ResponseEntity<FolioServiceDto> response = bookingId == null
+                    ? restTemplate.exchange(
+                            baseUrl + "/api/v1/billingFolio/getFolioDetails?confirmationNumber={cn}",
+                            HttpMethod.GET,
+                            new HttpEntity<>(headers()),
+                            FolioServiceDto.class,
+                            confirmationNumber)
+                    : restTemplate.exchange(
+                            baseUrl + "/api/v1/billingFolio/getFolioDetails?confirmationNumber={cn}&bookingId={bid}",
+                            HttpMethod.GET,
+                            new HttpEntity<>(headers()),
+                            FolioServiceDto.class,
+                            confirmationNumber,
+                            bookingId);
 
             FolioServiceDto folioResponse = response.getBody();
             if (folioResponse == null || folioResponse.summary() == null) {

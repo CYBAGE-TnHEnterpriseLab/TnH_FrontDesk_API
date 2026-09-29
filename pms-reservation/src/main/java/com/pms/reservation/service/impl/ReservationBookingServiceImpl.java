@@ -360,38 +360,31 @@ private ReservationBookingRequestDto requestForRoom(
                     saved.getDepartureDate(),
                     saved.getRoomType(),
                     saved.getNumberOfRooms());
-
-            BigDecimal newTotalRate = saved.getTotalRate() != null ? saved.getTotalRate() : BigDecimal.ZERO;
-            BigDecimal amountPaid = originalTotalRate.subtract(originalGuestBalance);
-            BigDecimal newGuestBalance = newTotalRate.subtract(amountPaid);
-
-            saved.setGuestBalance(newGuestBalance);
-            reservationBookingRepository.save(saved);
         } else if (departureExtended) {
             handleExtendedDeparture(
                     existing.getPropertyId(), existing.getConfirmationNumber(), saved,
                     previousDepartureDate);
-
-            BigDecimal newTotalRate = saved.getTotalRate() != null ? saved.getTotalRate() : BigDecimal.ZERO;
-            BigDecimal amountPaid = originalTotalRate.subtract(originalGuestBalance);
-            BigDecimal newGuestBalance = newTotalRate.subtract(amountPaid);
-
-            saved.setGuestBalance(newGuestBalance);
-            reservationBookingRepository.save(saved);
         }
 
         if (departureShortened || departureExtended) {
+            boolean folioAdjusted = false;
             try {
                 folioServiceClient.adjustReservationCharge(
                         saved.getConfirmationNumber(),
-                        existing.getId(),
+                        saved.getId(),
                         originalTotalRate,
                         saved.getTotalRate(),
                         "reservation-service"
                 );
+                folioAdjusted = true;
             } catch (Exception ex) {
-                log.warn("Folio adjustment failed for confirmationNumber={}", saved.getConfirmationNumber(), ex);
+                log.warn("Folio adjustment failed for confirmationNumber={} bookingId={}",
+                        saved.getConfirmationNumber(), saved.getId(), ex);
             }
+
+            saved.setGuestBalance(resolveGuestBalanceAfterRateChange(
+                    saved, originalTotalRate, originalGuestBalance, folioAdjusted));
+            reservationBookingRepository.save(saved);
         }
 
         Optional<ReservationPaymentTransactionRecord> latestTransaction =
@@ -405,8 +398,37 @@ private ReservationBookingRequestDto requestForRoom(
         return !previous.equalsIgnoreCase(current);
     }
 
-    private boolean departureDateShortened(LocalDate previousDepartureDate, LocalDate newDepartureDate) {
-        if (previousDepartureDate == null || newDepartureDate == null) {
+    /**
+     * After a stay-length change the guest balance must follow the folio for this specific room.
+     * For multi-room bookings each room has its own folio, so the balance is resolved by bookingId
+     * and only falls back to the locally derived value when the folio could not be reached.
+     */
+    private BigDecimal resolveGuestBalanceAfterRateChange(
+            ReservationBookingRecord booking,
+            BigDecimal originalTotalRate,
+            BigDecimal originalGuestBalance,
+            boolean folioAdjusted
+    ) {
+        BigDecimal newTotalRate = booking.getTotalRate() != null ? booking.getTotalRate() : BigDecimal.ZERO;
+        BigDecimal amountPaid = originalTotalRate.subtract(originalGuestBalance);
+        BigDecimal derivedBalance = newTotalRate.subtract(amountPaid);
+
+        if (!folioAdjusted) {
+            return derivedBalance;
+        }
+
+        try {
+            BigDecimal folioBalance = folioServiceClient.getFolioBalance(
+                    booking.getConfirmationNumber(), booking.getId());
+            return folioBalance != null ? folioBalance : derivedBalance;
+        } catch (Exception ex) {
+            log.warn("Folio balance refresh failed for confirmationNumber={} bookingId={}",
+                    booking.getConfirmationNumber(), booking.getId(), ex);
+            return derivedBalance;
+        }
+    }
+
+    private boolean departureDateShortened(LocalDate previousDepartureDate, LocalDate newDepartureDate) {        if (previousDepartureDate == null || newDepartureDate == null) {
             return false;
         }
         return newDepartureDate.isBefore(previousDepartureDate);
@@ -568,7 +590,8 @@ private ReservationBookingRequestDto requestForRoom(
         ReservationBookingResponseDto baseResponse = reservationBookingMapper.toResponse(booking, paymentTransaction);
         LocalDate businessDate = resolveBusinessDate(booking);
         TaxSummary taxSummary = calculateTaxSummary(booking);
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(booking.getConfirmationNumber());
+        BigDecimal folioBalance = folioServiceClient.getFolioBalance(
+                booking.getConfirmationNumber(), booking.getId());
 
         return ReservationViewResponseDto.builder()
                 .reservationId(booking.getConfirmationNumber())
@@ -888,12 +911,24 @@ private ReservationBookingRequestDto requestForRoom(
             return null;
         }
 
-        return housekeepingRoomStatusRepository
-                .findByPropertyIdAndBusinessDateAndConfirmationNumber(
-                        booking.getPropertyId(),
-                        housekeepingBusinessDate,
-                        booking.getConfirmationNumber()
-                )
+        // A multi-room booking has one housekeeping row per room, so resolve by booking id first
+        // and fall back to the latest row for the confirmation number.
+        Optional<HousekeepingRoomStatusRecord> record = booking.getId() == null
+                ? Optional.empty()
+                : housekeepingRoomStatusRepository
+                        .findFirstByPropertyIdAndBusinessDateAndBookingIdOrderByIdDesc(
+                                booking.getPropertyId(),
+                                housekeepingBusinessDate,
+                                booking.getId()
+                        );
+
+        return record
+                .or(() -> housekeepingRoomStatusRepository
+                        .findFirstByPropertyIdAndBusinessDateAndConfirmationNumberOrderByIdDesc(
+                                booking.getPropertyId(),
+                                housekeepingBusinessDate,
+                                booking.getConfirmationNumber()
+                        ))
                 .map(HousekeepingRoomStatusRecord::getRoomStatus)
                 .orElse(null);
     }
@@ -1148,19 +1183,19 @@ private ReservationBookingRequestDto requestForRoom(
     }
 
     private void validateRoomSelectionAndGuestNames(ReservationBookingRequestDto request) {
-        if (request.getNumberOfRooms() == null || request.getNumberOfRooms() < 1 || request.getNumberOfRooms() > 9) {
-            throw new BadRequestException("numberOfRooms must be between 1 and 9");
-        }
-
-        List<String> guestNames = request.getGuestNames();
-        if (guestNames == null || guestNames.size() != request.getNumberOfRooms()) {
-            throw new BadRequestException("guestNames count must match numberOfRooms");
-        }
-
-        boolean hasBlankGuestName = guestNames.stream().anyMatch(name -> !StringUtils.hasText(name));
-        if (hasBlankGuestName) {
-            throw new BadRequestException("guestNames must not contain blank values");
-        }
+//        if (request.getNumberOfRooms() == null || request.getNumberOfRooms() < 1 || request.getNumberOfRooms() > 9) {
+//            throw new BadRequestException("numberOfRooms must be between 1 and 9");
+//        }
+//
+//        List<String> guestNames = request.getGuestNames();
+//        if (guestNames == null || guestNames.size() != request.getNumberOfRooms()) {
+//            throw new BadRequestException("guestNames count must match numberOfRooms");
+//        }
+//
+//        boolean hasBlankGuestName = guestNames.stream().anyMatch(name -> !StringUtils.hasText(name));
+//        if (hasBlankGuestName) {
+//            throw new BadRequestException("guestNames must not contain blank values");
+//        }
     }
 
     private void validateRequiredContactFields(ReservationBookingRequestDto request) {
