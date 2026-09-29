@@ -63,7 +63,7 @@ class ReservationBookingMapperTest {
     }
 
     @Test
-    void toEntityShouldSetTotalRateToZeroWhenStayNightsAreZero() {
+    void toEntityShouldSetTotalRateToOneNightWhenStayNightsAreZero() {
         ReservationBookingRequestDto request = validRequest();
         request.setArrivalDate(LocalDate.of(2026, 6, 20));
         request.setDepartureDate(LocalDate.of(2026, 6, 20));
@@ -72,7 +72,7 @@ class ReservationBookingMapperTest {
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
-        assertThat(entity.getTotalRate()).isEqualByComparingTo("0");
+        assertThat(entity.getTotalRate()).isEqualByComparingTo("5000.00");
     }
 
     @Test

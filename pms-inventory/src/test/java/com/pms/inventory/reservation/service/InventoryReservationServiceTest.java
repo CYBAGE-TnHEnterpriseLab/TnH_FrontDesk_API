@@ -140,11 +140,26 @@ class InventoryReservationServiceTest {
     }
 
     @Test
-    void duplicateReservationWithReleasedStatusThrowsConflict() {
+    void duplicateReservationWithReleasedStatusReactivatesReservation() {
         reservation.setStatus(InventoryReservationStatus.RELEASED);
-        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.of(reservation));
+        InventoryReservationResponse expected = new InventoryReservationResponse(
+                reservation.getConfirmationNumber(), reservation.getPropertyId(), reservation.getBookedRoomTypeId(),
+                reservation.getAssignedRoomTypeId(), reservation.getCheckInDate(), reservation.getCheckOutDate(),
+                reservation.getQuantity(), InventoryReservationStatus.RESERVED, false
+        );
 
-        assertThrows(InventoryException.class, () -> service.reserve(reserveRequest));
+        List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
+        when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.of(reservation));
+        when(inventoryService.lockInventoryRange(any(), any(), any(), any())).thenReturn(rows);
+        when(reservationRepository.save(any(InventoryReservation.class))).thenReturn(reservation);
+        when(mapper.toResponse(reservation, false)).thenReturn(expected);
+
+        InventoryReservationResponse response = service.reserve(reserveRequest);
+
+        assertEquals(InventoryReservationStatus.RESERVED, reservation.getStatus());
+        assertEquals(expected, response);
+        verify(inventoryService).ensureSufficientInventory(rows, 1);
+        verify(inventoryService).increaseReserved(rows, 1);
     }
 
     @Test
