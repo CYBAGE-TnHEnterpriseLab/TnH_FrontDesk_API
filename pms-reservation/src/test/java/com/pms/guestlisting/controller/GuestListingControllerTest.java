@@ -13,6 +13,8 @@ import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.repository.ReservationBookingRepository;
+import com.pms.reservation.repository.ReservationCheckInIdProofRepository;
+import com.pms.reservation.repository.ReservationCheckInSignatureRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,6 +41,12 @@ class GuestListingControllerTest {
 
     @MockBean
     private ReservationBookingRepository reservationBookingRepository;
+
+        @MockBean
+        private ReservationCheckInSignatureRepository signatureRepository;
+
+        @MockBean
+        private ReservationCheckInIdProofRepository idProofRepository;
 
     @MockBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
