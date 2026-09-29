@@ -1,7 +1,10 @@
 package com.pms.reservation.integration;
 
+import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.guestlisting.exception.ExternalServiceException;
 import com.pms.reservation.config.GuestServiceProperties;
+import com.pms.reservation.integration.dto.GuestProfileCreateRequest;
+import com.pms.reservation.integration.dto.GuestProfileUpdateRequest;
 import com.pms.reservation.integration.dto.GuestLookupRequest;
 import com.pms.reservation.integration.dto.GuestProfileResponse;
 import java.util.Optional;
@@ -54,6 +57,10 @@ public class GuestServiceClient {
             if (ex.getStatusCode().value() == 404) {
                 return Optional.empty();
             }
+            if (ex.getStatusCode().value() == 409) {
+                throw new BadRequestException(
+                        "Guest lookup is ambiguous; select an existing guest profile explicitly");
+            }
             throw downstreamFailure("guest lookup", ex);
         } catch (RestClientException ex) {
             throw downstreamFailure("guest lookup", ex);
@@ -81,6 +88,47 @@ public class GuestServiceClient {
             throw downstreamFailure("guest profile retrieval", ex);
         } catch (RestClientException ex) {
             throw downstreamFailure("guest profile retrieval", ex);
+        }
+    }
+
+    public GuestProfileResponse createGuest(GuestProfileCreateRequest request) {
+        String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+                .path(GUESTS_PATH)
+                .toUriString();
+
+        try {
+            ResponseEntity<GuestProfileResponse> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(request, requestHeaders()),
+                    GuestProfileResponse.class
+            );
+            return requireBody(response.getBody(), "guest profile creation");
+        } catch (HttpStatusCodeException ex) {
+            throw downstreamFailure("guest profile creation", ex);
+        } catch (RestClientException ex) {
+            throw downstreamFailure("guest profile creation", ex);
+        }
+    }
+
+    public GuestProfileResponse updateGuestProfile(Long guestProfileId, GuestProfileUpdateRequest request) {
+        String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+                .path(GUESTS_PATH)
+                .pathSegment(String.valueOf(guestProfileId))
+                .toUriString();
+
+        try {
+            ResponseEntity<GuestProfileResponse> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.PUT,
+                    new HttpEntity<>(request, requestHeaders()),
+                    GuestProfileResponse.class
+            );
+            return requireBody(response.getBody(), "guest profile update");
+        } catch (HttpStatusCodeException ex) {
+            throw downstreamFailure("guest profile update", ex);
+        } catch (RestClientException ex) {
+            throw downstreamFailure("guest profile update", ex);
         }
     }
 

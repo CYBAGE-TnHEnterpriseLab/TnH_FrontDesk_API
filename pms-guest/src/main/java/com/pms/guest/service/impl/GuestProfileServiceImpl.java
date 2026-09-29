@@ -26,6 +26,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional(readOnly = true)
 public class GuestProfileServiceImpl implements GuestProfileService {
 
+    private static final int GUEST_ID_GENERATION_ATTEMPTS = 5;
+
     private final GuestProfileRepository guestProfileRepository;
     private final GuestProfileMapper guestProfileMapper;
 
@@ -41,7 +43,7 @@ public class GuestProfileServiceImpl implements GuestProfileService {
     @Transactional
     public GuestProfileResponse createGuestProfile(GuestProfileCreateRequest request) {
         GuestProfile guestProfile = guestProfileMapper.toEntity(request);
-        guestProfile.setGuestId("GST-" + UUID.randomUUID());
+        guestProfile.setGuestId(generateGuestId());
         GuestProfile saved = guestProfileRepository.save(guestProfile);
         return guestProfileMapper.toResponse(saved);
     }
@@ -176,6 +178,16 @@ public class GuestProfileServiceImpl implements GuestProfileService {
     private GuestProfile findGuestProfile(Long id) {
         return guestProfileRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Guest profile not found: " + id));
+    }
+
+    private String generateGuestId() {
+        for (int attempt = 0; attempt < GUEST_ID_GENERATION_ATTEMPTS; attempt++) {
+            String guestId = "GST-" + UUID.randomUUID();
+            if (!guestProfileRepository.existsByGuestId(guestId)) {
+                return guestId;
+            }
+        }
+        throw new IllegalStateException("Unable to generate a unique guest ID");
     }
 
     private void addMatches(Map<Long, GuestProfile> matchesById, List<GuestProfile> matches) {

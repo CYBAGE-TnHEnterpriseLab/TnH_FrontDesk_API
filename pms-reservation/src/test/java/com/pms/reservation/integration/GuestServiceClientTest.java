@@ -8,8 +8,10 @@ import static org.mockito.Mockito.when;
 
 import com.pms.guestlisting.exception.ExternalServiceException;
 import com.pms.reservation.config.GuestServiceProperties;
+import com.pms.reservation.integration.dto.GuestProfileCreateRequest;
 import com.pms.reservation.integration.dto.GuestLookupRequest;
 import com.pms.reservation.integration.dto.GuestProfileResponse;
+import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -95,5 +97,61 @@ class GuestServiceClientTest {
         assertThatThrownBy(() -> client.findExistingGuest(request))
                 .isInstanceOf(ExternalServiceException.class)
                 .hasMessageContaining("Guest service request failed");
+    }
+
+    @Test
+    void createGuestPostsProfileAndReturnsCreatedResponse() {
+        GuestProfileCreateRequest request = GuestProfileCreateRequest.builder()
+                .propertyId("property-1")
+                .firstName("Ava")
+                .lastName("Guest")
+                .dateOfBirth(LocalDate.of(1990, 1, 2))
+                .idDocumentPath("uploads/guest-id.png")
+                .build();
+        GuestProfileResponse expected = GuestProfileResponse.builder()
+                .id(42L)
+                .guestId("GST-42")
+                .propertyId("property-1")
+                .firstName("Ava")
+                .lastName("Guest")
+                .build();
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests"),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenReturn(ResponseEntity.status(HttpStatus.CREATED).body(expected));
+
+        GuestProfileResponse response = client.createGuest(request);
+
+        assertThat(response).isSameAs(expected);
+        org.mockito.ArgumentCaptor<HttpEntity> requestEntity =
+                org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        org.mockito.Mockito.verify(restTemplate).exchange(
+                eq("http://guest-service/api/v1/guests"),
+                eq(HttpMethod.POST),
+                requestEntity.capture(),
+                eq(GuestProfileResponse.class)
+        );
+        assertThat(requestEntity.getValue().getBody()).isSameAs(request);
+    }
+
+    @Test
+    void createGuestWrapsClientErrors() {
+        GuestProfileCreateRequest request = GuestProfileCreateRequest.builder()
+                .propertyId("property-1")
+                .firstName("Ava")
+                .lastName("Guest")
+                .build();
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST, "Invalid guest profile"));
+
+        assertThatThrownBy(() -> client.createGuest(request))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("HTTP 400");
     }
 }

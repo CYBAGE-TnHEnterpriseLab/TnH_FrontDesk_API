@@ -1,16 +1,12 @@
 package com.pms.reservation.integration.dto;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Value;
 
 @Value
 @Builder
-public class GuestProfileResponse {
-    Long id;
-    String guestId;
-    String propertyId;
+public class GuestProfileUpdateRequest {
     String salutation;
     String firstName;
     String lastName;
@@ -33,6 +29,4 @@ public class GuestProfileResponse {
     String idDocumentPath;
     String loyaltyMembershipNumber;
     String loyaltyTier;
-    LocalDateTime createdAt;
-    LocalDateTime updatedAt;
 }

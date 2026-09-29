@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface GuestProfileRepository extends JpaRepository<GuestProfile, Long> {
 
+    boolean existsByGuestId(String guestId);
+
     List<GuestProfile> findByPropertyIdAndPhoneNumber(String propertyId, String phoneNumber);
 
     List<GuestProfile> findByPropertyIdAndMobileNumber(String propertyId, String mobileNumber);

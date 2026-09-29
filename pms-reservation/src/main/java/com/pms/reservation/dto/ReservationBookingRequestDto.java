@@ -15,6 +15,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -46,6 +47,8 @@ public class ReservationBookingRequestDto {
         private String lastName;
 
     private List<@NotBlank(message = "guestNames must not contain blank values") String> guestNames;
+
+    private List<@Valid ReservationGuestRequestDto> guests;
 
     @Email(message = "personalEmail must be a valid email")
     private String personalEmail;
