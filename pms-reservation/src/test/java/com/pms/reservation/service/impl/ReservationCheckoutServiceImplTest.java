@@ -68,7 +68,7 @@ class ReservationCheckoutServiceImplTest {
         request.setActor("front-desk-user");
         request.setBusinessDate(LocalDate.of(2026, 8, 11));
 
-        lenient().when(folioServiceClient.getFolioBalance("CONF-101")).thenReturn(BigDecimal.ZERO);
+        lenient().when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
     }
 
     @Test
@@ -103,7 +103,32 @@ class ReservationCheckoutServiceImplTest {
                 .hasMessage("Check-out can only be initiated for a checked-in reservation");
 
         verify(reservationBookingRepository, never()).save(any());
-        verify(housekeepingRoomStatusClient, never()).markRoomDirty(any(), any(), any(), any(), any());
+        verify(housekeepingRoomStatusService, never()).markDirty(any());
+    }
+
+    @Test
+    void completeCheckoutShouldUseLiveFolioBalanceWhenStoredGuestBalanceIsStale() {
+        booking.setGuestBalance(new BigDecimal("900.00"));
+        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
+
+        CheckoutCompletionResponseDto response = service.completeCheckout("CONF-101", request);
+
+        assertThat(response.getReservationStatus()).isEqualTo("CHECKED_OUT");
+        assertThat(booking.getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        verify(reservationBookingRepository).save(booking);
+    }
+
+    @Test
+    void completeCheckoutShouldRequireDepartureBusinessDate() {
+        request.setBusinessDate(LocalDate.of(2026, 8, 10));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
+
+        assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("earlyDepartureDate is required for early checkout");
+
+        verify(reservationBookingRepository, never()).save(any());
     }
 
     @Test

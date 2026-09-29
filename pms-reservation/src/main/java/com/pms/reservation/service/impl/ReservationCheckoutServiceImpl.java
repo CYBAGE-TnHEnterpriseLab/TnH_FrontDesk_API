@@ -59,7 +59,11 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
         }
 
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(booking.getConfirmationNumber());
+        BigDecimal folioBalance = folioServiceClient.getFolioBalance(
+            booking.getConfirmationNumber(), booking.getId());
+        if (folioBalance != null) {
+            booking.setGuestBalance(folioBalance.max(BigDecimal.ZERO));
+        }
         if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
             throw new BadRequestException(
                     "Check-out denied: folio has outstanding balance of "

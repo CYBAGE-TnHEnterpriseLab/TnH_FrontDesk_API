@@ -38,8 +38,13 @@ public class ReservationViewResponseDto {
         String email;
         String address;
         String city;
+        String state;
         String country;
         String zipCode;
+        LocalDate dateOfBirth;
+        String idType;
+        String idNumber;
+        Boolean enrollGuest;
         String loyaltyNumber;
     }
 

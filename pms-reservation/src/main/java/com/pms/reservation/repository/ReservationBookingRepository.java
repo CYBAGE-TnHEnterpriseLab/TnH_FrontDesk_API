@@ -18,6 +18,12 @@ public interface ReservationBookingRepository
 
     List<ReservationBookingRecord> findByConfirmationNumber(String confirmationNumber);
 
+        Optional<ReservationBookingRecord> findFirstByPhoneNumberOrMobileNumber(String phoneNumber, String mobileNumber);
+
+        Optional<ReservationBookingRecord> findFirstByPersonalEmailIgnoreCaseOrOfficialEmailIgnoreCase(
+            String personalEmail,
+            String officialEmail);
+
     Optional<ReservationBookingRecord> findByIdAndConfirmationNumber(Long id, String confirmationNumber);
 
     List<ReservationBookingRecord> findByConfirmationNumberOrderByIdAsc(String confirmationNumber);

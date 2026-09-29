@@ -11,10 +11,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -70,6 +72,12 @@ public class RatePlan extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate endDate;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "rate_plan_active_day", joinColumns = @JoinColumn(name = "rate_plan_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_of_week", nullable = false)
+    private Set<DayOfWeek> activeDaysOfWeek = EnumSet.allOf(DayOfWeek.class);
 
     @Column
     private Double adjustmentValue;
