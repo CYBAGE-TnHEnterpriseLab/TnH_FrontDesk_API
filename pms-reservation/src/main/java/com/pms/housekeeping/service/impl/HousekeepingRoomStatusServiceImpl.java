@@ -34,9 +34,9 @@ public class HousekeepingRoomStatusServiceImpl implements HousekeepingRoomStatus
 
     private HousekeepingRoomStatusResponseDto saveStatus(HousekeepingRoomStatusRequestDto request, String roomStatus) {
         Optional<HousekeepingRoomStatusRecord> existing = request.getBookingId() == null
-            ? housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumber(
+            ? housekeepingRoomStatusRepository.findFirstByPropertyIdAndBusinessDateAndConfirmationNumberOrderByIdDesc(
                 request.getPropertyId(), request.getBusinessDate(), request.getConfirmationNumber())
-            : housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndBookingId(
+            : housekeepingRoomStatusRepository.findFirstByPropertyIdAndBusinessDateAndBookingIdOrderByIdDesc(
                 request.getPropertyId(), request.getBusinessDate(), request.getBookingId());
         HousekeepingRoomStatusRecord record = existing.orElseGet(HousekeepingRoomStatusRecord::new);
 

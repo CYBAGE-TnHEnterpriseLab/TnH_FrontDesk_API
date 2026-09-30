@@ -11,13 +11,15 @@ import org.springframework.data.repository.query.Param;
 
 public interface HousekeepingRoomStatusRepository extends JpaRepository<HousekeepingRoomStatusRecord, Long> {
 
-    Optional<HousekeepingRoomStatusRecord> findByPropertyIdAndBusinessDateAndConfirmationNumber(
+    // Multi-room bookings produce one row per room for the same confirmation number,
+    // so these lookups must never assume a unique result.
+    Optional<HousekeepingRoomStatusRecord> findFirstByPropertyIdAndBusinessDateAndConfirmationNumberOrderByIdDesc(
             String propertyId,
             LocalDate businessDate,
             String confirmationNumber
     );
 
-    Optional<HousekeepingRoomStatusRecord> findByPropertyIdAndBusinessDateAndBookingId(
+    Optional<HousekeepingRoomStatusRecord> findFirstByPropertyIdAndBusinessDateAndBookingIdOrderByIdDesc(
             String propertyId,
             LocalDate businessDate,
             Long bookingId
