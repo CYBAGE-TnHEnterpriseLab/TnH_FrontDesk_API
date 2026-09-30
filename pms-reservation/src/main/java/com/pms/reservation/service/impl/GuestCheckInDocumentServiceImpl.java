@@ -13,9 +13,12 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInIdProofRepository;
 import com.pms.reservation.repository.ReservationCheckInSignatureRepository;
 import com.pms.reservation.service.GuestCheckInDocumentService;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Locale;
+import javax.imageio.ImageIO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -202,10 +205,37 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
             if (decoded.length == 0 || decoded.length > MAX_IMAGE_BYTES) {
                 throw new BadRequestException(documentName + " image size must be between 1 byte and 10 MB");
             }
+            validateDecodedImage(decoded, normalizedContentType, documentName);
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException(documentName + " payload is not valid Base64");
+        } catch (IOException ex) {
+            throw new BadRequestException(documentName + " payload is not a valid PNG or JPEG image");
         }
         return payload;
+    }
+
+    private void validateDecodedImage(byte[] decoded, String contentType, String documentName) throws IOException {
+        boolean png = decoded.length >= 8
+                && decoded[0] == (byte) 0x89
+                && decoded[1] == 0x50
+                && decoded[2] == 0x4E
+                && decoded[3] == 0x47
+                && decoded[4] == 0x0D
+                && decoded[5] == 0x0A
+                && decoded[6] == 0x1A
+                && decoded[7] == 0x0A;
+        boolean jpeg = decoded.length >= 3
+                && decoded[0] == (byte) 0xFF
+                && decoded[1] == (byte) 0xD8
+                && decoded[2] == (byte) 0xFF;
+        boolean declaredPng = "image/png".equals(contentType);
+        if ((!declaredPng && !"image/jpeg".equals(contentType) && !"image/jpg".equals(contentType))
+                || (declaredPng != png && (declaredPng || !jpeg))) {
+            throw new BadRequestException(documentName + " payload format does not match contentType");
+        }
+        if (ImageIO.read(new ByteArrayInputStream(decoded)) == null) {
+            throw new BadRequestException(documentName + " payload is not a valid PNG or JPEG image");
+        }
     }
 
     private String encodeFile(MultipartFile file, String contentType, String documentName) {
@@ -219,7 +249,7 @@ public class GuestCheckInDocumentServiceImpl implements GuestCheckInDocumentServ
             }
             validateImage(contentType, Base64.getEncoder().encodeToString(bytes), documentName);
             return Base64.getEncoder().encodeToString(bytes);
-        } catch (java.io.IOException ex) {
+        } catch (IOException ex) {
             throw new BadRequestException("Unable to read " + documentName + " image");
         }
     }

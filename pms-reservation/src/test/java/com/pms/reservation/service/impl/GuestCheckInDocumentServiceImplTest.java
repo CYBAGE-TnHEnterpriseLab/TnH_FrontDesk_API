@@ -24,6 +24,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class GuestCheckInDocumentServiceImplTest {
 
+        private static final String VALID_PNG_BASE64 =
+                        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
     @Mock private ReservationBookingRepository reservationBookingRepository;
     @Mock private ReservationCheckInSignatureRepository signatureRepository;
     @Mock private ReservationCheckInIdProofRepository idProofRepository;
@@ -38,7 +41,7 @@ class GuestCheckInDocumentServiceImplTest {
         request.setConfirmationNumber("CONF-101");
         request.setPropertyId("PROPERTY-001");
         request.setContentType("image/png");
-        request.setPayloadBase64("c2lnbmF0dXJl");
+        request.setPayloadBase64(VALID_PNG_BASE64);
         when(reservationBookingRepository.findByIdAndConfirmationNumber(10L, "CONF-101"))
                 .thenReturn(Optional.of(booking));
         when(signatureRepository.findByBookingId(10L)).thenReturn(Optional.empty());
@@ -48,7 +51,7 @@ class GuestCheckInDocumentServiceImplTest {
         var response = service.saveDigitalSignature(request);
 
         assertThat(response.getBookingId()).isEqualTo(10L);
-        assertThat(response.getPayloadBase64()).isEqualTo("c2lnbmF0dXJl");
+        assertThat(response.getPayloadBase64()).isEqualTo(VALID_PNG_BASE64);
         verify(signatureRepository).save(any(ReservationCheckInSignatureRecord.class));
     }
 
@@ -63,7 +66,7 @@ class GuestCheckInDocumentServiceImplTest {
         request.setIdProofType("passport");
         request.setIdProofNumber("P1234567");
         request.setContentType("image/png");
-        request.setPayloadBase64("aWQtcHJvb2Y=");
+        request.setPayloadBase64(VALID_PNG_BASE64);
         when(reservationBookingRepository.findByIdAndConfirmationNumber(10L, "CONF-101"))
                 .thenReturn(Optional.of(booking));
         when(idProofRepository.findByBookingId(10L)).thenReturn(Optional.empty());
@@ -94,5 +97,23 @@ class GuestCheckInDocumentServiceImplTest {
         assertThatThrownBy(() -> service.uploadIdProofDetails(request))
                 .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
                 .hasMessageContaining("idProofType must be");
+    }
+
+    @Test
+    void saveDigitalSignatureShouldRejectNonImagePayload() {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(10L).confirmationNumber("CONF-101").propertyId("PROPERTY-001").build();
+        CheckInSignatureRequestDto request = new CheckInSignatureRequestDto();
+        request.setBookingId(10L);
+        request.setConfirmationNumber("CONF-101");
+        request.setPropertyId("PROPERTY-001");
+        request.setContentType("image/png");
+        request.setPayloadBase64("c2lnbmF0dXJl");
+        when(reservationBookingRepository.findByIdAndConfirmationNumber(10L, "CONF-101"))
+                .thenReturn(Optional.of(booking));
+
+        assertThatThrownBy(() -> service.saveDigitalSignature(request))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessageContaining("payload format");
     }
 }
