@@ -5,11 +5,9 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import com.pms.common.entity.BaseEntity;
-import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -79,7 +77,7 @@ public class HousekeepingRoomDayStatus extends BaseEntity {
     private String roomNumber;
 
     @Column(name = "room_type_id", nullable = false)
-    private UUID roomTypeId;
+        private String roomTypeId;
 
     @Column(name = "room_type_name", nullable = false, length = 100)
     private String roomTypeName;
@@ -128,7 +126,7 @@ public class HousekeepingRoomDayStatus extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @Column(name = "features_csv", length = 500)
+    @Column(name = "features_csv", length = 4000)
     private String featuresCsv;
 }
 

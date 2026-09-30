@@ -17,6 +17,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -40,10 +41,10 @@ public class RoomTypeInventoryDaily extends BaseEntity {
 	private Long id;
 
 	@Column(name = "property_id", nullable = false)
-	private UUID propertyId;
+	private String propertyId;
 
 	@Column(name = "room_type_id", nullable = false)
-	private UUID roomTypeId;
+	private String roomTypeId;
 
 	@Column(name = "business_date", nullable = false)
 	private LocalDate businessDate;

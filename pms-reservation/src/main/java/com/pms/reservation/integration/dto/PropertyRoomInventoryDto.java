@@ -15,6 +15,8 @@ public class PropertyRoomInventoryDto {
     @JsonAlias({"roomType", "roomTypeName", "typeName"})
     private String roomType;
 
+    private String roomCode;
+
     @JsonAlias({"occupancy", "occupancyType", "occupancyLabel"})
     private String occupancy;
 

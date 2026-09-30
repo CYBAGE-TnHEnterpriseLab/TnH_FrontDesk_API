@@ -12,7 +12,11 @@ public interface ReservationBookingService {
 
     ReservationViewResponseDto updateBooking(String confirmationNumber, ReservationBookingRequestDto request);
 
+    ReservationViewResponseDto updateBooking(String confirmationNumber, Long bookingId, ReservationBookingRequestDto request);
+
     ReservationViewResponseDto getBookingDetails(String confirmationNumber);
+
+    ReservationViewResponseDto getBookingDetails(String confirmationNumber, Long bookingId);
 
     List<ReservationBookingResponseDto> getBookings();
 

@@ -61,6 +61,8 @@ public class MasterRoomMapper {
         MasterRoomRoomTypeMappingResponseDTO dto = new MasterRoomRoomTypeMappingResponseDTO();
         dto.setId(entity.getId());
         dto.setRoomTypeId(entity.getRoomTypeId());
+        dto.setDifferentialType(entity.getDifferentialType());
+        dto.setDifferentialValue(entity.getDifferentialValue());
         return dto;
     }
 }

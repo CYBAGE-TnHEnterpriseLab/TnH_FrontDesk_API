@@ -4,7 +4,7 @@ import com.pms.common.security.CurrentUserProvider;
 import com.pms.common.utils.CurrentUser;
 import com.pms.housekeeping.common.exception.HousekeepingNotFoundException;
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.dto.response.*;
 import com.pms.housekeeping.entity.*;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusHistoryRepository;
@@ -25,6 +25,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -51,6 +57,10 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         this.currentUserProvider = currentUserProvider;
     }
 
+    /**
+     * Dashboard hit: fetch daily housekeeping dashboard counts.
+     * Used for Front Desk dashboard tile and room status overview.
+     */
     @Override
     @Transactional(readOnly = true)
     public HousekeepingDashboardResponse dashboard(String propertyId, LocalDate businessDate) {
@@ -76,7 +86,8 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         long outOfService = count(rows, r -> r.getCleaningStatus() == CleaningStatus.OUT_OF_SERVICE);
         long inspected = count(rows, r -> r.getCleaningStatus() == CleaningStatus.INSPECTED);
         long pickup = count(rows, r -> r.getCleaningStatus() == CleaningStatus.PICKUP);
-        long arrivals = count(rows, r -> r.getReservationStatus() == ReservationStatus.ARRIVAL);
+        long arrivals = count(rows, r -> r.getReservationStatus() == ReservationStatus.ARRIVAL
+                || (r.getReservationStatus() == ReservationStatus.IN_HOUSE && businessDate.equals(r.getArrivalDate())));
         long departures = count(rows, r -> r.getReservationStatus() == ReservationStatus.DEPARTURE);
 
         log.info(
@@ -100,6 +111,10 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
+    /**
+     * Room listing hit: fetch paginated room status rows for the given business date.
+     * Used by Front Desk guest listing and housekeeping room grid.
+     */
     @Override
     @Transactional(readOnly = true)
     public HousekeepingRoomsPageResponse rooms(HousekeepingRoomFilterRequest request) {
@@ -189,9 +204,13 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         return Sort.by(direction, entityField);
     }
 
+    /**
+     * Calendar hit: fetch calendar view data for a date range.
+     * Used by housekeeping and Front Desk calendar screens.
+     */
     @Override
     @Transactional(readOnly = true)
-    public HousekeepingCalendarResponse calendar(
+        public HousekeepingCalendarResponse calendar(
             String propertyId,
             LocalDate fromDate,
             LocalDate toDate,
@@ -248,7 +267,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             LocalDate toDate
     ) {
 
-        Map<UUID, List<HousekeepingRoomDayStatus>> byRoomType =
+        Map<String, List<HousekeepingRoomDayStatus>> byRoomType =
                 records.stream()
                         .collect(Collectors.groupingBy(
                                 HousekeepingRoomDayStatus::getRoomTypeId,
@@ -375,7 +394,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, UUID roomTypeId, int limit) {
+        public List<AssignableRoomResponse> assignableRooms(String propertyId, LocalDate businessDate, String roomTypeId, int limit) {
         log.info("HousekeepingService::assignableRooms - Fetching assignable rooms. propertyId={}, businessDate={}, roomTypeId={}, limit={}",
                 propertyId, businessDate, roomTypeId, limit);
 
@@ -417,25 +436,29 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         return out;
     }
 
+    /**
+     * Room status update hit: apply cleaning, front office, reservation, guest, and feature changes.
+     * Used on check-in, checkout, room assignment, and housekeeping status updates.
+     */
     @Override
     @Transactional
-    public HousekeepingStatusUpdateResponse updateRoomStatus(
+    public HousekeepingRoomDetailsUpdateResponse updateRoomDetails(
             String roomNumber,
-            UpdateHousekeepingStatusRequest request
+            UpdateHousekeepingRoomDetailsRequest request
     ) {
-        log.info("HousekeepingService::updateRoomStatus - Request received for roomNumber={}, propertyId={}, businessDate={}",
+        log.info("HousekeepingService::updateRoomDetails - Request received for roomNumber={}, propertyId={}, businessDate={}",
                 roomNumber,
                 request.propertyId(),
                 request.businessDate());
 
         String loggedInUser = currentUserProvider.getCurrentUsername();
 
-        log.info("HousekeepingService::updateRoomStatus - Logged in user={}", loggedInUser);
+        log.info("HousekeepingService::updateRoomDetails - Logged in user={}", loggedInUser);
 
         HousekeepingRoomDayStatus row = dayStatusRepository
                 .findByPropertyIdAndBusinessDateAndRoomNumber(request.propertyId(), request.businessDate(), roomNumber)
                 .orElseThrow(() -> {
-                    log.warn("HousekeepingService::updateRoomStatus - Room not found. propertyId={}, businessDate={}, roomNumber={}",
+                    log.warn("HousekeepingService::updateRoomDetails - Room not found. propertyId={}, businessDate={}, roomNumber={}",
                             request.propertyId(),
                             request.businessDate(),
                             roomNumber);
@@ -463,7 +486,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                     now,
                     CurrentUser.userId()
             );
-            log.info("HousekeepingService::updateRoomStatus - Propagated cleaningStatus={} to future dates for room {} from {}",
+            log.info("HousekeepingService::updateRoomDetails - Propagated cleaningStatus={} to future dates for room {} from {}",
                     request.cleaningStatus(), roomNumber, request.businessDate());
         }
 
@@ -471,7 +494,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
             String oldValue = row.getConfirmationId();
             String newValue = request.confirmationId();
             if (!Objects.equals(oldValue, newValue)) {
-                log.info("HousekeepingService::updateRoomStatus - Assigned reservation changing from {} to {}",
+                log.info("HousekeepingService::updateRoomDetails - Assigned reservation changing from {} to {}",
                         oldValue,
                         newValue);
 
@@ -481,7 +504,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         }
 
         if (request.attendantName() != null && !Objects.equals(row.getAttendantName(), request.attendantName())) {
-            log.info("HousekeepingService::updateRoomStatus - Attendant changing from {} to {}",
+            log.info("HousekeepingService::updateRoomDetails - Attendant changing from {} to {}",
                     row.getAttendantName(),
                     request.attendantName());
 
@@ -490,24 +513,78 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         }
 
         if (request.priority() != null && request.priority() != row.getPriority()) {
-            log.info("HousekeepingService::updateRoomStatus - Priority changing from {} to {}",
+            log.info("HousekeepingService::updateRoomDetails - Priority changing from {} to {}",
                     row.getPriority(),
                     request.priority());
             saveHistory(row, "priority", row.getPriority().name(), request.priority().name(), request, now, loggedInUser);
             row.setPriority(request.priority());
         }
 
-        if (request.guestDisplayName() != null) {
-            log.info("HousekeepingService::updateRoomStatus - Guest display name changing from {} to {}",
-                    row.getGuestDisplayName(),
-                    request.guestDisplayName());
-            row.setGuestDisplayName(request.guestDisplayName());
+        if(request.features() != null) {
+            String oldFeatures = row.getFeaturesCsv();
+            String newFeatures = request.features().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(feature -> !feature.isBlank())
+                    .distinct()
+                    .collect(Collectors.joining(","));
+            if (!Objects.equals(oldFeatures, newFeatures)) {
+                log.info("HousekeepingService::updateRoomDetails - Features changing from {} to {}",
+                        oldFeatures,
+                        newFeatures);
+
+                saveHistory(
+                        row,
+                        "featuresCsv",
+                        oldFeatures,
+                        newFeatures,
+                        request,
+                        now,
+                        loggedInUser
+                );
+                row.setFeaturesCsv(newFeatures);
+
+                dayStatusRepository.updateRoomFeaturesFromDate(
+                        request.propertyId(),
+                        roomNumber,
+                        request.businessDate(),
+                        newFeatures,
+                        now,
+                        CurrentUser.userId()
+                );
+
+                log.info(
+                        "HousekeepingService::updateRoomDetails - Propagated features={} to future dates for room {} from {}",
+                        newFeatures,
+                        roomNumber,
+                        request.businessDate()
+                );
+
+            }
         }
-        if (request.arrivalDate() != null) {
-            row.setArrivalDate(request.arrivalDate());
-        }
-        if (request.departureDate() != null) {
-            row.setDepartureDate(request.departureDate());
+
+        boolean reservationRelease = request.sourceModule() == StatusChangeSource.RESERVATION
+                && request.reservationStatus() == ReservationStatus.NOT_RESERVED
+                && request.guestDisplayName() == null
+                && request.confirmationId() == null;
+        if (reservationRelease) {
+            row.setGuestDisplayName(null);
+            row.setConfirmationId(null);
+            row.setArrivalDate(null);
+            row.setDepartureDate(null);
+        } else {
+            if (request.guestDisplayName() != null) {
+                log.info("HousekeepingService::updateRoomDetails - Guest display name changing from {} to {}",
+                        row.getGuestDisplayName(),
+                        request.guestDisplayName());
+                row.setGuestDisplayName(request.guestDisplayName());
+            }
+            if (request.arrivalDate() != null) {
+                row.setArrivalDate(request.arrivalDate());
+            }
+            if (request.departureDate() != null) {
+                row.setDepartureDate(request.departureDate());
+            }
         }
 
         row.setSellable(computeSellable(row));
@@ -516,14 +593,21 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         row.setUpdatedAt(now);
 
         HousekeepingRoomDayStatus saved = dayStatusRepository.save(row);
-        log.info("HousekeepingService::updateRoomStatus - Successfully updated room {}. CleaningStatus={}, FrontOfficeStatus={}, ReservationStatus={}, Sellable={}",
+        List<String> features = saved.getFeaturesCsv() == null
+                || saved.getFeaturesCsv().isBlank()
+                ? List.of()
+                : Arrays.stream(saved.getFeaturesCsv().split(","))
+                .map(String::trim)
+                .filter(feature -> !feature.isBlank())
+                .toList();
+        log.info("HousekeepingService::updateRoomDetails - Successfully updated room {}. CleaningStatus={}, FrontOfficeStatus={}, ReservationStatus={}, Sellable={}",
                 saved.getRoomNumber(),
                 saved.getCleaningStatus(),
                 saved.getFrontOfficeStatus(),
                 saved.getReservationStatus(),
                 saved.isSellable());
 
-        return new HousekeepingStatusUpdateResponse(
+        return new HousekeepingRoomDetailsUpdateResponse(
                 saved.getPropertyId(),
                 saved.getBusinessDate(),
                 saved.getRoomNumber(),
@@ -532,6 +616,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 saved.getGuestDisplayName(),
                 saved.getReservationStatus().name(),
                 saved.getAttendantName(),
+                features,
                 saved.getPriority(),
                 saved.getConfirmationId(),
                 saved.isSellable(),
@@ -540,7 +625,82 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         );
     }
 
-    private void applyCleaningStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
+    /**
+     * Assignable rooms hit: fetch rooms available for assignment on a business date.
+     * Used when walk-in or new reservation is created.
+     */
+        /**
+         * Reservation release hit: release assignment and clear guest details for a stay.
+         * Used when a reservation is cancelled, modified, or checked out.
+         */
+        @Override
+        @Transactional
+        public int releaseReservationAssignment(
+                        String propertyId,
+                        String confirmationId,
+                        String roomNumber,
+                        LocalDate arrivalDate,
+                        LocalDate departureDate) {
+                String loggedInUser = currentUserProvider.getCurrentUsername();
+                LocalDateTime now = LocalDateTime.now();
+                List<HousekeepingRoomDayStatus> rows = roomNumber == null || roomNumber.isBlank()
+                                ? dayStatusRepository.findAllByPropertyIdAndConfirmationId(propertyId, confirmationId)
+                                : arrivalDate != null && departureDate != null
+                                                ? dayStatusRepository
+                                                                .findAllByPropertyIdAndRoomNumberIgnoreCaseAndBusinessDateGreaterThanEqualAndBusinessDateLessThan(
+                                                                                propertyId, roomNumber.trim(), arrivalDate,
+                                                                                departureDate)
+                                                : dayStatusRepository.findAllByPropertyIdAndRoomNumberIgnoreCase(
+                                                                propertyId, roomNumber.trim());
+
+                log.info("HousekeepingService::releaseReservationAssignment - Matched {} rows for confirmationId={}, roomNumber={}",
+                                rows.size(), confirmationId, roomNumber);
+
+                return releaseReservationRows(rows, propertyId, now, loggedInUser);
+        }
+
+        private int releaseReservationRows(
+                        List<HousekeepingRoomDayStatus> rows,
+                        String propertyId,
+                        LocalDateTime now,
+                        String loggedInUser) {
+                for (HousekeepingRoomDayStatus row : rows) {
+                        saveHistory(row, "assignedReservationId", row.getConfirmationId(), null,
+                                        new UpdateHousekeepingRoomDetailsRequest(
+                                        propertyId,
+                                        row.getBusinessDate(),
+                                        null,
+                                        FrontOfficeStatus.VACANT,
+                                        ReservationStatus.NOT_RESERVED,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        StatusChangeSource.RESERVATION,
+                                        null),
+                                now,
+                                loggedInUser);
+                        row.setConfirmationId(null);
+                        row.setGuestDisplayName(null);
+                        row.setArrivalDate(null);
+                        row.setDepartureDate(null);
+                        row.setFrontOfficeStatus(FrontOfficeStatus.VACANT);
+                        row.setReservationStatus(ReservationStatus.NOT_RESERVED);
+                        row.setSellable(computeSellable(row));
+                        row.setUpdatedBy(CurrentUser.userId());
+                        row.setUpdatedAt(now);
+                }
+
+                dayStatusRepository.saveAll(rows);
+                return rows.size();
+        }
+
+    private void applyCleaningStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingRoomDetailsRequest request, LocalDateTime now, String loggedInUser) {
         if (request.cleaningStatus() == null || request.cleaningStatus() == row.getCleaningStatus()) {
             log.debug("HousekeepingService::applyCleaningStatusChange - No cleaning status change for room {}",
                     row.getRoomNumber());
@@ -563,10 +723,12 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                     "HousekeepingService::applyCleaningStatusChange - lastCleanedAt updated for room {}",
                     row.getRoomNumber()
             );
+                } else {
+                        row.setLastCleanedAt(null);
         }
     }
 
-    private void applyFrontOfficeStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
+    private void applyFrontOfficeStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingRoomDetailsRequest request, LocalDateTime now, String loggedInUser) {
         if (request.frontOfficeStatus() == null || request.frontOfficeStatus() == row.getFrontOfficeStatus()) {
             return;
         }
@@ -580,7 +742,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         row.setFrontOfficeStatus(request.frontOfficeStatus());
     }
 
-    private void applyReservationStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingStatusRequest request, LocalDateTime now, String loggedInUser) {
+    private void applyReservationStatusChange(HousekeepingRoomDayStatus row, UpdateHousekeepingRoomDetailsRequest request, LocalDateTime now, String loggedInUser) {
         if (request.reservationStatus() == null || request.reservationStatus() == row.getReservationStatus()) {
             return;
         }
@@ -595,11 +757,11 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     }
 
     private void saveHistory(
-            HousekeepingRoomDayStatus row,
+                HousekeepingRoomDayStatus row,
             String field,
             String oldValue,
             String newValue,
-            UpdateHousekeepingStatusRequest request,
+            UpdateHousekeepingRoomDetailsRequest request,
             LocalDateTime now,
             String loggedInUser
     ) {
@@ -630,6 +792,13 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     }
 
     private HousekeepingRoomRowResponse toRowResponse(HousekeepingRoomDayStatus room) {
+        List<String> features = room.getFeaturesCsv() == null
+                || room.getFeaturesCsv().isBlank()
+                ? List.of()
+                : Arrays.stream(room.getFeaturesCsv().split(","))
+                .map(String::trim)
+                .filter(feature -> !feature.isBlank())
+                .toList();
         return new HousekeepingRoomRowResponse(
                 room.getRoomNumber(),
                 room.getRoomTypeId(),
@@ -646,7 +815,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 room.getPriority(),
                 room.isSellable(),
                 room.getConfirmationId(),
-                room.getFeaturesCsv()
+                features
         );
     }
 

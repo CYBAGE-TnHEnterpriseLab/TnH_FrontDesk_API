@@ -45,8 +45,13 @@ Path: /api/v1/billingFolio/getBillingDetails
 
 Query parameters (optional):
 - confirmationNo
+- bookingId (required for a specific room in a multi-room booking)
 - roomNo
 - guestName
+
+When `bookingId` is provided, the response contains only that booking's
+assigned folio and totals. Without `bookingId`, totals are aggregated across
+all folios sharing the confirmation number.
 
 Response fields:
 - totalCharges
@@ -104,6 +109,7 @@ Method: POST
 
 Request body:
 - confirmationNo (required)
+- bookingId (required when charging a specific room in a multi-room booking)
 - roomNo (optional)
 - guestName (optional)
 - category (required, for example ROOM, MINIBAR, LAUNDRY, PARKING)

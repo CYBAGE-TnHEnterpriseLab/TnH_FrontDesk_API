@@ -10,11 +10,14 @@ import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.OccupancyType;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
+import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
+import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
 import com.frontdesk.pms.rate_management.exception.RatePlanNotFoundException;
 import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.RatePlanRepository;
+import com.frontdesk.pms.rate_management.enums.DifferentialType;
 import lombok.RequiredArgsConstructor;
 
 import org.jspecify.annotations.Nullable;
@@ -31,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,11 @@ public class RatePlanService {
     private final RatePlanRepository ratePlanRepository;
     private final MasterRoomPricingRepository masterRoomPricingRepository;
     private final PropertyWizardClient propertyWizardClient;
+    private final MasterRoomRoomTypeMappingRepository mappingRepository;
+
+    private static final long RECONCILE_INTERVAL_MS = 60_000L;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> lastReconciledAt =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     @Transactional
     public RatePlanResponseDTO createRatePlan(String propertyId, RatePlanRequestDTO requestDTO) {
@@ -286,7 +295,29 @@ public class RatePlanService {
         }
     }
 
-    private Double resolveMasterBarAmount(RatePlan ratePlan, Long roomTypeId, String selectedOccupancyType) {
+    private Double calculateDifferentialPrice(
+            Double basePrice,
+            DifferentialType differentialType,
+            BigDecimal differentialValue) {
+
+        if (basePrice == null
+                || differentialType == null
+                || differentialValue == null) {
+            return basePrice;
+        }
+
+        double differential = differentialValue.doubleValue();
+
+        return switch (differentialType) {
+            case FIXED ->
+                    basePrice + differential;
+
+            case PERCENTAGE ->
+                    basePrice + (basePrice * differential / 100);
+        };
+    }
+
+    private Double resolveMasterBarAmount(String propertyId, RatePlan ratePlan, Long roomTypeId, String selectedOccupancyType) {
         if (roomTypeId == null) {
             throw new InvalidRatePlanException("Room type id is required to derive BAR amount");
         }
@@ -298,16 +329,36 @@ public class RatePlanService {
         // Uttam's Fix
         // this is fix where the database has Occupancy Type "2_Guest" but the query
         // finding for "2 Guest"
-        String capitalUpdate = selectedOccupancyType.toUpperCase(Locale.ROOT);
-        String updateUnderscore = capitalUpdate.replace(" ", "_");
-        MasterRoomPricing pricing = masterRoomPricingRepository
-                .findByRoomTypeIdAndOccupancyType(roomTypeId, updateUnderscore)
-                .orElseThrow(() -> new InvalidRatePlanException(
-                        "Master BAR pricing not found for room type " + roomTypeId
-                                + " and occupancy " + updateUnderscore));
+        String normalizedOccupancyType =
+                selectedOccupancyType.toUpperCase(Locale.ROOT)
+                        .replace(" ", "_");
+
+        MasterRoomRoomTypeMapping mapping =
+                mappingRepository
+                        .findByMasterRoomPropertyIdAndRoomTypeId(
+                                propertyId,
+                                roomTypeId)
+                        .orElseThrow(() -> new InvalidRatePlanException(
+                                "Room type mapping not found for room type "
+                                        + roomTypeId));
+
+        MasterRoomPricing pricing =
+                masterRoomPricingRepository
+                        .findByMasterRoomIdAndRoomTypeIdAndOccupancyType(
+                                mapping.getMasterRoom().getId(),
+                                roomTypeId,
+                                normalizedOccupancyType)
+                        .orElseThrow(() -> new InvalidRatePlanException(
+                                "Master BAR pricing not found for room type "
+                                        + roomTypeId
+                                        + " and occupancy "
+                                        + normalizedOccupancyType));
 
         validateMasterBarAmount(pricing.getPrice());
-        return pricing.getPrice();
+        return calculateDifferentialPrice(
+                pricing.getPrice(),
+                mapping.getDifferentialType(),
+                mapping.getDifferentialValue());
     }
 
         private CalculationResult calculateRatePlanAmount(String propertyId,
@@ -361,7 +412,7 @@ public class RatePlanService {
             return new CalculationResult(parentCalculation.masterBarAmount(), parentCalculation.finalAmount());
         }
 
-        Double masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId, selectedOccupancyType);
+        Double masterBarAmount = resolveMasterBarAmount(propertyId, ratePlan, roomTypeId, selectedOccupancyType);
         return new CalculationResult(masterBarAmount, masterBarAmount);
     }
 
@@ -390,6 +441,29 @@ public class RatePlanService {
     }
 
     private void reconcileExistingRatePlansWithPropertyWizard(String propertyId) {
+        // Runs on read paths too; throttled so parallel price lookups don't issue concurrent saveAll on the same rows.
+        long now = System.currentTimeMillis();
+        boolean[] claimed = {false};
+        lastReconciledAt.compute(propertyId, (ignored, last) -> {
+            if (last != null && now - last < RECONCILE_INTERVAL_MS) {
+                return last;
+            }
+            claimed[0] = true;
+            return now;
+        });
+        if (!claimed[0]) {
+            return;
+        }
+
+        try {
+            doReconcileExistingRatePlansWithPropertyWizard(propertyId);
+        } catch (RuntimeException ex) {
+            lastReconciledAt.remove(propertyId, now);
+            throw ex;
+        }
+    }
+
+    private void doReconcileExistingRatePlansWithPropertyWizard(String propertyId) {
         Set<Long> availableRoomTypeIds = fetchRoomTypeIdsByProperty(propertyId);
         List<RatePlan> existingRatePlans = ratePlanRepository.findByPropertyId(propertyId);
         if (existingRatePlans == null || existingRatePlans.isEmpty()) {

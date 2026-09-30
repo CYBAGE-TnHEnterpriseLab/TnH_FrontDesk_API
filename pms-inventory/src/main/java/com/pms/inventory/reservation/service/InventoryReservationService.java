@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class InventoryReservationService {
@@ -37,10 +36,32 @@ public class InventoryReservationService {
 
     @Transactional
     public InventoryReservationResponse reserve(ReserveInventoryRequest request) {
-        InventoryReservation existing = reservationRepository.findByReservationId(request.reservationId()).orElse(null);
+        InventoryReservation existing = reservationRepository.findByConfirmationNumber(request.confirmationNumber()).orElse(null);
         if (existing != null) {
             if (existing.getStatus() == InventoryReservationStatus.RESERVED) {
                 return reservationMapper.toResponse(existing, true);
+            }
+            if (existing.getStatus() == InventoryReservationStatus.RELEASED
+                    || existing.getStatus() == InventoryReservationStatus.CANCELLED) {
+                existing.setStatus(InventoryReservationStatus.RESERVED);
+                existing.setCheckInDate(request.checkInDate());
+                existing.setCheckOutDate(request.checkOutDate());
+                existing.setBookedRoomTypeId(request.bookedRoomTypeId());
+                existing.setAssignedRoomTypeId(request.assignedRoomTypeId());
+                existing.setQuantity(request.quantity());
+                existing.setPropertyId(request.propertyId());
+
+                List<RoomTypeInventoryDaily> rows = inventoryService.lockInventoryRange(
+                        existing.getPropertyId(),
+                        existing.getAssignedRoomTypeId(),
+                        existing.getCheckInDate(),
+                        existing.getCheckOutDate()
+                );
+                inventoryService.ensureSufficientInventory(rows, existing.getQuantity());
+                inventoryService.increaseReserved(rows, existing.getQuantity());
+
+                reservationRepository.save(existing);
+                return reservationMapper.toResponse(existing, false);
             }
             throw new InventoryException("Reservation is already processed with status " + existing.getStatus());
         }
@@ -56,7 +77,7 @@ public class InventoryReservationService {
         inventoryService.increaseReserved(rows, request.quantity());
 
         InventoryReservation reservation = InventoryReservation.builder()
-                .reservationId(request.reservationId())
+                .confirmationNumber(request.confirmationNumber())
                 .propertyId(request.propertyId())
                 .bookedRoomTypeId(request.bookedRoomTypeId())
                 .assignedRoomTypeId(request.assignedRoomTypeId())
@@ -69,7 +90,7 @@ public class InventoryReservationService {
         try {
             reservation = reservationRepository.save(reservation);
         } catch (DataIntegrityViolationException ex) {
-            InventoryReservation duplicate = reservationRepository.findByReservationId(request.reservationId())
+            InventoryReservation duplicate = reservationRepository.findByConfirmationNumber(request.confirmationNumber())
                     .orElseThrow(() -> ex);
             if (duplicate.getStatus() == InventoryReservationStatus.RESERVED) {
                 return reservationMapper.toResponse(duplicate, true);
@@ -81,8 +102,8 @@ public class InventoryReservationService {
     }
 
     @Transactional
-    public InventoryReservationResponse release(UUID reservationId) {
-        InventoryReservation reservation = reservationRepository.findByReservationId(reservationId)
+    public InventoryReservationResponse release(String confirmationNumber) {
+        InventoryReservation reservation = reservationRepository.findByConfirmationNumber(confirmationNumber)
                 .orElseThrow(() -> new InventoryNotFoundException("Inventory reservation not found"));
 
         if (reservation.getStatus() == InventoryReservationStatus.RELEASED
@@ -105,10 +126,10 @@ public class InventoryReservationService {
 
     @Transactional
     public InventoryReservationResponse changeAssignedRoomType(
-            UUID reservationId,
+            String confirmationNumber,
             ChangeAssignedRoomTypeRequest request
     ) {
-        InventoryReservation reservation = reservationRepository.findByReservationId(reservationId)
+        InventoryReservation reservation = reservationRepository.findByConfirmationNumber(confirmationNumber)
                 .orElseThrow(() -> new InventoryNotFoundException("Inventory reservation not found"));
 
         if (reservation.getStatus() != InventoryReservationStatus.RESERVED) {

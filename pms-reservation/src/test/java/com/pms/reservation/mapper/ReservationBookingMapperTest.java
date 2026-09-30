@@ -22,6 +22,7 @@ class ReservationBookingMapperTest {
         ReservationBookingRequestDto request = validRequest();
         request.setRate(new BigDecimal("2500.00"));
         request.setNumberOfRooms(2);
+        request.setGuestNames(List.of("Alex Johnson", "Priya Rao"));
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
@@ -38,6 +39,19 @@ class ReservationBookingMapperTest {
     }
 
     @Test
+    void toResponseShouldKeepOneGuestNamePerSelectedRoom() {
+        ReservationBookingRequestDto request = validRequest();
+        request.setNumberOfRooms(2);
+        request.setGuestNames(List.of("Alex Johnson", "Priya Rao"));
+
+        ReservationBookingRecord entity = mapper.toEntity(request);
+        ReservationBookingResponseDto response = mapper.toResponse(entity);
+
+        assertThat(response.getNumberOfRooms()).isEqualTo(2);
+        assertThat(response.getGuestNames()).containsExactly("Alex Johnson", "Priya Rao");
+    }
+
+    @Test
     void toEntityShouldFallbackPrimaryGuestNameFromGuestNamesWhenGuestNameMissing() {
         ReservationBookingRequestDto request = validRequest();
         request.setGuestName(" ");
@@ -49,7 +63,7 @@ class ReservationBookingMapperTest {
     }
 
     @Test
-    void toEntityShouldSetTotalRateToZeroWhenStayNightsAreZero() {
+    void toEntityShouldSetTotalRateToOneNightWhenStayNightsAreZero() {
         ReservationBookingRequestDto request = validRequest();
         request.setArrivalDate(LocalDate.of(2026, 6, 20));
         request.setDepartureDate(LocalDate.of(2026, 6, 20));
@@ -58,7 +72,7 @@ class ReservationBookingMapperTest {
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
-        assertThat(entity.getTotalRate()).isEqualByComparingTo("0");
+        assertThat(entity.getTotalRate()).isEqualByComparingTo("5000.00");
     }
 
     @Test

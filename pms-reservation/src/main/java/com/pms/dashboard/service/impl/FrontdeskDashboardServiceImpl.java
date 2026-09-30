@@ -174,6 +174,18 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             long departures = Math.max(hkSummary.payload().departures(), reservation.payload().departures());
             long stayovers = Math.max(occupiedTonight - arrivals, 0);
 
+            long walkIns = reservationBookingRepository.countWalkInsByPropertyIdAndArrivalDate(propertyId.toString(), businessDate);
+            long newReservations = reservationBookingRepository.countNewReservationsByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+            long checkedOut = reservationBookingRepository.countCheckedOutsByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+            long earlyDepartures = reservationBookingRepository.countEarlyDeparturesByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+            long sameDayCancels = reservationBookingRepository.countSameDayCancelsByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+            long checkedIn = reservationBookingRepository.countCheckInsByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+
             FrontdeskDashboardResponse.HousekeepingRoomStatus housekeepingStatus = summarizeHousekeepingStatus(hkSummary.payload(), hkToday.payload());
 
             Map<String, String> sources = new LinkedHashMap<>();
@@ -194,7 +206,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                     housekeepingStatus,
                     resolvedRoomOverview,
                     summarizeTurndownStatus(hkTomorrow.payload()),
-                    summarizeGuestActivity(arrivals, departures, stayovers, occupiedTonight),
+                    summarizeGuestActivity(arrivals, departures, stayovers, occupiedTonight, walkIns, newReservations, checkedIn, checkedOut, earlyDepartures, 0, 0, sameDayCancels),
                     sources
             );
         });
@@ -290,7 +302,9 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             List<FrontdeskDashboardResponse.RoomTypeOverview> roomTypeOverview
     ) {
         long totalRooms = housekeeping.totalRooms();
-        long sellable = rooms.stream().filter(DashboardModels.HousekeepingRoomData::sellable).count();
+        long sellable = rooms.stream()
+                .filter(room -> room.sellable() && !isOccupied(room.frontOfficeStatus()))
+                .count();
         if (sellable == 0) {
             sellable = Math.max(housekeeping.vacantClean() + housekeeping.inspected(), 0);
         }
@@ -397,12 +411,24 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
         );
     }
 
-    private FrontdeskDashboardResponse.DailyGuestActivity summarizeGuestActivity(long arrivals, long departures, long stayovers, long occupiedTonight) {
-        long checkedIn = Math.max(occupiedTonight - stayovers, 0);
+    private FrontdeskDashboardResponse.DailyGuestActivity summarizeGuestActivity(
+            long arrivals,
+            long departures,
+            long stayovers,
+            long occupiedTonight,
+            long walkIns,
+            long newReservations,
+            long checkedIn,
+            long checkedOut,
+            long earlyDepartures,
+            long extendedStays,
+            long dayUseRooms,
+            long sameDayCancels
+    ) {
         return new FrontdeskDashboardResponse.DailyGuestActivity(
-                new FrontdeskDashboardResponse.Today(arrivals, checkedIn, 0, 0),
-                new FrontdeskDashboardResponse.Arrivals(arrivals, departures, 0),
-                new FrontdeskDashboardResponse.OtherActivity(stayovers, 0, 0, 0)
+                new FrontdeskDashboardResponse.Today(arrivals, checkedIn, walkIns, newReservations),
+                new FrontdeskDashboardResponse.Arrivals(departures, checkedOut, earlyDepartures),
+                new FrontdeskDashboardResponse.OtherActivity(stayovers, extendedStays, dayUseRooms, sameDayCancels)
         );
     }
 
@@ -421,6 +447,10 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             }
         }
         return false;
+    }
+
+    private boolean isOccupied(String frontOfficeStatus) {
+        return containsAny(frontOfficeStatus, "OCCUPIED");
     }
 
     private String coalesceTypeName(String code, String name) {

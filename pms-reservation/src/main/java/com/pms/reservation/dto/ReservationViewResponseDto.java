@@ -26,6 +26,7 @@ public class ReservationViewResponseDto {
     PricingDto pricing;
     CommentsDto comments;
     ActionsDto actions;
+    List<ReservationRoomBookingSummaryDto> roomBookings;
 
     @Value
     @Builder

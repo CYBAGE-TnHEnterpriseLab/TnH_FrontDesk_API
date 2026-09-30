@@ -40,7 +40,7 @@ class RoomMasterSyncControllerTest {
                 LocalDate.of(2026, 8, 18),
                 LocalDate.of(2026, 8, 20),
                 List.of(new RoomMasterSyncRequest.RoomMasterUnit(
-                        UUID.randomUUID(),
+                        "13",
                         "Deluxe",
                         "101",
                         "1",

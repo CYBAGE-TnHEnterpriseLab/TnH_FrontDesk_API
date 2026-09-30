@@ -31,9 +31,11 @@ public interface BillingFolioService {
     FolioCreateResponse addFolio(FolioCreateRequest request);
 
     BillingDetailsResponse getBillingDetails(String confirmationNumber, String roomNo, String guestName);
+    BillingDetailsResponse getBillingDetails(String confirmationNumber, Long bookingId, String roomNo, String guestName);
 
     FolioDashboardResponse getFolioDashboard(String confirmationNumber);
     FolioDetailsResponse getFolioDetails(String confirmationNumber);
+    FolioDetailsResponse getFolioDetails(String confirmationNumber, Long bookingId);
 
     FolioChargePostResponse addCharge(FolioChargePostRequest request);
 

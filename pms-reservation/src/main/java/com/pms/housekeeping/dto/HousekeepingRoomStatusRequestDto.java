@@ -21,5 +21,7 @@ public class HousekeepingRoomStatusRequestDto {
     @NotBlank(message = "confirmationNumber is required")
     private String confirmationNumber;
 
+    private Long bookingId;
+
     private String roomNo;
 }

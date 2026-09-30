@@ -7,6 +7,7 @@ import com.folio.billing.dto.FolioBillingFilter;
 import com.folio.billing.dto.FolioBillingRow;
 import com.folio.billing.dto.FolioChargePostRequest;
 import com.folio.billing.dto.FolioChargePostResponse;
+import com.folio.billing.dto.FolioCreateRequest;
 import com.folio.billing.dto.FolioDetailsResponse;
 import com.folio.billing.entity.Folio;
 import com.folio.billing.repository.FolioRepository;
@@ -71,6 +72,38 @@ class BillingFolioServiceImplTest {
 
         assertEquals(new BigDecimal("100.00"), response.totalAmount());
     }
+
+        @Test
+        void keepsEachBookingChargeOnItsOwnDefaultFolioA() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                when(reservations.getReservationSummary(any(), any(), any())).thenReturn(Optional.empty());
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(reservations, new ObjectMapper());
+
+                FolioChargePostRequest roomOne = new FolioChargePostRequest(
+                                "CONF-MULTI", "101", "Guest One", "Room", "Room charge",
+                                new BigDecimal("100.00"), LocalDate.of(2026, 8, 13), "agent");
+                roomOne.setBookingId(101L);
+                FolioChargePostRequest roomTwo = new FolioChargePostRequest(
+                                "CONF-MULTI", "102", "Guest Two", "Room", "Room charge",
+                                new BigDecimal("200.00"), LocalDate.of(2026, 8, 13), "agent");
+                roomTwo.setBookingId(102L);
+
+                FolioChargePostResponse roomOneResponse = service.addCharge(roomOne);
+                FolioChargePostResponse roomTwoResponse = service.addCharge(roomTwo);
+
+                assertEquals("FOLIO-A-001", roomOneResponse.folioId());
+                assertEquals("FOLIO-A-001", roomTwoResponse.folioId());
+                assertEquals(new BigDecimal("100.00"), roomOneResponse.balance());
+                assertEquals(new BigDecimal("200.00"), roomTwoResponse.balance());
+
+                service.addFolio(new FolioCreateRequest(
+                        "CONF-MULTI", 101L, "101", "Guest One", "agent"));
+
+                FolioDetailsResponse details = service.getFolioDetails("CONF-MULTI", 101L);
+                assertEquals(List.of("FOLIO A", "FOLIO B"), details.folios().stream()
+                        .map(FolioDetailsResponse.Folio::folioName)
+                        .toList());
+        }
 
     @Test
         void addsConfiguredChargeCategoryWithoutTax() {

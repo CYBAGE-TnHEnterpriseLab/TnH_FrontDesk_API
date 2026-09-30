@@ -115,7 +115,7 @@ class GuestListingControllerTest {
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].confirmationNumber").value("CNF458721"))
                 .andExpect(jsonPath("$.data.content[0].guests").value(3))
-                .andExpect(jsonPath("$.data.content[0].roomNo").value("301"))
+                .andExpect(jsonPath("$.data.content[0].roomNo").value("305"))
                 .andExpect(jsonPath("$.data.content[0].roomStatus").value("OCCUPIED"))
                 .andExpect(jsonPath("$.data.content[0].floor").value(3));
 
@@ -194,5 +194,33 @@ class GuestListingControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    void getGuestListingShouldShowNoShowForConfirmedBookingPastArrivalDate() throws Exception {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(3L)
+                .propertyId("property-1")
+                .confirmationNumber("CNF-NO-SHOW")
+                .reservationStatus("CONFIRMED")
+                .arrivalDate(LocalDate.of(2026, 6, 1))
+                .departureDate(LocalDate.of(2026, 6, 3))
+                .guestName("No Show Guest")
+                .assignedRoomNo("101")
+                .build();
+
+        when(reservationBookingRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(booking), PageRequest.of(0, 20), 1));
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
+                any(), any(), anyCollection())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/guest-listing/list")
+                        .param("propertyId", "property-1")
+                        .param("businessDate", "2026-06-02"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("NO_SHOW"));
+
+        verify(reservationBookingRepository).markPastConfirmedReservationsAsNoShow(
+                "property-1", LocalDate.of(2026, 6, 2));
     }
 }

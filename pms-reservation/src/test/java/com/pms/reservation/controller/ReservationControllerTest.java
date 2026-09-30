@@ -215,6 +215,30 @@ class ReservationControllerTest {
         verify(reservationBookingService).getBookingDetails("10256CNF569");
         }
 
+        @Test
+        void getRoomBookingDetailsShouldUseBookingIdWithinConfirmation() throws Exception {
+        ReservationViewResponseDto response = ReservationViewResponseDto.builder()
+            .reservationId("10256CNF569")
+            .confirmationNumber("10256CNF569")
+            .room(ReservationViewResponseDto.RoomDto.builder()
+                .roomNo("102")
+                .roomType("King")
+                .build())
+            .build();
+
+        when(reservationBookingService.getBookingDetails("10256CNF569", 1002L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/reservations/bookings/{confirmationNumber}/rooms/{bookingId}",
+                "10256CNF569", 1002L))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.message").value("Room booking fetched successfully"))
+            .andExpect(jsonPath("$.data.confirmationNumber").value("10256CNF569"))
+            .andExpect(jsonPath("$.data.room.roomNo").value("102"));
+
+        verify(reservationBookingService).getBookingDetails("10256CNF569", 1002L);
+        }
+
     @Test
     void updateBookingShouldReturnUpdatedReservation() throws Exception {
         ReservationBookingRequestDto request = validRequest();

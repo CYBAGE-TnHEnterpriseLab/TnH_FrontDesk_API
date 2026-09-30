@@ -8,4 +8,7 @@ import java.util.Optional;
 public interface FolioRepository extends JpaRepository<Folio, Long> {
     Optional<Folio> findByConfirmationNumberAndFolioCode(String confirmationNumber, String folioCode);
     List<Folio> findByConfirmationNumberOrderByFolioCode(String confirmationNumber);
+    Optional<Folio> findByBookingIdAndFolioCode(Long bookingId, String folioCode);
+    List<Folio> findByBookingIdOrderByFolioCode(Long bookingId);
+    Optional<Folio> findFirstByConfirmationNumberAndBookingIdOrderByFolioCode(String confirmationNumber, Long bookingId);
 }

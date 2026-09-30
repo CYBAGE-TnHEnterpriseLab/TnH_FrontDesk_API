@@ -11,6 +11,7 @@ public class HousekeepingRoomStatusResponseDto {
     String propertyId;
     LocalDate businessDate;
     String confirmationNumber;
+    Long bookingId;
     String roomNo;
     String roomStatus;
     LocalDateTime updatedAt;

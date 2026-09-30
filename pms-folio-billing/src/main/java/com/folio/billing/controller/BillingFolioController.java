@@ -57,17 +57,22 @@ public class BillingFolioController {
             @RequestParam(required = false) String roomNumber,
             @RequestParam(required = false) String guestName,
             @RequestParam(required = false) String company,
+            @RequestParam(required = false) String companyName,
             @RequestParam(required = false) String confirmationNumber,
+            @RequestParam(required = false) Long bookingId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkInDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOutDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOutDate,
+            @RequestParam(required = false) String propertyId
     ) {
         FolioBillingFilter filter = new FolioBillingFilter(
                 roomNumber,
                 guestName,
-                company,
+                company != null && !company.isBlank() ? company : companyName,
                 confirmationNumber,
                 checkInDate,
-                checkOutDate
+                checkOutDate,
+                propertyId,
+                bookingId
         );
 
         return ResponseEntity.ok(billingFolioService.getFolioBilling(filter));
@@ -84,13 +89,15 @@ public class BillingFolioController {
     public ResponseEntity<BillingDetailsResponse> getBillingDetails(
             @RequestParam(name = "confirmationNumber", required = false) String confirmationNumber,
                         @RequestParam(name = "confirmationNo", required = false) String confirmationNo,
+                            @RequestParam(required = false) Long bookingId,
             @RequestParam(required = false) String roomNo,
             @RequestParam(required = false) String guestName
     ) {
                 String resolvedConfirmationNumber = confirmationNumber != null && !confirmationNumber.isBlank()
                                 ? confirmationNumber
                                 : confirmationNo;
-                return ResponseEntity.ok(billingFolioService.getBillingDetails(resolvedConfirmationNumber, roomNo, guestName));
+                return ResponseEntity.ok(billingFolioService.getBillingDetails(
+                        resolvedConfirmationNumber, bookingId, roomNo, guestName));
     }
 
     @GetMapping("/folioDashboard")
@@ -104,11 +111,12 @@ public class BillingFolioController {
     public ResponseEntity<FolioDetailsResponse> getFolioDetails(
                         @RequestParam(name = "confirmationNumber", required = false) String confirmationNumber,
                         @RequestParam(name = "confirmationNo", required = false) String confirmationNo,
+                                                @RequestParam(required = false) Long bookingId,
             @RequestParam(required = false) String propertyId) {
                 String resolvedConfirmationNumber = confirmationNumber != null && !confirmationNumber.isBlank()
                                 ? confirmationNumber
                                 : confirmationNo;
-                return ResponseEntity.ok(billingFolioService.getFolioDetails(resolvedConfirmationNumber));
+                                return ResponseEntity.ok(billingFolioService.getFolioDetails(resolvedConfirmationNumber, bookingId));
     }
 
     @PostMapping("/addCharge")

@@ -49,12 +49,15 @@ property-wizard-service:
   failOpenOnValidationError: true
   failOpenOnWriteError: true
   base-url: http://localhost:8082
-  inventory-validation-path: /api/v1/property-wizard/inventory/validate
-  inventory-availability-path: /api/rooms/properties/{propertyId}/inventory-rooms
   room-outlet-types-path: /api/rooms/properties/{propertyId}/room-outlet-types
   tax-rules-path: /api/taxes/properties/{propertyId}/rules
-  inventory-deduction-path: /api/v1/property-wizard/inventory/deduct
-  inventory-sync-path: /api/v1/property-wizard/inventory/sync
+
+inventory-service:
+  base-url: http://localhost:8085
+  availability-path: /api/v1/inventory/availability
+  reservations-path: /api/v1/inventory/reservations
+  connect-timeout-ms: 3000
+  read-timeout-ms: 6000
 
 rate-management:
   baseUrl: http://localhost:8087
@@ -66,9 +69,24 @@ rate-management:
   readTimeoutMs: 6000
   retryMaxAttempts: 2
   retryBackoffMs: 100
+  responseCacheTtlMs: 60000
+  failureCacheTtlMs: 5000
+  responseCacheMaxSize: 5000
+  maxPricedOccupancy: 4
+
+reservation:
+  availability:
+    parallel-enabled: true
+    parallelism: 12
+    io-parallelism: 48
+    forecast-days: 15
+    timeout-seconds: 120
 
 housekeeping-service:
   base-url: http://localhost:8086
+
+folio-service:
+  base-url: ${FOLIO_SERVICE_BASE_URL:http://localhost:8080}
 
 dashboard:
   timeout-ms: 2500
@@ -93,7 +111,7 @@ departures:
 
 springdoc:
   api-docs:
-    path: /api-docs
+    path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
 
@@ -105,3 +123,9 @@ security:
   jwt:
     enabled: true
     secret: ${PMS_FRONTDESK_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}
+    public-paths:
+      - /error
+      - /swagger-ui
+      - /swagger-ui.html
+      - /v3/api-docs
+      - /actuator/**

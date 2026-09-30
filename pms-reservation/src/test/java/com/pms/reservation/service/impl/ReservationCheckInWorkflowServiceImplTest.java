@@ -14,7 +14,7 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInAuditRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +41,7 @@ class ReservationCheckInWorkflowServiceImplTest {
 
     @Test
     void completeCheckInShouldUseConfirmationNumberWithoutPaymentOrSignaturePrerequisites() {
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
         when(housekeepingRoomStatusService.markOccupied(any()))
                 .thenReturn(HousekeepingRoomStatusResponseDto.builder().build());
         CheckInCompleteRequestDto request = request();
@@ -61,7 +61,7 @@ class ReservationCheckInWorkflowServiceImplTest {
     void completeCheckInShouldBeIdempotentWhenAlreadyCheckedIn() {
         booking.setReservationStatus("CHECKED_IN");
         booking.setCheckInCompletedAt(LocalDateTime.of(2026, 7, 22, 10, 0));
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         var response = service.completeCheckIn("CONF-101", request());
 
@@ -74,7 +74,7 @@ class ReservationCheckInWorkflowServiceImplTest {
     void completeCheckInShouldUpgradeArrivedStatusWhenRequested() {
         booking.setReservationStatus("ARRIVED");
         booking.setCheckInCompletedAt(LocalDateTime.of(2026, 7, 22, 10, 0));
-        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(Optional.of(booking));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
         CheckInCompleteRequestDto request = request();
         request.setTargetStatus("CHECKED_IN");
 
