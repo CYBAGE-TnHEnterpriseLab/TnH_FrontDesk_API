@@ -194,6 +194,30 @@ class GuestListingControllerTest {
     }
 
     @Test
+    void getGuestListingShouldMarkCheckedOutBookingAsCheckInCompleted() throws Exception {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(4L)
+                .propertyId("property-1")
+                .confirmationNumber("CNF-CHECKED-OUT")
+                .reservationStatus("CHECKED_OUT")
+                .guestName("Checked Out Guest")
+                .arrivalDate(LocalDate.of(2026, 6, 1))
+                .departureDate(LocalDate.of(2026, 6, 2))
+                .build();
+
+        when(reservationBookingRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(booking), PageRequest.of(0, 20), 1));
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
+                any(), any(), anyCollection())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/guest-listing/list")
+                        .param("propertyId", "property-1")
+                        .param("businessDate", "2026-06-02"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].checkInCompleted").value(true));
+    }
+
+    @Test
     void getGuestListingShouldReturnBadRequestWhenViewIsInvalid() throws Exception {
         mockMvc.perform(get("/api/v1/guest-listing/list")
                         .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
