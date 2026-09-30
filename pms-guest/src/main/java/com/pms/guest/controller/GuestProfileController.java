@@ -90,13 +90,16 @@ public class GuestProfileController {
                 responseCode = "200",
                 description = "Guest profile found",
                 content = @Content(schema = @Schema(implementation = GuestProfileResponse.class))),
-        @ApiResponse(responseCode = "404", description = "Guest profile not found")
+        @ApiResponse(responseCode = "404", description = "Guest profile not found"),
+        @ApiResponse(responseCode = "400", description = "propertyId is required")
     })
     public GuestProfileResponse getGuestProfileById(
             @Parameter(description = "Guest profile database ID", required = true)
-            @PathVariable Long id
+            @PathVariable Long id,
+            @Parameter(description = "Property ID used to scope the profile", required = true)
+            @RequestParam @NotBlank(message = "propertyId is required") String propertyId
     ) {
-        return guestProfileService.getGuestProfileById(id);
+        return guestProfileService.getGuestProfileById(id, propertyId);
     }
 
     @PutMapping("/{id}")
@@ -116,9 +119,11 @@ public class GuestProfileController {
     public GuestProfileResponse updateGuestProfile(
             @Parameter(description = "Guest profile database ID", required = true)
             @PathVariable Long id,
+            @Parameter(description = "Property ID used to scope the profile", required = true)
+            @RequestParam @NotBlank(message = "propertyId is required") String propertyId,
             @Valid @RequestBody GuestProfileUpdateRequest request
     ) {
-        return guestProfileService.updateGuestProfile(id, request);
+        return guestProfileService.updateGuestProfile(id, propertyId, request);
     }
 
     @GetMapping("/search")

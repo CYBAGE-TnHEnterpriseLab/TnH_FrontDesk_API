@@ -28,7 +28,7 @@ public class GuestProfileMapper {
                 .dateOfBirth(request.getDateOfBirth())
                 .gender(request.getGender())
                 .companyName(request.getCompanyName())
-                .vipStatus(request.getVipStatus())
+                .vipStatus(Boolean.TRUE.equals(request.getVipStatus()))
                 .idType(request.getIdType())
                 .idNumber(request.getIdNumber())
                 .idDocumentPath(request.getIdDocumentPath())
@@ -38,28 +38,30 @@ public class GuestProfileMapper {
     }
 
     public void updateEntity(GuestProfileUpdateRequest request, GuestProfile entity) {
-        entity.setSalutation(request.getSalutation());
-        entity.setFirstName(request.getFirstName());
-        entity.setLastName(request.getLastName());
-        entity.setPersonalEmail(request.getPersonalEmail());
-        entity.setOfficialEmail(request.getOfficialEmail());
-        entity.setPhoneNumber(request.getPhoneNumber());
-        entity.setMobileNumber(request.getMobileNumber());
-        entity.setAddress(request.getAddress());
-        entity.setCity(request.getCity());
-        entity.setState(request.getState());
-        entity.setCountry(request.getCountry());
-        entity.setPostalCode(request.getPostalCode());
-        entity.setNationality(request.getNationality());
-        entity.setDateOfBirth(request.getDateOfBirth());
-        entity.setGender(request.getGender());
-        entity.setCompanyName(request.getCompanyName());
-        entity.setVipStatus(request.getVipStatus());
-        entity.setIdType(request.getIdType());
-        entity.setIdNumber(request.getIdNumber());
-        entity.setIdDocumentPath(request.getIdDocumentPath());
-        entity.setLoyaltyMembershipNumber(request.getLoyaltyMembershipNumber());
-        entity.setLoyaltyTier(request.getLoyaltyTier());
+        if (request.getSalutation() != null) entity.setSalutation(request.getSalutation());
+        if (request.getFirstName() != null) entity.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) entity.setLastName(request.getLastName());
+        if (request.getPersonalEmail() != null) entity.setPersonalEmail(request.getPersonalEmail());
+        if (request.getOfficialEmail() != null) entity.setOfficialEmail(request.getOfficialEmail());
+        if (request.getPhoneNumber() != null) entity.setPhoneNumber(request.getPhoneNumber());
+        if (request.getMobileNumber() != null) entity.setMobileNumber(request.getMobileNumber());
+        if (request.getAddress() != null) entity.setAddress(request.getAddress());
+        if (request.getCity() != null) entity.setCity(request.getCity());
+        if (request.getState() != null) entity.setState(request.getState());
+        if (request.getCountry() != null) entity.setCountry(request.getCountry());
+        if (request.getPostalCode() != null) entity.setPostalCode(request.getPostalCode());
+        if (request.getNationality() != null) entity.setNationality(request.getNationality());
+        if (request.getDateOfBirth() != null) entity.setDateOfBirth(request.getDateOfBirth());
+        if (request.getGender() != null) entity.setGender(request.getGender());
+        if (request.getCompanyName() != null) entity.setCompanyName(request.getCompanyName());
+        if (request.getVipStatus() != null) entity.setVipStatus(request.getVipStatus());
+        if (request.getIdType() != null) entity.setIdType(request.getIdType());
+        if (request.getIdNumber() != null) entity.setIdNumber(request.getIdNumber());
+        if (request.getIdDocumentPath() != null) entity.setIdDocumentPath(request.getIdDocumentPath());
+        if (request.getLoyaltyMembershipNumber() != null) {
+            entity.setLoyaltyMembershipNumber(request.getLoyaltyMembershipNumber());
+        }
+        if (request.getLoyaltyTier() != null) entity.setLoyaltyTier(request.getLoyaltyTier());
     }
 
     public GuestProfileResponse toResponse(GuestProfile entity) {

@@ -1,7 +1,6 @@
 package com.pms.guest.dto.request;
 
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import lombok.Getter;
@@ -14,11 +13,9 @@ public class GuestProfileUpdateRequest {
     @Size(max = 20)
     private String salutation;
 
-    @NotBlank(message = "firstName is required")
     @Size(max = 80, message = "firstName must not exceed 80 characters")
     private String firstName;
 
-    @NotBlank(message = "lastName is required")
     @Size(max = 80, message = "lastName must not exceed 80 characters")
     private String lastName;
 

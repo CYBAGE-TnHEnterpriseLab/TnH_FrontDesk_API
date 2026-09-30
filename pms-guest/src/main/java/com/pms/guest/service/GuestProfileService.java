@@ -11,9 +11,9 @@ public interface GuestProfileService {
 
     GuestProfileResponse createGuestProfile(GuestProfileCreateRequest request);
 
-    GuestProfileResponse getGuestProfileById(Long id);
+    GuestProfileResponse getGuestProfileById(Long id, String propertyId);
 
-    GuestProfileResponse updateGuestProfile(Long id, GuestProfileUpdateRequest request);
+    GuestProfileResponse updateGuestProfile(Long id, String propertyId, GuestProfileUpdateRequest request);
 
     Optional<GuestProfileResponse> findExistingGuest(GuestLookupRequest request);
 

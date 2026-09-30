@@ -67,10 +67,11 @@ public class GuestServiceClient {
         }
     }
 
-    public Optional<GuestProfileResponse> getGuestById(Long guestProfileId) {
+    public Optional<GuestProfileResponse> getGuestById(Long guestProfileId, String propertyId) {
         String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
                 .path(GUESTS_PATH)
                 .pathSegment(String.valueOf(guestProfileId))
+                .queryParam("propertyId", propertyId)
                 .toUriString();
 
         try {
@@ -111,10 +112,15 @@ public class GuestServiceClient {
         }
     }
 
-    public GuestProfileResponse updateGuestProfile(Long guestProfileId, GuestProfileUpdateRequest request) {
+    public GuestProfileResponse updateGuestProfile(
+            Long guestProfileId,
+            String propertyId,
+            GuestProfileUpdateRequest request
+    ) {
         String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
                 .path(GUESTS_PATH)
                 .pathSegment(String.valueOf(guestProfileId))
+                .queryParam("propertyId", propertyId)
                 .toUriString();
 
         try {

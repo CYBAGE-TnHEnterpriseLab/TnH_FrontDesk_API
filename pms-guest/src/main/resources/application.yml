@@ -28,9 +28,20 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
-    validate-on-migrate: false
+    validate-on-migrate: true
     create-schemas: true
     schemas: frontdeskdb
     default-schema: frontdeskdb
     table: flyway_schema_history_guest
     locations: classpath:db/migration
+
+security:
+  jwt:
+    enabled: true
+    secret: ${PMS_FRONTDESK_JWT_SECRET:pms-auth-super-secret-key-change-me-in-prod-2026}
+    public-paths:
+      - /error
+      - /swagger-ui
+      - /swagger-ui.html
+      - /v3/api-docs
+      - /actuator/**

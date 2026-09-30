@@ -40,7 +40,7 @@ class ReservationGuestResolverTest {
     @Test
     void resolvesExistingGuestByIdAndRejectsDifferentProperty() {
         ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(profile(42L, "PROP001")));
+        when(guestServiceClient.getGuestById(42L, "PROP001")).thenReturn(Optional.of(profile(42L, "PROP001")));
 
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
 
@@ -48,7 +48,7 @@ class ReservationGuestResolverTest {
         verify(guestServiceClient, never()).findExistingGuest(any());
         verify(guestServiceClient, never()).createGuest(any());
 
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(profile(42L, "PROP002")));
+        when(guestServiceClient.getGuestById(42L, "PROP001")).thenReturn(Optional.of(profile(42L, "PROP002")));
         assertThatThrownBy(() -> resolver.resolveGuests("PROP001", List.of(request)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("does not belong");
@@ -134,7 +134,7 @@ class ReservationGuestResolverTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Duplicate new guest");
 
-        verify(guestServiceClient, never()).getGuestById(any());
+        verify(guestServiceClient, never()).getGuestById(any(), any());
     }
 
     @Test
@@ -145,7 +145,7 @@ class ReservationGuestResolverTest {
                 .hasMessageContaining("requires a phone number");
 
         ReservationGuestRequestDto missingExisting = guest(99L, true, "Ava", "Guest", "5551000");
-        when(guestServiceClient.getGuestById(99L)).thenReturn(Optional.empty());
+        when(guestServiceClient.getGuestById(99L, "PROP001")).thenReturn(Optional.empty());
         assertThatThrownBy(() -> resolver.resolveGuests("PROP001", List.of(missingExisting)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Guest profile not found");
@@ -175,7 +175,7 @@ class ReservationGuestResolverTest {
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
 
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any(), any());
         verify(guestServiceClient, never()).createGuest(any());
     }
 
@@ -190,7 +190,7 @@ class ReservationGuestResolverTest {
                 .loyaltyMembershipNumber("LOYALTY-42")
                 .loyaltyTier("STANDARD")
                 .build();
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(enrolledProfile));
+        when(guestServiceClient.getGuestById(42L, "PROP001")).thenReturn(Optional.of(enrolledProfile));
 
         assertThatThrownBy(() -> resolver.resolveGuests("PROP001", List.of(request)))
                 .isInstanceOf(BadRequestException.class)
@@ -204,12 +204,12 @@ class ReservationGuestResolverTest {
         request.setEnrollGuest(false);
         GuestProfileResponse enrolledProfile =
                 completeProfile(42L, "PROP001", "LOYALTY-42", "STANDARD");
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(enrolledProfile));
+        when(guestServiceClient.getGuestById(42L, "PROP001")).thenReturn(Optional.of(enrolledProfile));
 
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
 
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any(), any());
     }
 
     @Test
@@ -220,7 +220,7 @@ class ReservationGuestResolverTest {
                 completeProfile(43L, "PROP001", null, "STANDARD");
 
         for (GuestProfileResponse profile : List.of(membershipWithoutTier, tierWithoutMembership)) {
-            when(guestServiceClient.getGuestById(profile.getId())).thenReturn(Optional.of(profile));
+            when(guestServiceClient.getGuestById(profile.getId(), "PROP001")).thenReturn(Optional.of(profile));
             for (boolean enrollGuest : List.of(false, true)) {
                 ReservationGuestRequestDto request =
                         guest(profile.getId(), true, "Ava", "Guest", "5551000");
@@ -232,7 +232,7 @@ class ReservationGuestResolverTest {
             }
         }
 
-        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any(), any());
     }
 
     @Test
@@ -240,8 +240,8 @@ class ReservationGuestResolverTest {
         ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
         request.setEnrollGuest(true);
         GuestProfileResponse existingProfile = completeProfile(42L, "PROP001", null, null);
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(existingProfile));
-        when(guestServiceClient.updateGuestProfile(any(), any(GuestProfileUpdateRequest.class)))
+        when(guestServiceClient.getGuestById(42L, "PROP001")).thenReturn(Optional.of(existingProfile));
+        when(guestServiceClient.updateGuestProfile(any(), any(), any(GuestProfileUpdateRequest.class)))
                 .thenReturn(completeProfile(42L, "PROP001", "TEMP-GUEST", "STANDARD"));
 
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
@@ -249,7 +249,10 @@ class ReservationGuestResolverTest {
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
         ArgumentCaptor<GuestProfileUpdateRequest> updateRequest =
                 ArgumentCaptor.forClass(GuestProfileUpdateRequest.class);
-        verify(guestServiceClient).updateGuestProfile(org.mockito.ArgumentMatchers.eq(42L), updateRequest.capture());
+        verify(guestServiceClient).updateGuestProfile(
+                org.mockito.ArgumentMatchers.eq(42L),
+                org.mockito.ArgumentMatchers.eq("PROP001"),
+                updateRequest.capture());
         assertThat(updateRequest.getValue().getLoyaltyMembershipNumber()).isEqualTo("TEMP-GUEST");
         assertThat(updateRequest.getValue().getLoyaltyTier()).isEqualTo("STANDARD");
         assertThat(updateRequest.getValue().getSalutation()).isEqualTo("Ms");
@@ -284,7 +287,7 @@ class ReservationGuestResolverTest {
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP002", List.of(request));
 
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any(), any());
     }
 
     @Test
@@ -292,12 +295,12 @@ class ReservationGuestResolverTest {
         ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
         request.setEnrollGuest(false);
         GuestProfileResponse existingProfile = profile(42L, "PROP001");
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(existingProfile));
+        when(guestServiceClient.getGuestById(42L, "PROP001")).thenReturn(Optional.of(existingProfile));
 
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
 
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any(), any());
     }
 
     private ReservationGuestRequestDto guest(

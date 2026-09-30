@@ -42,6 +42,7 @@ public class GuestProfileServiceImpl implements GuestProfileService {
     @Override
     @Transactional
     public GuestProfileResponse createGuestProfile(GuestProfileCreateRequest request) {
+        validateLoyalty(request.getLoyaltyMembershipNumber(), request.getLoyaltyTier());
         GuestProfile guestProfile = guestProfileMapper.toEntity(request);
         guestProfile.setGuestId(generateGuestId());
         GuestProfile saved = guestProfileRepository.save(guestProfile);
@@ -49,14 +50,25 @@ public class GuestProfileServiceImpl implements GuestProfileService {
     }
 
     @Override
-    public GuestProfileResponse getGuestProfileById(Long id) {
-        return guestProfileMapper.toResponse(findGuestProfile(id));
+    public GuestProfileResponse getGuestProfileById(Long id, String propertyId) {
+        return guestProfileMapper.toResponse(findGuestProfile(id, propertyId));
     }
 
     @Override
     @Transactional
-    public GuestProfileResponse updateGuestProfile(Long id, GuestProfileUpdateRequest request) {
-        GuestProfile guestProfile = findGuestProfile(id);
+    public GuestProfileResponse updateGuestProfile(
+            Long id,
+            String propertyId,
+            GuestProfileUpdateRequest request
+    ) {
+        GuestProfile guestProfile = findGuestProfile(id, propertyId);
+        String loyaltyMembershipNumber = request.getLoyaltyMembershipNumber() == null
+                ? guestProfile.getLoyaltyMembershipNumber()
+                : request.getLoyaltyMembershipNumber();
+        String loyaltyTier = request.getLoyaltyTier() == null
+                ? guestProfile.getLoyaltyTier()
+                : request.getLoyaltyTier();
+        validateLoyalty(loyaltyMembershipNumber, loyaltyTier);
         guestProfileMapper.updateEntity(request, guestProfile);
         GuestProfile saved = guestProfileRepository.save(guestProfile);
         return guestProfileMapper.toResponse(saved);
@@ -92,11 +104,6 @@ public class GuestProfileServiceImpl implements GuestProfileService {
         if (candidates.isEmpty()) {
             return Optional.empty();
         }
-        if (candidates.size() > 1) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Multiple guest profiles match the supplied lookup criteria");
-        }
 
         if (StringUtils.hasText(request.getFirstName()) || StringUtils.hasText(request.getLastName())) {
             List<GuestProfile> nameMatches =
@@ -110,6 +117,11 @@ public class GuestProfileServiceImpl implements GuestProfileService {
             candidates.removeIf(candidate -> !nameMatchesById.containsKey(candidate.getId()));
         }
 
+        if (candidates.size() > 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Multiple guest profiles match the supplied lookup criteria");
+        }
         return candidates.stream().findFirst().map(guestProfileMapper::toResponse);
     }
 
@@ -141,8 +153,11 @@ public class GuestProfileServiceImpl implements GuestProfileService {
             hasCriteria = true;
         }
         if (StringUtils.hasText(phoneNumber)) {
-            criteriaResults.add(guestProfileRepository.findByPropertyIdAndPhoneNumber(
+            LinkedHashSet<GuestProfile> phoneMatches = new LinkedHashSet<>(
+                    guestProfileRepository.findByPropertyIdAndPhoneNumber(scopedPropertyId, phoneNumber.trim()));
+            phoneMatches.addAll(guestProfileRepository.findByPropertyIdAndMobileNumber(
                     scopedPropertyId, phoneNumber.trim()));
+            criteriaResults.add(new ArrayList<>(phoneMatches));
             hasCriteria = true;
         }
         if (StringUtils.hasText(personalEmail)) {
@@ -175,9 +190,22 @@ public class GuestProfileServiceImpl implements GuestProfileService {
                 .toList();
     }
 
-    private GuestProfile findGuestProfile(Long id) {
-        return guestProfileRepository.findById(id)
+    private GuestProfile findGuestProfile(Long id, String propertyId) {
+        if (!StringUtils.hasText(propertyId)) {
+            throw new IllegalArgumentException("propertyId is required");
+        }
+        return guestProfileRepository.findByIdAndPropertyId(id, propertyId.trim())
                 .orElseThrow(() -> new EntityNotFoundException("Guest profile not found: " + id));
+    }
+
+    private void validateLoyalty(String membershipNumber, String tier) {
+        boolean hasMembershipNumber = StringUtils.hasText(membershipNumber);
+        boolean hasTier = StringUtils.hasText(tier);
+        if (hasMembershipNumber != hasTier
+                || (!hasMembershipNumber && (membershipNumber != null || tier != null))) {
+            throw new IllegalArgumentException(
+                    "loyaltyMembershipNumber and loyaltyTier must both be null or both be populated");
+        }
     }
 
     private String generateGuestId() {

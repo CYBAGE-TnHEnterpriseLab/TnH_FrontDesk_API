@@ -21,6 +21,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
@@ -153,5 +154,164 @@ class GuestServiceClientTest {
         assertThatThrownBy(() -> client.createGuest(request))
                 .isInstanceOf(ExternalServiceException.class)
                 .hasMessageContaining("HTTP 400");
+    }
+
+    @Test
+    void getGuestByIdIncludesPropertyScopeInRequest() {
+        GuestProfileResponse expected = GuestProfileResponse.builder()
+                .id(42L)
+                .propertyId("property-1")
+                .build();
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests/42?propertyId=property-1"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenReturn(ResponseEntity.ok(expected));
+
+        assertThat(client.getGuestById(42L, "property-1")).containsSame(expected);
+    }
+
+    @Test
+    void getGuestByIdTreatsPropertyScopedNotFoundAsNoMatch() {
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests/42?propertyId=property-1"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND));
+
+        assertThat(client.getGuestById(42L, "property-1")).isEmpty();
+    }
+
+    @Test
+    void updateGuestIncludesPropertyScopeInRequest() {
+        com.pms.reservation.integration.dto.GuestProfileUpdateRequest request =
+                com.pms.reservation.integration.dto.GuestProfileUpdateRequest.builder()
+                        .firstName("Ava")
+                        .lastName("Guest")
+                        .build();
+        GuestProfileResponse expected = GuestProfileResponse.builder()
+                .id(42L)
+                .propertyId("property-1")
+                .build();
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests/42?propertyId=property-1"),
+                eq(HttpMethod.PUT),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenReturn(ResponseEntity.ok(expected));
+
+        assertThat(client.updateGuestProfile(42L, "property-1", request)).isSameAs(expected);
+    }
+
+    @Test
+    void lookupMapsHttp409ToAmbiguousGuestBadRequest() {
+        GuestLookupRequest request = GuestLookupRequest.builder()
+                .propertyId("property-1")
+                .phoneNumber("5551234")
+                .build();
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpClientErrorException(HttpStatus.CONFLICT));
+
+        assertThatThrownBy(() -> client.findExistingGuest(request))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessageContaining("ambiguous");
+    }
+
+    @Test
+    void createMapsClientAndServerErrorsToDownstreamFailure() {
+        GuestProfileCreateRequest request = GuestProfileCreateRequest.builder()
+                .propertyId("property-1")
+                .firstName("Ava")
+                .lastName("Guest")
+                .build();
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.createGuest(request))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("HTTP 400");
+
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> client.createGuest(request))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("HTTP 503");
+    }
+
+    @Test
+    void updateMapsClientAndServerErrorsToDownstreamFailure() {
+        com.pms.reservation.integration.dto.GuestProfileUpdateRequest request =
+                com.pms.reservation.integration.dto.GuestProfileUpdateRequest.builder()
+                        .loyaltyMembershipNumber("TEMP-GUEST")
+                        .loyaltyTier("STANDARD")
+                        .build();
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests/42?propertyId=property-1"),
+                eq(HttpMethod.PUT),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.updateGuestProfile(42L, "property-1", request))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("HTTP 400");
+
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests/42?propertyId=property-1"),
+                eq(HttpMethod.PUT),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.updateGuestProfile(42L, "property-1", request))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("HTTP 500");
+    }
+
+    @Test
+    void clientRejectsEmptyOrMalformedSuccessfulResponses() {
+        when(restTemplate.exchange(
+                any(String.class),
+                eq(HttpMethod.POST),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenReturn(ResponseEntity.ok(null));
+        GuestLookupRequest request = GuestLookupRequest.builder()
+                .propertyId("property-1")
+                .phoneNumber("5551234")
+                .build();
+
+        assertThatThrownBy(() -> client.findExistingGuest(request))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("empty or malformed");
+
+        when(restTemplate.exchange(
+                eq("http://guest-service/api/v1/guests/42?propertyId=property-1"),
+                eq(HttpMethod.PUT),
+                any(HttpEntity.class),
+                eq(GuestProfileResponse.class)
+        )).thenReturn(ResponseEntity.ok(GuestProfileResponse.builder().guestId("GST-42").build()));
+
+        assertThatThrownBy(() -> client.updateGuestProfile(
+                42L,
+                "property-1",
+                com.pms.reservation.integration.dto.GuestProfileUpdateRequest.builder().build()))
+                .isInstanceOf(ExternalServiceException.class)
+                .hasMessageContaining("empty or malformed");
     }
 }

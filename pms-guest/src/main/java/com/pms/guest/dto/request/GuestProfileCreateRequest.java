@@ -1,6 +1,7 @@
 package com.pms.guest.dto.request;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
@@ -82,4 +83,14 @@ public class GuestProfileCreateRequest {
 
     @Size(max = 40)
     private String loyaltyTier;
+
+    @AssertTrue(message = "loyaltyMembershipNumber and loyaltyTier must both be null or both be populated")
+    public boolean isLoyaltyDataConsistent() {
+        return (loyaltyMembershipNumber == null && loyaltyTier == null)
+                || (hasText(loyaltyMembershipNumber) && hasText(loyaltyTier));
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
 }

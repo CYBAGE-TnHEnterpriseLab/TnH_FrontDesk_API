@@ -43,7 +43,7 @@ public class ReservationGuestResolver {
 
         for (ReservationGuestRequestDto guest : guests) {
             if (guest.getGuestProfileId() != null) {
-                GuestProfileResponse profile = guestServiceClient.getGuestById(guest.getGuestProfileId())
+                GuestProfileResponse profile = guestServiceClient.getGuestById(guest.getGuestProfileId(), propertyId)
                         .orElseThrow(() -> new BadRequestException(
                                 "Guest profile not found: " + guest.getGuestProfileId()));
                 verifyProperty(profile, propertyId);
@@ -235,7 +235,7 @@ public class ReservationGuestResolver {
                 .loyaltyTier(DEFAULT_LOYALTY_TIER)
                 .build();
         GuestProfileResponse updatedProfile =
-                guestServiceClient.updateGuestProfile(profile.getId(), updateRequest);
+                guestServiceClient.updateGuestProfile(profile.getId(), profile.getPropertyId(), updateRequest);
         verifyProperty(updatedProfile, profile.getPropertyId());
         return updatedProfile;
     }

@@ -61,8 +61,8 @@ public class ReservationGuestServiceImpl implements ReservationGuestService {
 
     @Override
     public ReservationGuestResponseDto assignGuestToBooking(Long bookingId, Long guestProfileId, boolean primary) {
-        verifyBookingExists(bookingId);
-        GuestProfileResponse guestProfile = findGuestProfile(guestProfileId);
+        String propertyId = findBookingPropertyId(bookingId);
+        GuestProfileResponse guestProfile = findGuestProfile(guestProfileId, propertyId);
 
         ReservationGuestResponseDto response = transactionTemplate.execute(status ->
                 assignWithinTransaction(bookingId, guestProfileId, primary, guestProfile));
@@ -74,18 +74,20 @@ public class ReservationGuestServiceImpl implements ReservationGuestService {
 
     @Override
     public List<ReservationGuestResponseDto> getGuestsForBooking(Long bookingId) {
-        verifyBookingExists(bookingId);
+        String propertyId = findBookingPropertyId(bookingId);
         return reservationGuestRepository.findByBookingId(bookingId).stream()
-                .map(relationship -> toResponse(relationship, findGuestProfile(relationship.getGuestProfileId())))
+                .map(relationship -> toResponse(
+                        relationship,
+                        findGuestProfile(relationship.getGuestProfileId(), propertyId)))
                 .toList();
     }
 
     @Override
     public ReservationGuestResponseDto getPrimaryGuest(Long bookingId) {
-        verifyBookingExists(bookingId);
+        String propertyId = findBookingPropertyId(bookingId);
         ReservationGuest primaryGuest = reservationGuestRepository.findByBookingIdAndIsPrimaryTrue(bookingId)
                 .orElseThrow(() -> new BadRequestException("Primary guest not found for booking"));
-        return toResponse(primaryGuest, findGuestProfile(primaryGuest.getGuestProfileId()));
+        return toResponse(primaryGuest, findGuestProfile(primaryGuest.getGuestProfileId(), propertyId));
     }
 
     @Override
@@ -108,7 +110,9 @@ public class ReservationGuestServiceImpl implements ReservationGuestService {
             throw new IllegalStateException("Make-primary transaction returned no result");
         }
 
-        return toResponse(selected, findGuestProfile(selected.getGuestProfileId()));
+        return toResponse(selected, findGuestProfile(
+                selected.getGuestProfileId(),
+                findBookingPropertyId(bookingId)));
     }
 
     @Override
@@ -177,14 +181,20 @@ public class ReservationGuestServiceImpl implements ReservationGuestService {
                 });
     }
 
+    private String findBookingPropertyId(Long bookingId) {
+        return reservationBookingRepository.findById(bookingId)
+                .map(booking -> booking.getPropertyId())
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+    }
+
     private void verifyBookingExists(Long bookingId) {
         if (!reservationBookingRepository.existsById(bookingId)) {
             throw new BadRequestException("Reservation booking not found");
         }
     }
 
-    private GuestProfileResponse findGuestProfile(Long guestProfileId) {
-        return guestServiceClient.getGuestById(guestProfileId)
+    private GuestProfileResponse findGuestProfile(Long guestProfileId, String propertyId) {
+        return guestServiceClient.getGuestById(guestProfileId, propertyId)
                 .orElseThrow(() -> new BadRequestException("Guest profile not found"));
     }
 

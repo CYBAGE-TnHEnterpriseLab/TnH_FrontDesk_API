@@ -9,6 +9,7 @@ import static org.mockito.Mockito.inOrder;
 
 import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.reservation.entity.ReservationGuest;
+import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.GuestServiceClient;
 import com.pms.reservation.integration.dto.GuestProfileResponse;
 import com.pms.reservation.repository.ReservationBookingRepository;
@@ -66,8 +67,8 @@ class ReservationGuestServiceImplTest {
                 .build();
         GuestProfileResponse profile = guestProfile(200L);
 
-        when(reservationBookingRepository.existsById(1L)).thenReturn(true);
-        when(guestServiceClient.getGuestById(200L)).thenReturn(Optional.of(profile));
+        when(reservationBookingRepository.findById(1L)).thenReturn(Optional.of(booking("property-1")));
+        when(guestServiceClient.getGuestById(200L, "property-1")).thenReturn(Optional.of(profile));
         when(transactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transactionStatus);
         when(reservationGuestRepository.findByBookingIdAndGuestProfileId(1L, 200L))
                 .thenReturn(Optional.empty());
@@ -120,8 +121,8 @@ class ReservationGuestServiceImplTest {
                 .build();
         GuestProfileResponse profile = guestProfile(200L);
 
-        when(reservationBookingRepository.existsById(1L)).thenReturn(true);
-        when(guestServiceClient.getGuestById(200L)).thenReturn(Optional.of(profile));
+        when(reservationBookingRepository.findById(1L)).thenReturn(Optional.of(booking("property-1")));
+        when(guestServiceClient.getGuestById(200L, "property-1")).thenReturn(Optional.of(profile));
         when(transactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transactionStatus);
         when(reservationGuestRepository.findByBookingIdAndGuestProfileId(1L, 200L))
                 .thenReturn(Optional.of(existing));
@@ -175,7 +176,8 @@ class ReservationGuestServiceImplTest {
                 .thenReturn(Optional.of(currentPrimary));
         when(reservationGuestRepository.saveAndFlush(any(ReservationGuest.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(guestServiceClient.getGuestById(200L)).thenReturn(Optional.of(profile));
+        when(reservationBookingRepository.findById(1L)).thenReturn(Optional.of(booking("property-1")));
+        when(guestServiceClient.getGuestById(200L, "property-1")).thenReturn(Optional.of(profile));
 
         var response = service.makePrimaryGuest(1L, 20L);
 
@@ -205,5 +207,9 @@ class ReservationGuestServiceImplTest {
                 .guestId("GST-" + id)
                 .propertyId("property-1")
                 .build();
+    }
+
+    private ReservationBookingRecord booking(String propertyId) {
+        return ReservationBookingRecord.builder().propertyId(propertyId).build();
     }
 }
