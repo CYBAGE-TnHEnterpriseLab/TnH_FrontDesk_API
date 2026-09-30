@@ -71,10 +71,6 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                             + ". Please resolve the balance before checkout.");
         }
 
-        if (folioBalance != null) {
-            booking.setGuestBalance(folioBalance);
-        }
-
         if (booking.getGuestBalance() != null && booking.getGuestBalance().compareTo(BigDecimal.ZERO) > 0) {
             throw new BadRequestException(
                     "Check-out denied: guest has outstanding balance of "
