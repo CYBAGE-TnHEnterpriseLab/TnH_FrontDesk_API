@@ -18,11 +18,28 @@ public interface ReservationBookingRepository
 
     List<ReservationBookingRecord> findByConfirmationNumber(String confirmationNumber);
 
-        Optional<ReservationBookingRecord> findFirstByPhoneNumberOrMobileNumber(String phoneNumber, String mobileNumber);
+    @Query("""
+        SELECT r FROM ReservationBookingRecord r
+        WHERE r.propertyId = :propertyId
+          AND (r.phoneNumber = :phoneNumber OR r.mobileNumber = :mobileNumber)
+        ORDER BY r.id ASC
+        """)
+    Optional<ReservationBookingRecord> findFirstByPropertyIdAndPhoneNumberOrMobileNumber(
+        @Param("propertyId") String propertyId,
+        @Param("phoneNumber") String phoneNumber,
+        @Param("mobileNumber") String mobileNumber);
 
-        Optional<ReservationBookingRecord> findFirstByPersonalEmailIgnoreCaseOrOfficialEmailIgnoreCase(
-            String personalEmail,
-            String officialEmail);
+    @Query("""
+        SELECT r FROM ReservationBookingRecord r
+        WHERE r.propertyId = :propertyId
+          AND (LOWER(r.personalEmail) = LOWER(:personalEmail)
+               OR LOWER(r.officialEmail) = LOWER(:officialEmail))
+        ORDER BY r.id ASC
+        """)
+    Optional<ReservationBookingRecord> findFirstByPropertyIdAndPersonalEmailOrOfficialEmail(
+        @Param("propertyId") String propertyId,
+        @Param("personalEmail") String personalEmail,
+        @Param("officialEmail") String officialEmail);
 
     Optional<ReservationBookingRecord> findByIdAndConfirmationNumber(Long id, String confirmationNumber);
 

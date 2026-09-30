@@ -20,6 +20,7 @@ public interface ReservationBookingService {
         ReservationViewResponseDto searchBooking(
             String confirmationNumber,
             Long bookingId,
+            String propertyId,
             String phoneNumber,
             String email);
 

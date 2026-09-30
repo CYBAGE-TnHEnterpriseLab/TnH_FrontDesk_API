@@ -81,10 +81,11 @@ public class ReservationController {
             public ResponseEntity<ApiResponse<ReservationViewResponseDto>> searchBooking(
                 @RequestParam(required = false) String confirmationNumber,
                 @RequestParam(required = false) Long bookingId,
+                @RequestParam(required = false) String propertyId,
                 @RequestParam(required = false) String phoneNumber,
                 @RequestParam(required = false) String email) {
                 ReservationViewResponseDto response = reservationBookingService.searchBooking(
-                        confirmationNumber, bookingId, phoneNumber, email);
+                    confirmationNumber, bookingId, propertyId, phoneNumber, email);
                 return ResponseEntity.ok(ApiResponse.success("Reservation fetched successfully", response));
             }
 

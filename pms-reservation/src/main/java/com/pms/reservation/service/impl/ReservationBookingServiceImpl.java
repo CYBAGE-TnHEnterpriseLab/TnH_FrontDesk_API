@@ -550,6 +550,7 @@ private ReservationBookingRequestDto requestForRoom(
         public ReservationViewResponseDto searchBooking(
             String confirmationNumber,
             Long bookingId,
+            String propertyId,
             String phoneNumber,
             String email) {
         if (!StringUtils.hasText(confirmationNumber)
@@ -570,14 +571,16 @@ private ReservationBookingRequestDto requestForRoom(
                 booking = reservationBookingRepository.findById(bookingId)
                 .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
         } else if (StringUtils.hasText(phoneNumber)) {
+            requirePropertyIdForContactSearch(propertyId);
             String normalizedPhoneNumber = phoneNumber.trim();
-            booking = reservationBookingRepository.findFirstByPhoneNumberOrMobileNumber(
-                    normalizedPhoneNumber, normalizedPhoneNumber)
+            booking = reservationBookingRepository.findFirstByPropertyIdAndPhoneNumberOrMobileNumber(
+                propertyId.trim(), normalizedPhoneNumber, normalizedPhoneNumber)
                 .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
         } else {
+            requirePropertyIdForContactSearch(propertyId);
             String normalizedEmail = email.trim();
-            booking = reservationBookingRepository.findFirstByPersonalEmailIgnoreCaseOrOfficialEmailIgnoreCase(
-                    normalizedEmail, normalizedEmail)
+            booking = reservationBookingRepository.findFirstByPropertyIdAndPersonalEmailOrOfficialEmail(
+                propertyId.trim(), normalizedEmail, normalizedEmail)
                 .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
         }
 
@@ -592,6 +595,12 @@ private ReservationBookingRequestDto requestForRoom(
             .orElseThrow(() -> new BadRequestException("Room booking not found for confirmation number"));
 
         return buildReservationViewForBooking(booking);
+        }
+
+        private void requirePropertyIdForContactSearch(String propertyId) {
+            if (!StringUtils.hasText(propertyId)) {
+                throw new BadRequestException("propertyId is required when searching by phone number or email");
+            }
         }
 
         private ReservationViewResponseDto buildReservationViewForBooking(ReservationBookingRecord booking) {
