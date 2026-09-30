@@ -15,6 +15,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,7 +43,8 @@ public class ReservationController {
     @Operation(summary = "Create reservation booking",
             description = "Captures guest details and finalizes reservation with confirmation workflow")
     public ResponseEntity<ApiResponse<ReservationBookingResponseDto>> createBooking(
-            @Valid @RequestBody ReservationBookingRequestDto request) {
+            @Validated(ReservationBookingRequestDto.Create.class)
+            @RequestBody ReservationBookingRequestDto request) {
         ReservationBookingResponseDto response = reservationBookingService.createBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Reservation confirmed successfully", response));

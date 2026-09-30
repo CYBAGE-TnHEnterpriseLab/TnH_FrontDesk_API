@@ -7,7 +7,9 @@ import com.pms.reservation.integration.GuestServiceClient;
 import com.pms.reservation.integration.dto.GuestProfileResponse;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationGuestRepository;
+import com.pms.reservation.service.ResolvedReservationGuest;
 import com.pms.reservation.service.ReservationGuestService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,29 @@ public class ReservationGuestServiceImpl implements ReservationGuestService {
         this.reservationBookingRepository = reservationBookingRepository;
         this.guestServiceClient = guestServiceClient;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
+
+    @Override
+    public void assignResolvedGuests(Long bookingId, List<ResolvedReservationGuest> guests) {
+        if (guests == null || guests.isEmpty()) {
+            throw new BadRequestException("At least one resolved reservation guest is required");
+        }
+        Boolean assigned = transactionTemplate.execute(status -> {
+            verifyBookingExists(bookingId);
+            List<ReservationGuest> relationships = new ArrayList<>(guests.size());
+            for (ResolvedReservationGuest guest : guests) {
+                relationships.add(ReservationGuest.builder()
+                        .bookingId(bookingId)
+                        .guestProfileId(guest.guestProfileId())
+                        .isPrimary(guest.isPrimary())
+                        .build());
+            }
+            reservationGuestRepository.saveAllAndFlush(relationships);
+            return Boolean.TRUE;
+        });
+        if (!Boolean.TRUE.equals(assigned)) {
+            throw new IllegalStateException("Guest assignment transaction did not complete");
+        }
     }
 
     @Override

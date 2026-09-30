@@ -26,6 +26,9 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import com.pms.reservation.service.ReservationGuestResolver;
+import com.pms.reservation.service.ReservationGuestService;
+import com.pms.reservation.service.ResolvedReservationGuest;
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -75,6 +78,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final InventoryServiceClient inventoryServiceClient;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
+    private final ReservationGuestResolver reservationGuestResolver;
+    private final ReservationGuestService reservationGuestService;
     private final PaymentProcessingService paymentProcessingService;
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
     private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
@@ -87,6 +92,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateDates(request.getArrivalDate(), request.getDepartureDate());
         validateRequiredContactFields(request);
         validateRoomSelectionAndGuestNames(request);
+        List<ResolvedReservationGuest> resolvedGuests = reservationGuestResolver.resolveGuests(
+                request.getPropertyId(),
+                request.getGuests()
+        );
         validateAndNormalizePaymentMode(request);
         validateAndNormalizePaymentType(request);
         int roomCount = request.getNumberOfRooms();
@@ -127,6 +136,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             entity.setInventoryDeductedAt(LocalDateTime.now());
             entity.setInventorySyncedAt(LocalDateTime.now());
             savedBookings.add(reservationBookingRepository.save(entity));
+        }
+
+        for (ReservationBookingRecord savedBooking : savedBookings) {
+            reservationGuestService.assignResolvedGuests(savedBooking.getId(), resolvedGuests);
         }
 
         ReservationBookingRecord saved = savedBookings.get(0);

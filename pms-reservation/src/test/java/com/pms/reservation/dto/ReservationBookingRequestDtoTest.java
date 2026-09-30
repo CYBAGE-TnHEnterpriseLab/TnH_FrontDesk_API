@@ -176,4 +176,20 @@ class ReservationBookingRequestDtoTest {
           violation.getPropertyPath().toString().equals("isPrimary"));
     }
   }
+
+    @Test
+    void guestsAreRequiredForCreateButNotForUpdateValidation() {
+      ReservationBookingRequestDto request = new ReservationBookingRequestDto();
+      try (var validatorFactory = Validation.buildDefaultValidatorFactory()) {
+        var validator = validatorFactory.getValidator();
+        assertThat(validator.validate(request, ReservationBookingRequestDto.Create.class))
+            .anyMatch(violation -> violation.getPropertyPath().toString().equals("guests"));
+        assertThat(validator.validate(request))
+            .noneMatch(violation -> violation.getPropertyPath().toString().equals("guests"));
+
+        request.setGuests(java.util.List.of());
+        assertThat(validator.validate(request, ReservationBookingRequestDto.Create.class))
+            .anyMatch(violation -> violation.getPropertyPath().toString().equals("guests"));
+      }
+  }
 }

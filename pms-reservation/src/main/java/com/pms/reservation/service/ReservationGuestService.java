@@ -5,6 +5,8 @@ import java.util.List;
 
 public interface ReservationGuestService {
 
+    void assignResolvedGuests(Long bookingId, List<ResolvedReservationGuest> guests);
+
     ReservationGuestResponseDto assignGuestToBooking(Long bookingId, Long guestProfileId, boolean primary);
 
     List<ReservationGuestResponseDto> getGuestsForBooking(Long bookingId);

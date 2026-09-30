@@ -165,24 +165,17 @@ class ReservationGuestResolverTest {
     }
 
     @Test
-    void enrollsLookupMatchWhenGuestHasNoMembership() {
+    void reusesExistingGuestWithoutUpdatingWhenEnrollmentIsFalse() {
         ReservationGuestRequestDto request = guest(null, true, "Ava", "Guest", "5551000");
-        request.setEnrollGuest(true);
+        request.setEnrollGuest(false);
         GuestProfileResponse existingProfile = profile(42L, "PROP001");
         when(guestServiceClient.findExistingGuest(any(GuestLookupRequest.class)))
                 .thenReturn(Optional.of(existingProfile));
-        when(guestServiceClient.updateGuestProfile(any(), any(GuestProfileUpdateRequest.class)))
-                .thenReturn(enrolledProfile(42L, "PROP001"));
 
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
 
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        ArgumentCaptor<GuestProfileUpdateRequest> updateRequest =
-                ArgumentCaptor.forClass(GuestProfileUpdateRequest.class);
-        verify(guestServiceClient).updateGuestProfile(org.mockito.ArgumentMatchers.eq(42L), updateRequest.capture());
-        assertThat(updateRequest.getValue().getFirstName()).isEqualTo("Ava");
-        assertThat(updateRequest.getValue().getLoyaltyMembershipNumber()).isEqualTo("TEMP-GUEST");
-        assertThat(updateRequest.getValue().getLoyaltyTier()).isEqualTo("STANDARD");
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
         verify(guestServiceClient, never()).createGuest(any());
     }
 
@@ -206,53 +199,105 @@ class ReservationGuestResolverTest {
     }
 
     @Test
-    void rejectsExistingGuestWithOnlyLoyaltyMembershipNumberOrTier() {
+    void reusesExistingGuestWithValidLoyaltyWhenEnrollmentIsFalse() {
         ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
-        GuestProfileResponse partialMembership = GuestProfileResponse.builder()
-                .id(42L)
-                .guestId("GST-42")
-                .propertyId("PROP001")
-                .loyaltyTier("STANDARD")
-                .build();
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(partialMembership));
-
-        assertThatThrownBy(() -> resolver.resolveGuests("PROP001", List.of(request)))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("must both be set or both be null");
-    }
-
-    @Test
-    void propertyScopedLookupAllowsEnrollmentWhenThatPropertyProfileHasNoMembership() {
-        ReservationGuestRequestDto request = guest(null, true, "Ava", "Guest", "5551000");
-        request.setEnrollGuest(true);
-        when(guestServiceClient.findExistingGuest(any(GuestLookupRequest.class)))
-                .thenReturn(Optional.of(profile(42L, "PROP002")));
-        when(guestServiceClient.updateGuestProfile(any(), any(GuestProfileUpdateRequest.class)))
-                .thenReturn(enrolledProfile(42L, "PROP002"));
-
-        List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP002", List.of(request));
-
-        assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        verify(guestServiceClient).updateGuestProfile(
-                org.mockito.ArgumentMatchers.eq(42L),
-                any(GuestProfileUpdateRequest.class));
-    }
-
-    @Test
-    void enrollsExistingGuestIdWhenNoMembershipIsAssigned() {
-        ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
-        request.setEnrollGuest(true);
-        GuestProfileResponse existingProfile = profile(42L, "PROP001");
-        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(existingProfile));
-        when(guestServiceClient.updateGuestProfile(any(), any(GuestProfileUpdateRequest.class)))
-                .thenReturn(enrolledProfile(42L, "PROP001"));
+        request.setEnrollGuest(false);
+        GuestProfileResponse enrolledProfile =
+                completeProfile(42L, "PROP001", "LOYALTY-42", "STANDARD");
+        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(enrolledProfile));
 
         List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
 
         assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
-        verify(guestServiceClient).updateGuestProfile(
-                org.mockito.ArgumentMatchers.eq(42L),
-                any(GuestProfileUpdateRequest.class));
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+    }
+
+    @Test
+    void rejectsInconsistentLoyaltyDataForBothEnrollmentChoices() {
+        GuestProfileResponse membershipWithoutTier =
+                completeProfile(42L, "PROP001", "LOYALTY-42", null);
+        GuestProfileResponse tierWithoutMembership =
+                completeProfile(43L, "PROP001", null, "STANDARD");
+
+        for (GuestProfileResponse profile : List.of(membershipWithoutTier, tierWithoutMembership)) {
+            when(guestServiceClient.getGuestById(profile.getId())).thenReturn(Optional.of(profile));
+            for (boolean enrollGuest : List.of(false, true)) {
+                ReservationGuestRequestDto request =
+                        guest(profile.getId(), true, "Ava", "Guest", "5551000");
+                request.setEnrollGuest(enrollGuest);
+
+                assertThatThrownBy(() -> resolver.resolveGuests("PROP001", List.of(request)))
+                        .isInstanceOf(BadRequestException.class)
+                        .hasMessageContaining("inconsistent loyalty data");
+            }
+        }
+
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+    }
+
+    @Test
+    void enrollsExistingGuestWhenMembershipAndTierAreBlankAndPreservesProfileFields() {
+        ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
+        request.setEnrollGuest(true);
+        GuestProfileResponse existingProfile = completeProfile(42L, "PROP001", null, null);
+        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(existingProfile));
+        when(guestServiceClient.updateGuestProfile(any(), any(GuestProfileUpdateRequest.class)))
+                .thenReturn(completeProfile(42L, "PROP001", "TEMP-GUEST", "STANDARD"));
+
+        List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
+
+        assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
+        ArgumentCaptor<GuestProfileUpdateRequest> updateRequest =
+                ArgumentCaptor.forClass(GuestProfileUpdateRequest.class);
+        verify(guestServiceClient).updateGuestProfile(org.mockito.ArgumentMatchers.eq(42L), updateRequest.capture());
+        assertThat(updateRequest.getValue().getLoyaltyMembershipNumber()).isEqualTo("TEMP-GUEST");
+        assertThat(updateRequest.getValue().getLoyaltyTier()).isEqualTo("STANDARD");
+        assertThat(updateRequest.getValue().getSalutation()).isEqualTo("Ms");
+        assertThat(updateRequest.getValue().getFirstName()).isEqualTo("Ava");
+        assertThat(updateRequest.getValue().getLastName()).isEqualTo("Guest");
+        assertThat(updateRequest.getValue().getPersonalEmail()).isEqualTo("ava@example.com");
+        assertThat(updateRequest.getValue().getOfficialEmail()).isEqualTo("ava@work.example");
+        assertThat(updateRequest.getValue().getPhoneNumber()).isEqualTo("5551000");
+        assertThat(updateRequest.getValue().getMobileNumber()).isEqualTo("5552000");
+        assertThat(updateRequest.getValue().getAddress()).isEqualTo("1 Main Street");
+        assertThat(updateRequest.getValue().getCity()).isEqualTo("New York");
+        assertThat(updateRequest.getValue().getState()).isEqualTo("NY");
+        assertThat(updateRequest.getValue().getCountry()).isEqualTo("USA");
+        assertThat(updateRequest.getValue().getPostalCode()).isEqualTo("10001");
+        assertThat(updateRequest.getValue().getNationality()).isEqualTo("American");
+        assertThat(updateRequest.getValue().getDateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 2));
+        assertThat(updateRequest.getValue().getGender()).isEqualTo("Female");
+        assertThat(updateRequest.getValue().getCompanyName()).isEqualTo("Example Inc.");
+        assertThat(updateRequest.getValue().getVipStatus()).isTrue();
+        assertThat(updateRequest.getValue().getIdType()).isEqualTo("PASSPORT");
+        assertThat(updateRequest.getValue().getIdNumber()).isEqualTo("P1234567");
+        assertThat(updateRequest.getValue().getIdDocumentPath()).isEqualTo("uploads/id.png");
+    }
+
+    @Test
+    void propertyScopedLookupReusesProfileWithoutUpdatingIt() {
+        ReservationGuestRequestDto request = guest(null, true, "Ava", "Guest", "5551000");
+        request.setEnrollGuest(false);
+        when(guestServiceClient.findExistingGuest(any(GuestLookupRequest.class)))
+                .thenReturn(Optional.of(profile(42L, "PROP002")));
+
+        List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP002", List.of(request));
+
+        assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
+    }
+
+    @Test
+    void reusesExistingGuestIdWithoutUpdatingProfile() {
+        ReservationGuestRequestDto request = guest(42L, true, "Ava", "Guest", "5551000");
+        request.setEnrollGuest(false);
+        GuestProfileResponse existingProfile = profile(42L, "PROP001");
+        when(guestServiceClient.getGuestById(42L)).thenReturn(Optional.of(existingProfile));
+
+        List<ResolvedReservationGuest> result = resolver.resolveGuests("PROP001", List.of(request));
+
+        assertThat(result).containsExactly(new ResolvedReservationGuest(42L, true));
+        verify(guestServiceClient, never()).updateGuestProfile(any(), any());
     }
 
     private ReservationGuestRequestDto guest(
@@ -282,16 +327,39 @@ class ReservationGuestResolverTest {
                 .build();
     }
 
-    private GuestProfileResponse enrolledProfile(Long id, String propertyId) {
+    private GuestProfileResponse completeProfile(
+            Long id,
+            String propertyId,
+            String loyaltyMembershipNumber,
+            String loyaltyTier
+    ) {
         return GuestProfileResponse.builder()
                 .id(id)
                 .guestId("GST-" + id)
                 .propertyId(propertyId)
+                .salutation("Ms")
                 .firstName("Ava")
                 .lastName("Guest")
-                .vipStatus(false)
-                .loyaltyMembershipNumber("TEMP-GUEST")
-                .loyaltyTier("STANDARD")
+                .personalEmail("ava@example.com")
+                .officialEmail("ava@work.example")
+                .phoneNumber("5551000")
+                .mobileNumber("5552000")
+                .address("1 Main Street")
+                .city("New York")
+                .state("NY")
+                .country("USA")
+                .postalCode("10001")
+                .nationality("American")
+                .dateOfBirth(LocalDate.of(1990, 1, 2))
+                .gender("Female")
+                .companyName("Example Inc.")
+                .vipStatus(true)
+                .idType("PASSPORT")
+                .idNumber("P1234567")
+                .idDocumentPath("uploads/id.png")
+                .loyaltyMembershipNumber(loyaltyMembershipNumber)
+                .loyaltyTier(loyaltyTier)
                 .build();
     }
+
 }

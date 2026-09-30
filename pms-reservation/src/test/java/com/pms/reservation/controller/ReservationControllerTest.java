@@ -15,6 +15,7 @@ import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
+import com.pms.reservation.dto.ReservationGuestRequestDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.service.ReservationBookingService;
 import java.math.BigDecimal;
@@ -101,6 +102,20 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.data.reservationStatus").value("CONFIRMED"));
 
         verify(reservationBookingService).createBooking(any());
+    }
+
+    @Test
+    void createBookingRejectsMissingGuestsBeforeCallingService() throws Exception {
+        ReservationBookingRequestDto request = validRequest();
+        request.setGuests(null);
+
+        mockMvc.perform(post("/api/v1/reservations/bookings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.guests").value("guests is required"));
+
+        org.mockito.Mockito.verifyNoInteractions(reservationBookingService);
     }
 
     @Test
@@ -288,6 +303,7 @@ class ReservationControllerTest {
         payloadMap.put("vipTag", false);
         payloadMap.put("guestName", "Alex Johnson");
         payloadMap.put("guestNames", List.of("Alex Johnson"));
+        payloadMap.put("guests", List.of(Map.of("guestProfileId", 125, "isPrimary", true)));
         payloadMap.put("personalEmail", "alex.personal@example.com");
         payloadMap.put("officialEmail", "alex.official@example.com");
         payloadMap.put("city", "Pune");
@@ -417,6 +433,7 @@ class ReservationControllerTest {
             payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
             payloadMap.put("firstName", "pk");
             payloadMap.put("lastName", "kp");
+            payloadMap.put("guests", List.of(Map.of("guestProfileId", 125, "isPrimary", true)));
             payloadMap.put("officialEmail", "kumar@mail.com");
             payloadMap.put("phone", "9090912345");
             payloadMap.put("arrivalDate", "2026-07-15");
@@ -465,6 +482,7 @@ class ReservationControllerTest {
             payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
             payloadMap.put("firstName", "pk");
             payloadMap.put("lastName", "kp");
+            payloadMap.put("guests", List.of(Map.of("guestProfileId", 125, "isPrimary", true)));
             payloadMap.put("email", "kumar@mail.com");
             payloadMap.put("phone", "9090912345");
             payloadMap.put("arrivalDate", "2026-07-15");
@@ -502,6 +520,10 @@ class ReservationControllerTest {
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");
         request.setGuestNames(List.of("Alex Johnson"));
+        ReservationGuestRequestDto guest = new ReservationGuestRequestDto();
+        guest.setGuestProfileId(125L);
+        guest.setIsPrimary(true);
+        request.setGuests(List.of(guest));
         request.setPersonalEmail("alex.personal@example.com");
         request.setOfficialEmail("alex.official@example.com");
         request.setCity("Pune");

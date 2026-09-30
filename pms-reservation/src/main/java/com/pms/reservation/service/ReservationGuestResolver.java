@@ -15,6 +15,8 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Component
@@ -29,6 +31,7 @@ public class ReservationGuestResolver {
         this.guestServiceClient = guestServiceClient;
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<ResolvedReservationGuest> resolveGuests(
             String propertyId,
             List<ReservationGuestRequestDto> guests
@@ -44,7 +47,7 @@ public class ReservationGuestResolver {
                         .orElseThrow(() -> new BadRequestException(
                                 "Guest profile not found: " + guest.getGuestProfileId()));
                 verifyProperty(profile, propertyId);
-                validateLoyaltyEnrollment(guest, profile);
+                profile = enrollExistingGuestIfRequested(guest, profile);
                 if (!resolvedGuestIds.add(profile.getId())) {
                     throw new BadRequestException("The same guest profile cannot be assigned more than once");
                 }
@@ -56,8 +59,9 @@ public class ReservationGuestResolver {
                     guestServiceClient.findExistingGuest(toLookupRequest(propertyId, guest));
             if (match.isPresent()) {
                 verifyProperty(match.get(), propertyId);
-                validateLoyaltyEnrollment(guest, match.get());
-                if (!resolvedGuestIds.add(match.get().getId())) {
+                GuestProfileResponse resolvedMatch = enrollExistingGuestIfRequested(guest, match.get());
+                match = Optional.of(resolvedMatch);
+                if (!resolvedGuestIds.add(resolvedMatch.getId())) {
                     throw new BadRequestException("The same guest profile cannot be assigned more than once");
                 }
             }
@@ -72,14 +76,6 @@ public class ReservationGuestResolver {
                 verifyProperty(created, propertyId);
                 return created;
             });
-            if (resolvedOrPending.get(index).isPresent()
-                    && Boolean.TRUE.equals(request.getEnrollGuest())) {
-                profile = guestServiceClient.updateGuestProfile(
-                        profile.getId(),
-                        toEnrollmentUpdateRequest(profile)
-                );
-                verifyProperty(profile, propertyId);
-            }
             if (!resolvedGuestIds.add(profile.getId())
                     && !resolvedOrPending.get(index).isPresent()) {
                 throw new BadRequestException("The same guest profile cannot be assigned more than once");
@@ -179,33 +175,6 @@ public class ReservationGuestResolver {
                 .build();
     }
 
-    private GuestProfileUpdateRequest toEnrollmentUpdateRequest(GuestProfileResponse profile) {
-        return GuestProfileUpdateRequest.builder()
-                .salutation(profile.getSalutation())
-                .firstName(profile.getFirstName())
-                .lastName(profile.getLastName())
-                .personalEmail(profile.getPersonalEmail())
-                .officialEmail(profile.getOfficialEmail())
-                .phoneNumber(profile.getPhoneNumber())
-                .mobileNumber(profile.getMobileNumber())
-                .address(profile.getAddress())
-                .city(profile.getCity())
-                .state(profile.getState())
-                .country(profile.getCountry())
-                .postalCode(profile.getPostalCode())
-                .nationality(profile.getNationality())
-                .dateOfBirth(profile.getDateOfBirth())
-                .gender(profile.getGender())
-                .companyName(profile.getCompanyName())
-                .vipStatus(profile.getVipStatus())
-                .idType(profile.getIdType())
-                .idNumber(profile.getIdNumber())
-                .idDocumentPath(profile.getIdDocumentPath())
-                .loyaltyMembershipNumber(TEMPORARY_LOYALTY_NUMBER)
-                .loyaltyTier(DEFAULT_LOYALTY_TIER)
-                .build();
-    }
-
     private Set<String> deterministicIdentifiers(ReservationGuestRequestDto guest) {
         Set<String> identifiers = new LinkedHashSet<>();
         addIdentifier(identifiers, guest.getPhoneNumber());
@@ -232,6 +201,45 @@ public class ReservationGuestResolver {
         }
     }
 
+    private GuestProfileResponse enrollExistingGuestIfRequested(
+            ReservationGuestRequestDto request,
+            GuestProfileResponse profile
+    ) {
+        validateLoyaltyEnrollment(request, profile);
+        if (!Boolean.TRUE.equals(request.getEnrollGuest())) {
+            return profile;
+        }
+
+        GuestProfileUpdateRequest updateRequest = GuestProfileUpdateRequest.builder()
+                .salutation(profile.getSalutation())
+                .firstName(profile.getFirstName())
+                .lastName(profile.getLastName())
+                .personalEmail(profile.getPersonalEmail())
+                .officialEmail(profile.getOfficialEmail())
+                .phoneNumber(profile.getPhoneNumber())
+                .mobileNumber(profile.getMobileNumber())
+                .address(profile.getAddress())
+                .city(profile.getCity())
+                .state(profile.getState())
+                .country(profile.getCountry())
+                .postalCode(profile.getPostalCode())
+                .nationality(profile.getNationality())
+                .dateOfBirth(profile.getDateOfBirth())
+                .gender(profile.getGender())
+                .companyName(profile.getCompanyName())
+                .vipStatus(profile.getVipStatus())
+                .idType(profile.getIdType())
+                .idNumber(profile.getIdNumber())
+                .idDocumentPath(profile.getIdDocumentPath())
+                .loyaltyMembershipNumber(TEMPORARY_LOYALTY_NUMBER)
+                .loyaltyTier(DEFAULT_LOYALTY_TIER)
+                .build();
+        GuestProfileResponse updatedProfile =
+                guestServiceClient.updateGuestProfile(profile.getId(), updateRequest);
+        verifyProperty(updatedProfile, profile.getPropertyId());
+        return updatedProfile;
+    }
+
     private void validateLoyaltyEnrollment(
             ReservationGuestRequestDto request,
             GuestProfileResponse profile
@@ -240,10 +248,9 @@ public class ReservationGuestResolver {
         boolean hasLoyaltyTier = StringUtils.hasText(profile.getLoyaltyTier());
         if (hasMembershipNumber != hasLoyaltyTier) {
             throw new BadRequestException(
-                    "Guest profile has incomplete loyalty membership data; membership number and tier must both be set or both be null");
+                    "Guest profile has inconsistent loyalty data; membership number and tier must both be set or both be blank");
         }
-        if (Boolean.TRUE.equals(request.getEnrollGuest())
-                && hasMembershipNumber) {
+        if (Boolean.TRUE.equals(request.getEnrollGuest()) && hasMembershipNumber) {
             throw new BadRequestException(
                     "Guest already has a loyalty membership and cannot be enrolled again");
         }

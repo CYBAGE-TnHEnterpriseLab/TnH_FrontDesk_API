@@ -13,6 +13,8 @@ import com.pms.reservation.integration.GuestServiceClient;
 import com.pms.reservation.integration.dto.GuestProfileResponse;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationGuestRepository;
+import com.pms.reservation.service.ResolvedReservationGuest;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,6 +82,32 @@ class ReservationGuestServiceImplTest {
         assertThat(response.getGuestProfileId()).isEqualTo(200L);
         assertThat(response.getIsPrimary()).isTrue();
         verify(reservationGuestRepository).saveAndFlush(currentPrimary);
+    }
+
+    @Test
+    void assignsResolvedGuestsToBookingIdWithoutCallingGuestService() {
+        List<ResolvedReservationGuest> guests = List.of(
+                new ResolvedReservationGuest(125L, true),
+                new ResolvedReservationGuest(126L, false),
+                new ResolvedReservationGuest(127L, false));
+        when(transactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transactionStatus);
+        when(reservationBookingRepository.existsById(101L)).thenReturn(true);
+
+        service.assignResolvedGuests(101L, guests);
+
+        org.mockito.ArgumentCaptor<List<ReservationGuest>> relationships =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(reservationGuestRepository).saveAllAndFlush(relationships.capture());
+        assertThat(relationships.getValue())
+                .extracting(ReservationGuest::getBookingId)
+                .containsOnly(101L);
+        assertThat(relationships.getValue())
+                .extracting(ReservationGuest::getGuestProfileId)
+                .containsExactly(125L, 126L, 127L);
+        assertThat(relationships.getValue())
+                .extracting(ReservationGuest::getIsPrimary)
+                .containsExactly(true, false, false);
+        org.mockito.Mockito.verifyNoInteractions(guestServiceClient);
     }
 
     @Test
