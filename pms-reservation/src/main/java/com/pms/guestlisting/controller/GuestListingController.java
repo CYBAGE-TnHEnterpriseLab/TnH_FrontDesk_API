@@ -8,7 +8,11 @@ import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.entity.ReservationBookingRecord;
+import com.pms.reservation.entity.ReservationCheckInIdProofRecord;
+import com.pms.reservation.entity.ReservationCheckInSignatureRecord;
 import com.pms.reservation.repository.ReservationBookingRepository;
+import com.pms.reservation.repository.ReservationCheckInIdProofRepository;
+import com.pms.reservation.repository.ReservationCheckInSignatureRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.criteria.Predicate;
@@ -66,6 +70,8 @@ public class GuestListingController {
 
     private final ReservationBookingRepository reservationBookingRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
+    private final ReservationCheckInSignatureRepository signatureRepository;
+    private final ReservationCheckInIdProofRepository idProofRepository;
 
     @GetMapping("/list")
     @Operation(summary = "Get guest listing",
@@ -161,6 +167,15 @@ public class GuestListingController {
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toSet())
         );
+            Set<Long> bookingIds = bookingPage.getContent().stream()
+                .map(ReservationBookingRecord::getId)
+                .collect(Collectors.toSet());
+            Map<Long, ReservationCheckInSignatureRecord> signaturesByBooking = signatureRepository
+                .findAllByBookingIdIn(bookingIds).stream()
+                .collect(Collectors.toMap(ReservationCheckInSignatureRecord::getBookingId, record -> record));
+            Map<Long, ReservationCheckInIdProofRecord> idProofsByBooking = idProofRepository
+                .findAllByBookingIdIn(bookingIds).stream()
+                .collect(Collectors.toMap(ReservationCheckInIdProofRecord::getBookingId, record -> record));
 
         List<GuestListingResponseDto> content = bookingPage.getContent().stream()
             .map(booking -> toGuestListingItem(
@@ -168,7 +183,9 @@ public class GuestListingController {
                 businessDate,
                 normalizedView,
                 roomStatusByBooking.getOrDefault(booking.getId(),
-                    roomStatusByConfirmation.get(booking.getConfirmationNumber()))
+                    roomStatusByConfirmation.get(booking.getConfirmationNumber())),
+                signaturesByBooking.get(booking.getId()),
+                idProofsByBooking.get(booking.getId())
             ))
                 .toList();
 
@@ -399,14 +416,16 @@ public class GuestListingController {
     }
 
     private GuestListingResponseDto toGuestListingItem(ReservationBookingRecord booking, LocalDate businessDate, String view) {
-        return toGuestListingItem(booking, businessDate, view, null);
+        return toGuestListingItem(booking, businessDate, view, null, null, null);
         }
 
         private GuestListingResponseDto toGuestListingItem(
             ReservationBookingRecord booking,
             LocalDate businessDate,
             String view,
-            RoomStatusSnapshot roomSnapshot
+            RoomStatusSnapshot roomSnapshot,
+            ReservationCheckInSignatureRecord signature,
+            ReservationCheckInIdProofRecord idProof
         ) {
         String[] names = splitGuestName(booking.getGuestName());
         String listingType = resolveListingType(booking, businessDate, view);
@@ -444,7 +463,20 @@ public class GuestListingController {
                 .tier(booking.getLoyaltyNumber())
                 .groupCode(booking.getGuestGroup())
                 .stayStatus(resolveStayStatus(businessDate, booking.getArrivalDate(), booking.getDepartureDate(), listingType))
+                .checkInCompleted("CHECKED_IN".equalsIgnoreCase(booking.getReservationStatus())
+                    || "CHECKED_OUT".equalsIgnoreCase(booking.getReservationStatus()))
+                .checkInChannel(resolveCheckInChannel(signature, idProof))
+                .signatureCaptured(signature != null)
+                .idProofUploaded(idProof != null)
                 .build();
+    }
+
+    private String resolveCheckInChannel(ReservationCheckInSignatureRecord signature,
+                                         ReservationCheckInIdProofRecord idProof) {
+        if (signature != null && StringUtils.hasText(signature.getCheckInChannel())) {
+            return signature.getCheckInChannel();
+        }
+        return idProof == null ? null : idProof.getCheckInChannel();
     }
 
     private String resolveReservationStatus(ReservationBookingRecord booking, LocalDate businessDate) {

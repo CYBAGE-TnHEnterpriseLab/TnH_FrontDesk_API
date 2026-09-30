@@ -41,6 +41,28 @@ public class InventoryReservationService {
             if (existing.getStatus() == InventoryReservationStatus.RESERVED) {
                 return reservationMapper.toResponse(existing, true);
             }
+            if (existing.getStatus() == InventoryReservationStatus.RELEASED
+                    || existing.getStatus() == InventoryReservationStatus.CANCELLED) {
+                existing.setStatus(InventoryReservationStatus.RESERVED);
+                existing.setCheckInDate(request.checkInDate());
+                existing.setCheckOutDate(request.checkOutDate());
+                existing.setBookedRoomTypeId(request.bookedRoomTypeId());
+                existing.setAssignedRoomTypeId(request.assignedRoomTypeId());
+                existing.setQuantity(request.quantity());
+                existing.setPropertyId(request.propertyId());
+
+                List<RoomTypeInventoryDaily> rows = inventoryService.lockInventoryRange(
+                        existing.getPropertyId(),
+                        existing.getAssignedRoomTypeId(),
+                        existing.getCheckInDate(),
+                        existing.getCheckOutDate()
+                );
+                inventoryService.ensureSufficientInventory(rows, existing.getQuantity());
+                inventoryService.increaseReserved(rows, existing.getQuantity());
+
+                reservationRepository.save(existing);
+                return reservationMapper.toResponse(existing, false);
+            }
             throw new InventoryException("Reservation is already processed with status " + existing.getStatus());
         }
 

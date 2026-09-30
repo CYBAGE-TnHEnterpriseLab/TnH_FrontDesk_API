@@ -203,6 +203,31 @@ public class ReservationServiceHttpClient implements ReservationServiceClient {
                 .findFirst();
     }
 
+    @Override
+    public void updateGuestBalance(String confirmationNumber, Long bookingId, BigDecimal guestBalance) {
+        if (!StringUtils.hasText(confirmationNumber) || !isBaseUrlConfigured()) {
+            return;
+        }
+
+        try {
+            restClient.patch()
+                    .uri(uriBuilder -> {
+                        uriBuilder.path("/api/v1/reservations/bookings/{confirmationNumber}/guest-balance");
+                        if (bookingId != null) {
+                            uriBuilder.queryParam("bookingId", bookingId);
+                        }
+                        uriBuilder.queryParam("guestBalance", guestBalance);
+                        return uriBuilder.build(confirmationNumber);
+                    })
+                    .headers(this::addInboundAuthorizationHeader)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception ex) {
+            LOGGER.warn("Unable to synchronize guest balance for confirmationNumber {} and bookingId {}: {}",
+                    confirmationNumber, bookingId, ex.getMessage());
+        }
+    }
+
     private List<JsonNode> fetchGuestListingRows(
             LocalDate businessDate,
             String search,

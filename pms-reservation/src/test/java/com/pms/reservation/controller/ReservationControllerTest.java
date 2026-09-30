@@ -76,6 +76,18 @@ class ReservationControllerTest {
             .andExpect(jsonPath("$.data[1]").value("FULL_PAYMENT"));
     }
 
+            @Test
+            void getIdTypesShouldReturnSupportedIdentityProofTypes() throws Exception {
+            mockMvc.perform(get("/api/v1/reservations/id-types"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Identity types fetched successfully"))
+                .andExpect(jsonPath("$.data[0]").value("AADHAAR"))
+                .andExpect(jsonPath("$.data[1]").value("PAN"))
+                .andExpect(jsonPath("$.data[2]").value("DRIVING_LICENSE"))
+                .andExpect(jsonPath("$.data[3]").value("PASSPORT"));
+            }
+
     @Test
     void createBookingShouldReturnCreatedResponse() throws Exception {
         ReservationBookingRequestDto request = validRequest();

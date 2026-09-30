@@ -20,9 +20,9 @@ public record InventoryReconciliationRequest(
         @NotNull(message = "roomTypes is required")
         List<RoomTypeInventoryInput> roomTypes
 ) {
-    @AssertTrue(message = "toDate must be after fromDate")
+    @AssertTrue(message = "toDate must be on or after fromDate")
     public boolean isDateRangeValid() {
-        return fromDate != null && toDate != null && toDate.isAfter(fromDate);
+        return fromDate != null && toDate != null && !toDate.isBefore(fromDate);
     }
 
     public record RoomTypeInventoryInput(
