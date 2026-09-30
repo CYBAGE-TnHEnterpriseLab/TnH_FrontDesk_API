@@ -5,7 +5,7 @@ spring:
   application:
     name: pms-guest
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/PMSystem_db?CurrentSchema=frontdeskdb}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/PMSystem_db?CurrentSchema=guestdb}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -22,7 +22,7 @@ spring:
     open-in-view: false
     properties:
       hibernate:
-        default_schema: frontdeskdb
+        default_schema: guestdb
 
   flyway:
     enabled: true
@@ -30,8 +30,8 @@ spring:
     baseline-version: 0
     validate-on-migrate: true
     create-schemas: true
-    schemas: frontdeskdb
-    default-schema: frontdeskdb
+    schemas: guestdb
+    default-schema: guestdb
     table: flyway_schema_history_guest
     locations: classpath:db/migration
 

@@ -15,7 +15,7 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 @Entity
-@Table(name = "guest_profiles", schema = "frontdeskdb")
+@Table(name = "guest_profiles", schema = "guestdb")
 @Getter
 @Setter
 @NoArgsConstructor

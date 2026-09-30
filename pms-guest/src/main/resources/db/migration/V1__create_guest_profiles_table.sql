@@ -1,6 +1,6 @@
-CREATE SCHEMA IF NOT EXISTS frontdeskdb;
+CREATE SCHEMA IF NOT EXISTS guestdb;
 
-CREATE TABLE IF NOT EXISTS frontdeskdb.guest_profiles (
+CREATE TABLE IF NOT EXISTS guestdb.guest_profiles (
     id BIGSERIAL PRIMARY KEY,
     guest_id VARCHAR(80) NOT NULL,
     property_id VARCHAR(36) NOT NULL,
@@ -34,16 +34,16 @@ CREATE TABLE IF NOT EXISTS frontdeskdb.guest_profiles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_guest_profiles_property_phone
-    ON frontdeskdb.guest_profiles(property_id, phone_number);
+    ON guestdb.guest_profiles(property_id, phone_number);
 
 CREATE INDEX IF NOT EXISTS idx_guest_profiles_property_personal_email
-    ON frontdeskdb.guest_profiles(property_id, personal_email);
+    ON guestdb.guest_profiles(property_id, personal_email);
 
 CREATE INDEX IF NOT EXISTS idx_guest_profiles_property_official_email
-    ON frontdeskdb.guest_profiles(property_id, official_email);
+    ON guestdb.guest_profiles(property_id, official_email);
 
 CREATE INDEX IF NOT EXISTS idx_guest_profiles_property_loyalty
-    ON frontdeskdb.guest_profiles(property_id, loyalty_membership_number);
+    ON guestdb.guest_profiles(property_id, loyalty_membership_number);
 
 CREATE INDEX IF NOT EXISTS idx_guest_profiles_property_name
-    ON frontdeskdb.guest_profiles(property_id, first_name, last_name);
+    ON guestdb.guest_profiles(property_id, first_name, last_name);

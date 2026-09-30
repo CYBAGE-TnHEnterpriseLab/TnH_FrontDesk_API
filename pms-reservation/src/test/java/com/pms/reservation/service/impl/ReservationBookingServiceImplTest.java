@@ -18,6 +18,7 @@ import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
+import com.pms.reservation.integration.FolioServiceClient;
 import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.dto.InventoryReservationRequest;
@@ -57,6 +58,7 @@ class ReservationBookingServiceImplTest {
     @Mock private PaymentProcessingService paymentProcessingService;
     @Mock private HousekeepingRoomStatusClient housekeepingStatusClient;
     @Mock private HousekeepingRoomCalendarClient housekeepingCalendarClient;
+    @Mock private FolioServiceClient folioServiceClient;
 
     private ReservationBookingServiceImpl service;
 
@@ -66,7 +68,7 @@ class ReservationBookingServiceImplTest {
                 bookingRepository, paymentRepository, housekeepingRepository, propertyInventoryPort,
                 inventoryServiceClient, new PropertyWizardServiceProperties(),
                 new ReservationBookingMapper(), guestResolver, guestService, paymentProcessingService,
-                housekeepingStatusClient, housekeepingCalendarClient);
+                housekeepingStatusClient, housekeepingCalendarClient, folioServiceClient);
     }
 
     @Test

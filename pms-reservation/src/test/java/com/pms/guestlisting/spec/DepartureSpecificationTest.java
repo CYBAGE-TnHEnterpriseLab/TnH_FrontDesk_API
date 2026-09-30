@@ -93,4 +93,3 @@ class DepartureSpecificationTest {
                 .containsExactly("CNF-1001");
     }
 }
-

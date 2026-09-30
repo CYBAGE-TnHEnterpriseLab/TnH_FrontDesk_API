@@ -29,6 +29,8 @@ spring:
     enabled: true
     validate-on-migrate: false
     baseline-on-migrate: true
+    placeholders:
+      generated-column-storage: STORED
     locations: classpath:db/migration
     create-schemas: true
     schemas: frontdeskdb
