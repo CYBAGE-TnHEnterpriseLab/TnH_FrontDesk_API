@@ -37,6 +37,11 @@ spring:
   jackson:
     time-zone: UTC
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
 reservation-service:
   base-url: http://localhost:${server.port}
   arrivals-path: /api/v1/reservations/arrivals
