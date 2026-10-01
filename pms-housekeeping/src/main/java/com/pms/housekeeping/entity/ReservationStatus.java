@@ -7,7 +7,8 @@ public enum ReservationStatus {
     DEPARTURE,
     STAY_OVER,
     DAY_USE,
-    NOT_RESERVED
+    NOT_RESERVED,
+    CHECKED_OUT
 }
 
 

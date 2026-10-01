@@ -8,8 +8,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.Version;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,7 +19,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @Table(name = "property_draft")
-public class PropertyDraftEntity {
+public class PropertyDraftEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,24 +48,11 @@ public class PropertyDraftEntity {
     @Column(name = "published_property_id")
     private String publishedPropertyId;
 
-    @Column(name = "created_by", nullable = false)
-    private String createdBy;
-
-    @Column(name = "updated_by", nullable = false)
-    private String updatedBy;
-
     @Column(name = "published_by")
-    private String publishedBy;
+    private UUID publishedBy;
 
     @Version
     private Long version;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
 }
 
 

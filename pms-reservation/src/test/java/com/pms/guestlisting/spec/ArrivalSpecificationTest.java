@@ -24,7 +24,7 @@ class ArrivalSpecificationTest {
         LocalDate businessDate = LocalDate.of(2026, 6, 2);
 
         ArrivalRecord matchingArrival = ArrivalRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(businessDate)
                 .checkInDate(businessDate)
                 .checkOutDate(businessDate.plusDays(2))
@@ -49,7 +49,7 @@ class ArrivalSpecificationTest {
                 .build();
 
         ArrivalRecord nonMatchingArrival = ArrivalRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(businessDate)
                 .checkInDate(businessDate.plusDays(1))
                 .checkOutDate(businessDate.plusDays(3))
@@ -76,7 +76,7 @@ class ArrivalSpecificationTest {
         arrivalRecordRepository.saveAll(List.of(matchingArrival, nonMatchingArrival));
 
         ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setBusinessDate(businessDate);
         request.setPage(0);
         request.setSize(20);
@@ -97,7 +97,7 @@ class ArrivalSpecificationTest {
         LocalDate businessDate = LocalDate.of(2026, 6, 2);
 
         ArrivalRecord matching = ArrivalRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(businessDate)
                 .checkInDate(businessDate)
                 .checkOutDate(businessDate.plusDays(2))
@@ -122,7 +122,7 @@ class ArrivalSpecificationTest {
                 .build();
 
         ArrivalRecord nonMatching = ArrivalRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(businessDate)
                 .checkInDate(businessDate)
                 .checkOutDate(businessDate.plusDays(1))
@@ -149,7 +149,7 @@ class ArrivalSpecificationTest {
         arrivalRecordRepository.saveAll(List.of(matching, nonMatching));
 
         ArrivalSearchRequestDto request = new ArrivalSearchRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setBusinessDate(businessDate);
         request.setStatus("DNM");
         request.setReservationType("Guaranteed");

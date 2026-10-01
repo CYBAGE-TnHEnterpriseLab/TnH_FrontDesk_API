@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.pms.reservation.constant.PaymentModes;
 import com.pms.reservation.constant.PaymentTypes;
+import com.pms.reservation.constant.IdTypes;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -39,6 +40,27 @@ public class ReservationBookingRequestDto {
     @NotBlank(message = "guestName is required")
     private String guestName;
 
+        private LocalDate dateOfBirth;
+
+        private String state;
+
+        @JsonAlias("id_type")
+        @Schema(description = "Guest proof of identity type", allowableValues = {
+                IdTypes.AADHAAR,
+                IdTypes.PAN,
+                IdTypes.DRIVING_LICENSE,
+                IdTypes.PASSPORT
+        })
+        @Pattern(regexp = "(?i)AADHAAR|PAN|DRIVING_LICENSE|PASSPORT",
+                message = "idType must be AADHAAR, PAN, DRIVING_LICENSE, or PASSPORT")
+        private String idType;
+
+        @JsonAlias("id_number")
+        private String idNumber;
+
+        @JsonAlias({"enrolGuest", "enroll_guest"})
+        private Boolean enrollGuest = Boolean.FALSE;
+
         @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
         private String firstName;
 
@@ -53,6 +75,8 @@ public class ReservationBookingRequestDto {
     @Email(message = "officialEmail must be a valid email")
         @JsonAlias({"email", "guestEmail"})
     private String officialEmail;
+
+    private String address;
 
     private String city;
 
@@ -88,6 +112,8 @@ public class ReservationBookingRequestDto {
     @Pattern(regexp = "(?i)GTD|NON[\\s-]?GTD", message = "reservationType must be GTD or Non GTD")
     private String reservationType;
 
+        private String blockCode;
+
     @NotBlank(message = "roomType is required")
     private String roomType;
 
@@ -108,6 +134,8 @@ public class ReservationBookingRequestDto {
     @NotNull(message = "rate is required")
     @DecimalMin(value = "0.0", inclusive = false, message = "rate must be > 0")
     private BigDecimal rate;
+
+        private BigDecimal taxPercent;
 
     @Schema(description = "Reservation payment mode", allowableValues = {
             PaymentModes.CARD,

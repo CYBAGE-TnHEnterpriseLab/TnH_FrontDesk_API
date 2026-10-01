@@ -12,7 +12,7 @@ Room-type-level inventory microservice for PMS.
 - MapStruct
 - Lombok
 - Springdoc OpenAPI
-- JUnit 5, Mockito, Testcontainers
+- JUnit 5, Mockito
 
 ## Run locally
 
@@ -30,7 +30,7 @@ mvn clean spring-boot:run
 mvn clean test
 ```
 
-Integration tests use PostgreSQL Testcontainers.
+Integration tests use H2.
 
 ## OpenAPI
 

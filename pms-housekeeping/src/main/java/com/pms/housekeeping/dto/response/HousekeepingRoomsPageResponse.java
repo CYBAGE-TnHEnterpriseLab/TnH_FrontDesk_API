@@ -1,8 +1,10 @@
 package com.pms.housekeeping.dto.response;
 
-import java.time.LocalDate;
+import lombok.Builder;
+
 import java.util.List;
 
+@Builder
 public record HousekeepingRoomsPageResponse(
 
         int page,
@@ -12,9 +14,6 @@ public record HousekeepingRoomsPageResponse(
         long totalElements,
 
         int totalPages,
-
-//        LocalDate fromDate,
-//        LocalDate toDate,
 
         HousekeepingFiltersResponse filterOptions,
 

@@ -10,20 +10,25 @@ import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.OccupancyType;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
+import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
+import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
 import com.frontdesk.pms.rate_management.exception.RatePlanNotFoundException;
 import com.frontdesk.pms.rate_management.exception.PropertyNotFoundException;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.RatePlanRepository;
+import com.frontdesk.pms.rate_management.enums.DifferentialType;
 import lombok.RequiredArgsConstructor;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.Locale;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.time.DayOfWeek;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +45,11 @@ public class RatePlanService {
     private final RatePlanRepository ratePlanRepository;
     private final MasterRoomPricingRepository masterRoomPricingRepository;
     private final PropertyWizardClient propertyWizardClient;
+    private final MasterRoomRoomTypeMappingRepository mappingRepository;
+
+    private static final long RECONCILE_INTERVAL_MS = 60_000L;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> lastReconciledAt =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     @Transactional
     public RatePlanResponseDTO createRatePlan(String propertyId, RatePlanRequestDTO requestDTO) {
@@ -47,15 +58,9 @@ public class RatePlanService {
         if (ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(propertyId, requestDTO.getCode())) {
             throw new InvalidRatePlanException("Rate code already exists: " + requestDTO.getCode());
         }
-
-        validateNoOverlapForActivePlan(
-            propertyId,
-            requestDTO.getApplicableRoomTypeIds(),
-            extractSupportedOccupancies(requestDTO),
-            requestDTO.getMealOption(),
-            requestDTO.getStartDate(),
-            requestDTO.getEndDate(),
-            null);
+        if (ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(propertyId, requestDTO.getName())) {
+            throw new InvalidRatePlanException("Rate plan name already exists: " + requestDTO.getName());
+        }
 
         RatePlan ratePlan = toEntity(propertyId, requestDTO);
         ratePlan.setStatus(RatePlanStatus.ACTIVE);
@@ -73,6 +78,10 @@ public class RatePlanService {
                 && ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(propertyId, requestDTO.getCode())) {
             throw new InvalidRatePlanException("Rate code already exists: " + requestDTO.getCode());
         }
+        if (!existing.getName().equalsIgnoreCase(requestDTO.getName())
+                && ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(propertyId, requestDTO.getName())) {
+            throw new InvalidRatePlanException("Rate plan name already exists: " + requestDTO.getName());
+        }
 
         existing.setName(requestDTO.getName());
         existing.setCode(requestDTO.getCode());
@@ -82,24 +91,15 @@ public class RatePlanService {
         existing.setType(requestDTO.getType());
         existing.setStartDate(requestDTO.getStartDate());
         existing.setEndDate(requestDTO.getEndDate());
+        existing.setActiveDaysOfWeek(normalizeActiveDaysOfWeek(requestDTO.getActiveDaysOfWeek()));
         existing.setCalculationMethod(requestDTO.getCalculationMethod());
         existing.setAdjustmentValue(requestDTO.getAdjustmentValue());
         existing.setManualAmount(requestDTO.getManualAmount());
-        existing.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy()));
+        existing.setManualPricingByOccupancy(
+                normalizeManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy()));
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
         existing.setPolicyId(requestDTO.getPolicyId()); // Update the policy ID in the entity
-
-        if (existing.getStatus() == RatePlanStatus.ACTIVE) {
-            validateNoOverlapForActivePlan(
-                    propertyId,
-                    existing.getApplicableRoomTypeIds(),
-                    extractSupportedOccupancies(existing),
-                    existing.getMealOption(),
-                    existing.getStartDate(),
-                    existing.getEndDate(),
-                    existing.getId());
-        }
 
         return toResponseDTO(ratePlanRepository.save(existing));
     }
@@ -132,45 +132,52 @@ public class RatePlanService {
         RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(id, propertyId)
                 .orElseThrow(() -> new RatePlanNotFoundException(id));
 
-        if (status == RatePlanStatus.ACTIVE) {
-            validateNoOverlapForActivePlan(
-                    propertyId,
-                    ratePlan.getApplicableRoomTypeIds(),
-                    extractSupportedOccupancies(ratePlan),
-                    ratePlan.getMealOption(),
-                    ratePlan.getStartDate(),
-                    ratePlan.getEndDate(),
-                    ratePlan.getId());
-        }
-
         ratePlan.setStatus(status);
         return toResponseDTO(ratePlanRepository.save(ratePlan));
     }
 
     public List<RatePlanResponseDTO> getAvailableRatePlans(String propertyId,
-                                                            Long roomTypeId,
-                                                            String occupancyType,
-                                                            MasterRoomMealOption mealOption,
-                                                            LocalDate stayDate) {
+            Long roomTypeId,
+            String occupancyType,
+            MasterRoomMealOption mealOption,
+            LocalDate stayDate) {
         validateProperty(propertyId);
         validateRoomTypeBelongsToProperty(propertyId, roomTypeId);
         String normalizedOccupancyType = normalizeOccupancyType(occupancyType);
         return ratePlanRepository.findAvailableByRoomTypeMealAndDate(
-                        propertyId,
-                        roomTypeId,
-                        mealOption,
-                        stayDate,
-                        RatePlanStatus.ACTIVE)
+                propertyId,
+                roomTypeId,
+                mealOption,
+                stayDate,
+                RatePlanStatus.ACTIVE)
                 .stream()
-            .filter(ratePlan -> supportsOccupancy(ratePlan, normalizedOccupancyType))
+                .filter(ratePlan -> ratePlan.getActiveDaysOfWeek().contains(stayDate.getDayOfWeek()))
+                .filter(ratePlan -> supportsOccupancy(ratePlan, normalizedOccupancyType))
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
     public RatePlanPriceResponseDTO calculatePriceFromMasterBar(String propertyId, Long ratePlanId, Long roomTypeId) {
+        return calculatePriceFromMasterBar(propertyId, ratePlanId, roomTypeId, null);
+        }
+
+        public RatePlanPriceResponseDTO calculatePriceFromMasterBar(String propertyId,
+            Long ratePlanId,
+            Long roomTypeId,
+            String occupancyType) {
         validateProperty(propertyId);
         validateRoomTypeBelongsToProperty(propertyId, roomTypeId);
-        CalculationResult calculation = calculateRatePlanAmount(propertyId, ratePlanId, roomTypeId, new HashSet<>());
+
+        RatePlan targetRatePlan = ratePlanRepository.findByIdAndPropertyId(ratePlanId, propertyId)
+            .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
+
+        String selectedOccupancyType = resolveSelectedOccupancyType(targetRatePlan, occupancyType);
+        CalculationResult calculation = calculateRatePlanAmount(
+            propertyId,
+            ratePlanId,
+            roomTypeId,
+            selectedOccupancyType,
+            new HashSet<>());
 
         RatePlanPriceResponseDTO responseDTO = new RatePlanPriceResponseDTO();
         responseDTO.setRatePlanId(ratePlanId);
@@ -215,7 +222,8 @@ public class RatePlanService {
                 throw new InvalidRatePlanException("Rate plan cannot derive from itself");
             }
 
-            RatePlan parentRatePlan = ratePlanRepository.findByIdAndPropertyId(requestDTO.getParentRatePlanId(), propertyId)
+            RatePlan parentRatePlan = ratePlanRepository
+                    .findByIdAndPropertyId(requestDTO.getParentRatePlanId(), propertyId)
                     .orElseThrow(() -> new InvalidRatePlanException(
                             "Parent rate plan not found: " + requestDTO.getParentRatePlanId()));
 
@@ -252,6 +260,7 @@ public class RatePlanService {
         entity.setType(dto.getType());
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
+        entity.setActiveDaysOfWeek(normalizeActiveDaysOfWeek(dto.getActiveDaysOfWeek()));
         entity.setCalculationMethod(dto.getCalculationMethod());
         entity.setAdjustmentValue(dto.getAdjustmentValue());
         entity.setManualAmount(dto.getManualAmount());
@@ -275,6 +284,7 @@ public class RatePlanService {
         dto.setStatus(entity.getStatus());
         dto.setStartDate(entity.getStartDate());
         dto.setEndDate(entity.getEndDate());
+        dto.setActiveDaysOfWeek(entity.getActiveDaysOfWeek());
         dto.setApplicableRoomTypeIds(entity.getApplicableRoomTypeIds());
         dto.setCalculationMethod(entity.getCalculationMethod());
         dto.setAdjustmentValue(entity.getAdjustmentValue());
@@ -291,7 +301,37 @@ public class RatePlanService {
         }
     }
 
-    private Double resolveMasterBarAmount(RatePlan ratePlan, Long roomTypeId) {
+    private Double calculateDifferentialPrice(
+            Double basePrice,
+            DifferentialType differentialType,
+            BigDecimal differentialValue) {
+
+        if (basePrice == null
+                || differentialType == null
+                || differentialValue == null) {
+            return basePrice;
+        }
+
+        double differential = differentialValue.doubleValue();
+
+        return switch (differentialType) {
+            case FIXED ->
+                    basePrice + differential;
+
+            case PERCENTAGE ->
+                    basePrice + (basePrice * differential / 100);
+        };
+    }
+
+    private Set<DayOfWeek> normalizeActiveDaysOfWeek(Set<DayOfWeek> activeDaysOfWeek) {
+        if (activeDaysOfWeek == null || activeDaysOfWeek.isEmpty()) {
+            return EnumSet.allOf(DayOfWeek.class);
+        }
+        return EnumSet.copyOf(activeDaysOfWeek);
+    }
+
+    private Double resolveMasterBarAmount(String propertyId, RatePlan ratePlan,
+            Long roomTypeId, String selectedOccupancyType) {
         if (roomTypeId == null) {
             throw new InvalidRatePlanException("Room type id is required to derive BAR amount");
         }
@@ -300,17 +340,46 @@ public class RatePlanService {
             throw new InvalidRatePlanException("Room type is not applicable for this rate plan");
         }
 
-        MasterRoomPricing pricing = masterRoomPricingRepository
-                .findByRoomTypeIdAndOccupancyType(roomTypeId, ratePlan.getOccupancyType())
-                .orElseThrow(() -> new InvalidRatePlanException(
-                        "Master BAR pricing not found for room type " + roomTypeId
-                                + " and occupancy " + ratePlan.getOccupancyType()));
+        // Uttam's Fix
+        // this is fix where the database has Occupancy Type "2_Guest" but the query
+        // finding for "2 Guest"
+        String normalizedOccupancyType =
+                selectedOccupancyType.toUpperCase(Locale.ROOT)
+                        .replace(" ", "_");
+
+        MasterRoomRoomTypeMapping mapping =
+                mappingRepository
+                        .findByMasterRoomPropertyIdAndRoomTypeId(
+                                propertyId,
+                                roomTypeId)
+                        .orElseThrow(() -> new InvalidRatePlanException(
+                                "Room type mapping not found for room type "
+                                        + roomTypeId));
+
+        MasterRoomPricing pricing =
+                masterRoomPricingRepository
+                        .findByMasterRoomIdAndRoomTypeIdAndOccupancyType(
+                                mapping.getMasterRoom().getId(),
+                                roomTypeId,
+                                normalizedOccupancyType)
+                        .orElseThrow(() -> new InvalidRatePlanException(
+                                "Master BAR pricing not found for room type "
+                                        + roomTypeId
+                                        + " and occupancy "
+                                        + normalizedOccupancyType));
 
         validateMasterBarAmount(pricing.getPrice());
-        return pricing.getPrice();
+        return calculateDifferentialPrice(
+                pricing.getPrice(),
+                mapping.getDifferentialType(),
+                mapping.getDifferentialValue());
     }
 
-    private CalculationResult calculateRatePlanAmount(String propertyId, Long ratePlanId, Long roomTypeId, Set<Long> visitedRatePlanIds) {
+        private CalculationResult calculateRatePlanAmount(String propertyId,
+            Long ratePlanId,
+            Long roomTypeId,
+            String selectedOccupancyType,
+            Set<Long> visitedRatePlanIds) {
         if (!visitedRatePlanIds.add(ratePlanId)) {
             throw new InvalidRatePlanException("Circular rate plan derivation detected");
         }
@@ -324,9 +393,14 @@ public class RatePlanService {
 
         try {
             return switch (ratePlan.getCalculationMethod()) {
-                case MANUAL -> new CalculationResult(null, Math.max(0.0, resolveManualAmount(ratePlan)));
+                case MANUAL -> new CalculationResult(null,
+                        Math.max(0.0, resolveManualAmount(ratePlan, selectedOccupancyType)));
                 case PERCENT_OFF_BAR, PERCENT_ADD_BAR, FLAT_OFF_BAR, FLAT_ADD_BAR -> {
-                    CalculationResult baseCalculation = resolveBaseCalculation(propertyId, ratePlan, roomTypeId, visitedRatePlanIds);
+                    CalculationResult baseCalculation = resolveBaseCalculation(propertyId,
+                            ratePlan,
+                            roomTypeId,
+                            selectedOccupancyType,
+                            visitedRatePlanIds);
                     Double baseAmount = baseCalculation.finalAmount();
                     Double derivedFinalAmount = applyAdjustment(ratePlan, baseAmount);
                     yield new CalculationResult(baseCalculation.masterBarAmount(), Math.max(0.0, derivedFinalAmount));
@@ -337,17 +411,22 @@ public class RatePlanService {
         }
     }
 
-    private CalculationResult resolveBaseCalculation(String propertyId, RatePlan ratePlan, Long roomTypeId, Set<Long> visitedRatePlanIds) {
+    private CalculationResult resolveBaseCalculation(String propertyId,
+            RatePlan ratePlan,
+            Long roomTypeId,
+            String selectedOccupancyType,
+            Set<Long> visitedRatePlanIds) {
         if (ratePlan.getParentRatePlanId() != null) {
             CalculationResult parentCalculation = calculateRatePlanAmount(
                     propertyId,
                     ratePlan.getParentRatePlanId(),
                     roomTypeId,
+                    selectedOccupancyType,
                     visitedRatePlanIds);
             return new CalculationResult(parentCalculation.masterBarAmount(), parentCalculation.finalAmount());
         }
 
-        Double masterBarAmount = resolveMasterBarAmount(ratePlan, roomTypeId);
+        Double masterBarAmount = resolveMasterBarAmount(propertyId, ratePlan, roomTypeId, selectedOccupancyType);
         return new CalculationResult(masterBarAmount, masterBarAmount);
     }
 
@@ -357,7 +436,7 @@ public class RatePlanService {
             case PERCENT_ADD_BAR -> baseAmount + (baseAmount * ratePlan.getAdjustmentValue() / 100.0);
             case FLAT_OFF_BAR -> baseAmount - ratePlan.getAdjustmentValue();
             case FLAT_ADD_BAR -> baseAmount + ratePlan.getAdjustmentValue();
-            case MANUAL -> resolveManualAmount(ratePlan);
+            case MANUAL -> resolveManualAmount(ratePlan, ratePlan.getOccupancyType());
         };
     }
 
@@ -376,6 +455,29 @@ public class RatePlanService {
     }
 
     private void reconcileExistingRatePlansWithPropertyWizard(String propertyId) {
+        // Runs on read paths too; throttled so parallel price lookups don't issue concurrent saveAll on the same rows.
+        long now = System.currentTimeMillis();
+        boolean[] claimed = {false};
+        lastReconciledAt.compute(propertyId, (ignored, last) -> {
+            if (last != null && now - last < RECONCILE_INTERVAL_MS) {
+                return last;
+            }
+            claimed[0] = true;
+            return now;
+        });
+        if (!claimed[0]) {
+            return;
+        }
+
+        try {
+            doReconcileExistingRatePlansWithPropertyWizard(propertyId);
+        } catch (RuntimeException ex) {
+            lastReconciledAt.remove(propertyId, now);
+            throw ex;
+        }
+    }
+
+    private void doReconcileExistingRatePlansWithPropertyWizard(String propertyId) {
         Set<Long> availableRoomTypeIds = fetchRoomTypeIdsByProperty(propertyId);
         List<RatePlan> existingRatePlans = ratePlanRepository.findByPropertyId(propertyId);
         if (existingRatePlans == null || existingRatePlans.isEmpty()) {
@@ -394,8 +496,11 @@ public class RatePlanService {
                     .filter(availableRoomTypeIds::contains)
                     .collect(Collectors.toCollection(HashSet::new));
 
-            boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
-            boolean shouldDeactivate = sanitizedRoomTypeIds.isEmpty() && ratePlan.getStatus() == RatePlanStatus.ACTIVE;
+                boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
+                boolean expired = ratePlan.getEndDate() != null
+                    && ratePlan.getEndDate().isBefore(LocalDate.now());
+                boolean shouldDeactivate = ratePlan.getStatus() == RatePlanStatus.ACTIVE
+                    && (sanitizedRoomTypeIds.isEmpty() || expired);
 
             if (roomTypesChanged || shouldDeactivate) {
                 ratePlan.setApplicableRoomTypeIds(sanitizedRoomTypeIds);
@@ -412,12 +517,12 @@ public class RatePlanService {
     }
 
     private void validateNoOverlapForActivePlan(String propertyId,
-                                                java.util.Set<Long> roomTypeIds,
-                                                Set<String> occupancyTypes,
-                                                MasterRoomMealOption mealOption,
-                                                LocalDate startDate,
-                                                LocalDate endDate,
-                                                Long excludeRatePlanId) {
+            java.util.Set<Long> roomTypeIds,
+            Set<String> occupancyTypes,
+            MasterRoomMealOption mealOption,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long excludeRatePlanId) {
         Set<String> normalizedOccupancies = occupancyTypes.stream()
                 .filter(Objects::nonNull)
                 .map(String::trim)
@@ -469,7 +574,7 @@ public class RatePlanService {
         if (requestDTO.getManualPricingByOccupancy() != null) {
             occupancies.addAll(requestDTO.getManualPricingByOccupancy().keySet().stream()
                     .filter(Objects::nonNull)
-                .map(this::normalizeOccupancyType)
+                    .map(this::normalizeOccupancyType)
                     .filter(value -> !value.isBlank())
                     .collect(Collectors.toSet()));
         }
@@ -484,7 +589,7 @@ public class RatePlanService {
         if (ratePlan.getManualPricingByOccupancy() != null) {
             occupancies.addAll(ratePlan.getManualPricingByOccupancy().keySet().stream()
                     .filter(Objects::nonNull)
-                .map(this::normalizeOccupancyType)
+                    .map(this::normalizeOccupancyType)
                     .filter(value -> !value.isBlank())
                     .collect(Collectors.toSet()));
         }
@@ -498,11 +603,12 @@ public class RatePlanService {
         return extractSupportedOccupancies(ratePlan).contains(normalizeOccupancyType(occupancyType));
     }
 
-    private Double resolveManualAmount(RatePlan ratePlan) {
+    private Double resolveManualAmount(RatePlan ratePlan, String selectedOccupancyType) {
+        String normalizedSelectedOccupancy = normalizeOccupancyType(selectedOccupancyType);
+
         if (ratePlan.getManualPricingByOccupancy() != null
-                && ratePlan.getOccupancyType() != null
-                && ratePlan.getManualPricingByOccupancy().containsKey(ratePlan.getOccupancyType())) {
-            Double occupancyManualAmount = ratePlan.getManualPricingByOccupancy().get(ratePlan.getOccupancyType());
+                && ratePlan.getManualPricingByOccupancy().containsKey(normalizedSelectedOccupancy)) {
+            Double occupancyManualAmount = ratePlan.getManualPricingByOccupancy().get(normalizedSelectedOccupancy);
             if (occupancyManualAmount != null) {
                 return occupancyManualAmount;
             }
@@ -512,6 +618,18 @@ public class RatePlanService {
             throw new InvalidRatePlanException("Manual amount not configured for rate plan");
         }
         return ratePlan.getManualAmount();
+    }
+
+    private String resolveSelectedOccupancyType(RatePlan ratePlan, String requestedOccupancyType) {
+        if (requestedOccupancyType != null && !requestedOccupancyType.isBlank()) {
+            return normalizeOccupancyType(requestedOccupancyType);
+        }
+
+        if (ratePlan.getOccupancyType() != null && !ratePlan.getOccupancyType().isBlank()) {
+            return normalizeOccupancyType(ratePlan.getOccupancyType());
+        }
+
+        throw new InvalidRatePlanException("Occupancy type is not configured for rate plan");
     }
 
     private Map<String, Double> copyManualPricingByOccupancy(Map<String, Double> manualPricingByOccupancy) {
@@ -570,21 +688,21 @@ public class RatePlanService {
 
     public RatePlanResponseDTO mapPolicyToRatePlan(String propertyId, Long ratePlanId, List<String> policyId) {
         // TODO Auto-generated method stub
-        if(propertyId == null || propertyId.isBlank()) {
+        if (propertyId == null || propertyId.isBlank()) {
             throw new IllegalArgumentException("propertyId is required in path");
         }
-        if(ratePlanId == null) {
+        if (ratePlanId == null) {
             throw new IllegalArgumentException("ratePlanId is required in path");
         }
-        if(policyId == null || policyId.isEmpty()) {
+        if (policyId == null || policyId.isEmpty()) {
             throw new IllegalArgumentException("policyId is required in path");
         }
-        
+
         RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(ratePlanId, propertyId)
                 .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
-            
-        for(String policy : policyId) {
-            if(!ratePlan.getPolicyId().contains(policy)) {
+
+        for (String policy : policyId) {
+            if (!ratePlan.getPolicyId().contains(policy)) {
                 ratePlan.getPolicyId().add(policy);
             } else {
                 throw new InvalidRatePlanException("Policy ID " + policy + " is already mapped to the rate plan");
@@ -608,12 +726,12 @@ public class RatePlanService {
         RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(ratePlanId, propertyId)
                 .orElseThrow(() -> new RatePlanNotFoundException(ratePlanId));
 
-        for(String policy : policyId) {
-            if(ratePlan.getPolicyId().contains(policy)) {
+        for (String policy : policyId) {
+            if (ratePlan.getPolicyId().contains(policy)) {
                 ratePlan.getPolicyId().remove(policy);
             } else {
                 throw new InvalidRatePlanException("Policy ID " + policy + " is not mapped to the rate plan");
-            }       
+            }
         }
         ratePlanRepository.save(ratePlan);
 

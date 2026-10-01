@@ -13,6 +13,8 @@ import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.repository.ReservationBookingRepository;
+import com.pms.reservation.repository.ReservationCheckInIdProofRepository;
+import com.pms.reservation.repository.ReservationCheckInSignatureRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,9 +28,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = GuestListingController.class, properties = "security.jwt.enabled=false")
+@WebMvcTest(controllers = GuestListingController.class, properties = {"security.jwt.enabled=false", "spring.data.jpa.repositories.enabled=false"})
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class GuestListingControllerTest {
@@ -40,13 +43,22 @@ class GuestListingControllerTest {
     private ReservationBookingRepository reservationBookingRepository;
 
         @MockBean
+        private ReservationCheckInSignatureRepository signatureRepository;
+
+        @MockBean
+        private ReservationCheckInIdProofRepository idProofRepository;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+        @MockBean
         private HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
 
     @Test
     void getGuestListingShouldReturnBookingsFromSingleTableByDefault() throws Exception {
         ReservationBookingRecord booking = ReservationBookingRecord.builder()
                 .id(1L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("CNF458721")
                 .reservationStatus("CONFIRMED")
                 .salutation("Mr")
@@ -94,7 +106,7 @@ class GuestListingControllerTest {
                 any(),
                 anyCollection()
         )).thenReturn(List.of(HousekeepingRoomStatusRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(LocalDate.of(2026, 6, 1))
                 .confirmationNumber("CNF458721")
                 .roomNo("301")
@@ -103,7 +115,7 @@ class GuestListingControllerTest {
                 .build()));
 
         mockMvc.perform(get("/api/v1/guest-listing/list")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("businessDate", "2026-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -111,7 +123,7 @@ class GuestListingControllerTest {
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].confirmationNumber").value("CNF458721"))
                 .andExpect(jsonPath("$.data.content[0].guests").value(3))
-                .andExpect(jsonPath("$.data.content[0].roomNo").value("301"))
+                .andExpect(jsonPath("$.data.content[0].roomNo").value("305"))
                 .andExpect(jsonPath("$.data.content[0].roomStatus").value("OCCUPIED"))
                 .andExpect(jsonPath("$.data.content[0].floor").value(3));
 
@@ -127,7 +139,7 @@ class GuestListingControllerTest {
     void getGuestListingShouldUseAssignedRoomNoWhenHousekeepingRoomNotAvailable() throws Exception {
         ReservationBookingRecord booking = ReservationBookingRecord.builder()
                 .id(2L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .confirmationNumber("CNF458722")
                 .reservationStatus("CONFIRMED")
                 .salutation("Ms")
@@ -171,7 +183,7 @@ class GuestListingControllerTest {
         )).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/guest-listing/list")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("businessDate", "2026-06-01"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -182,13 +194,65 @@ class GuestListingControllerTest {
     }
 
     @Test
+    void getGuestListingShouldMarkCheckedOutBookingAsCheckInCompleted() throws Exception {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(4L)
+                .propertyId("property-1")
+                .confirmationNumber("CNF-CHECKED-OUT")
+                .reservationStatus("CHECKED_OUT")
+                .guestName("Checked Out Guest")
+                .arrivalDate(LocalDate.of(2026, 6, 1))
+                .departureDate(LocalDate.of(2026, 6, 2))
+                .build();
+
+        when(reservationBookingRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(booking), PageRequest.of(0, 20), 1));
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
+                any(), any(), anyCollection())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/guest-listing/list")
+                        .param("propertyId", "property-1")
+                        .param("businessDate", "2026-06-02"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].checkInCompleted").value(true));
+    }
+
+    @Test
     void getGuestListingShouldReturnBadRequestWhenViewIsInvalid() throws Exception {
         mockMvc.perform(get("/api/v1/guest-listing/list")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("businessDate", "2026-06-01")
                         .param("view", "both"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    void getGuestListingShouldShowNoShowForConfirmedBookingPastArrivalDate() throws Exception {
+        ReservationBookingRecord booking = ReservationBookingRecord.builder()
+                .id(3L)
+                .propertyId("property-1")
+                .confirmationNumber("CNF-NO-SHOW")
+                .reservationStatus("CONFIRMED")
+                .arrivalDate(LocalDate.of(2026, 6, 1))
+                .departureDate(LocalDate.of(2026, 6, 3))
+                .guestName("No Show Guest")
+                .assignedRoomNo("101")
+                .build();
+
+        when(reservationBookingRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(booking), PageRequest.of(0, 20), 1));
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateAndConfirmationNumberIn(
+                any(), any(), anyCollection())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/guest-listing/list")
+                        .param("propertyId", "property-1")
+                        .param("businessDate", "2026-06-02"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("NO_SHOW"));
+
+        verify(reservationBookingRepository).markPastConfirmedReservationsAsNoShow(
+                "property-1", LocalDate.of(2026, 6, 2));
     }
 }

@@ -1,4 +1,4 @@
-package com.pms.property.publish.service;
+package com.pms.property.publish.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
@@ -34,13 +34,17 @@ import com.pms.property.draft.service.DraftService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.mapper.PublishMapper;
+import com.pms.property.publish.service.PublishService;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
 import java.util.List;
+import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class PublishServiceImpl implements PublishService {
 
     private final DraftService draftService;
@@ -104,7 +108,7 @@ public class PublishServiceImpl implements PublishService {
 
     @Override
     @Transactional
-    public PublishResponse publish(Long draftId, String actor) {
+    public PublishResponse publish(Long draftId, UUID actor, String authHeader) {
         PropertyDraftEntity draft = draftService.getById(draftId);
         PublishMapper.NormalizedPublishData normalized = publishMapper.toNormalized(draft.getWizardData());
         publishValidator.validate(normalized.root());
@@ -116,13 +120,14 @@ public class PublishServiceImpl implements PublishService {
             propertyId = publishNewProperty(normalized, actor);
         }
 
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        log.info("Publish completed for draftId={}, propertyId={}, requesting inventory sync", draftId, propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader);
 
         draftService.markPublished(draft, propertyId, actor);
         return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());
     }
 
-    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, String actor) {
+    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, UUID actor) {
         normalized.property().setCreatedBy(actor);
         PropertyEntity property = propertyRepository.save(normalized.property());
         String propertyId = property.getId();

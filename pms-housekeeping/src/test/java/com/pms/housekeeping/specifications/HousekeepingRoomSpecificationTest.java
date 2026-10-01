@@ -31,13 +31,13 @@ class HousekeepingRoomSpecificationTest {
     @Test
     void build_shouldApplyAllOptionalFilters() {
         HousekeepingRoomFilterRequest request = new HousekeepingRoomFilterRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 " suite ",
                 List.of(CleaningStatus.CLEAN, CleaningStatus.INSPECTED),
                 List.of(FrontOfficeStatus.VACANT),
                 List.of(ReservationStatus.NOT_RESERVED),
-                UUID.randomUUID(),
+                "13",
                 "1",
                 "Anna",
                 HousekeepingPriority.VIP,
@@ -88,7 +88,7 @@ class HousekeepingRoomSpecificationTest {
     @Test
     void build_shouldOnlyApplyMandatoryFiltersWhenOptionalFieldsAreMissing() {
         HousekeepingRoomFilterRequest request = new HousekeepingRoomFilterRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 null,
                 null,

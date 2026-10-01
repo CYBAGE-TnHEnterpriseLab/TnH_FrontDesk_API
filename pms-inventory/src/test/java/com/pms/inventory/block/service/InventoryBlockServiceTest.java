@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,7 +40,7 @@ class InventoryBlockServiceTest {
     @Test
     void inventoryBlockCreation() {
         CreateInventoryBlockRequest request = new CreateInventoryBlockRequest(
-                UUID.randomUUID(), UUID.randomUUID(), LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1, "Wedding"
+                "property-1", "room-type-1", LocalDate.of(2026, 7, 20), LocalDate.of(2026, 7, 22), 1, "Wedding"
         );
         List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
         InventoryBlock block = InventoryBlock.builder().id(1L).status(InventoryBlockStatus.ACTIVE).build();
@@ -62,8 +61,8 @@ class InventoryBlockServiceTest {
     void inventoryBlockReleaseAndDuplicateReleaseIdempotent() {
         InventoryBlock block = InventoryBlock.builder()
                 .id(10L)
-                .propertyId(UUID.randomUUID())
-                .roomTypeId(UUID.randomUUID())
+                .propertyId("property-1")
+                .roomTypeId("room-type-1")
                 .fromDate(LocalDate.of(2026, 7, 20))
                 .toDate(LocalDate.of(2026, 7, 21))
                 .quantity(1)

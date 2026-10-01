@@ -11,7 +11,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -30,8 +29,8 @@ class InventoryReconciliationServiceTest {
 
     @Test
     void reconciliationCreatesDailyInventoryAndIsIdempotent() {
-        UUID propertyId = UUID.randomUUID();
-        UUID roomTypeId = UUID.randomUUID();
+        String propertyId = "property-1";
+        String roomTypeId = "room-type-1";
         InventoryReconciliationRequest request = new InventoryReconciliationRequest(
                 propertyId,
                 LocalDate.of(2026, 7, 20),

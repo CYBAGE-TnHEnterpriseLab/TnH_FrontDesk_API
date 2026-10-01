@@ -2,7 +2,7 @@ package com.pms.housekeeping.dto;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
 import com.pms.housekeeping.dto.request.RoomMasterSyncRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.entity.StatusChangeSource;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -62,8 +62,9 @@ class HousekeepingValidationTest {
     }
 
     @Test
-    void updateHousekeepingStatusRequest_shouldValidateRequiredFields() {
-        UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
+    void UpdateHousekeepingRoomDetailsRequest_shouldValidateRequiredFields() {
+        UpdateHousekeepingRoomDetailsRequest request = new UpdateHousekeepingRoomDetailsRequest(
+                null,
                 null,
                 null,
                 null,
@@ -117,7 +118,7 @@ class HousekeepingValidationTest {
     @Test
     void validRequests_shouldPassValidation() {
         HousekeepingRoomFilterRequest filterRequest = new HousekeepingRoomFilterRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 "suite",
                 List.of(),
@@ -133,14 +134,15 @@ class HousekeepingValidationTest {
                 null
         );
 
-        UpdateHousekeepingStatusRequest updateRequest = new UpdateHousekeepingStatusRequest(
-                UUID.randomUUID(),
+        UpdateHousekeepingRoomDetailsRequest updateRequest = new UpdateHousekeepingRoomDetailsRequest(
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 null,
                 null,
                 null,
                 null,
                 null,
+                List.of("KING_BED", "TV"),
                 null,
                 null,
                 null,
@@ -152,11 +154,11 @@ class HousekeepingValidationTest {
         );
 
         RoomMasterSyncRequest syncRequest = new RoomMasterSyncRequest(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 18),
                 LocalDate.of(2026, 8, 20),
                 List.of(new RoomMasterSyncRequest.RoomMasterUnit(
-                        UUID.randomUUID(),
+                        "13",
                         "Deluxe",
                         "101",
                         null,

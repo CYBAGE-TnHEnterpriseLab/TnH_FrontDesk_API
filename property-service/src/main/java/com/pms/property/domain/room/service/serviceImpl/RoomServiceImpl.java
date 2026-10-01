@@ -1,4 +1,4 @@
-package com.pms.property.domain.room.service;
+package com.pms.property.domain.room.service.serviceImpl;
 
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.room.dto.InventoryRoomRequest;
@@ -12,7 +12,9 @@ import com.pms.property.domain.room.repository.FloorPropertyAreaRepository;
 import com.pms.property.domain.room.repository.InventoryRoomRepository;
 import com.pms.property.domain.room.repository.PropertyAreaRepository;
 import com.pms.property.domain.room.repository.RoomOutletTypeRepository;
+import com.pms.property.domain.room.service.RoomService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class RoomServiceImpl implements RoomService {
     private final RoomOutletTypeRepository roomOutletTypeRepository;
     private final InventoryRoomRepository inventoryRoomRepository;
     private final InventorySyncService inventorySyncService;
+    private final HttpServletRequest request;
 
     public RoomServiceImpl(
         FloorConfigurationRepository floorConfigurationRepository,
@@ -34,7 +37,8 @@ public class RoomServiceImpl implements RoomService {
         FloorPropertyAreaRepository floorPropertyAreaRepository,
         RoomOutletTypeRepository roomOutletTypeRepository,
         InventoryRoomRepository inventoryRoomRepository,
-        InventorySyncService inventorySyncService
+        InventorySyncService inventorySyncService,
+        HttpServletRequest request
     ) {
         this.floorConfigurationRepository = floorConfigurationRepository;
         this.propertyAreaRepository = propertyAreaRepository;
@@ -42,6 +46,12 @@ public class RoomServiceImpl implements RoomService {
         this.roomOutletTypeRepository = roomOutletTypeRepository;
         this.inventoryRoomRepository = inventoryRoomRepository;
         this.inventorySyncService = inventorySyncService;
+        this.request = request;
+    }
+
+    private String authHeader() {
+        String header = request.getHeader("Authorization");
+        return header != null ? header : null;
     }
 
     @Override
@@ -92,7 +102,7 @@ public class RoomServiceImpl implements RoomService {
         entity.setRoomTypeName(request.roomTypeName());
         entity.setRoomNumber(request.roomNumber());
         InventoryRoomResponse response = toResponse(inventoryRoomRepository.save(entity));
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader());
         return response;
     }
 
@@ -105,7 +115,7 @@ public class RoomServiceImpl implements RoomService {
         entity.setRoomTypeName(request.roomTypeName());
         entity.setRoomNumber(request.roomNumber());
         InventoryRoomResponse response = toResponse(inventoryRoomRepository.save(entity));
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader());
         return response;
     }
 
@@ -115,7 +125,7 @@ public class RoomServiceImpl implements RoomService {
         InventoryRoomEntity entity = inventoryRoomRepository.findByPropertyIdAndId(propertyId, roomId)
             .orElseThrow(() -> new NotFoundException("Inventory room not found: " + roomId));
         inventoryRoomRepository.delete(entity);
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader());
     }
 
     private InventoryRoomResponse toResponse(InventoryRoomEntity entity) {
@@ -143,5 +153,3 @@ public class RoomServiceImpl implements RoomService {
         );
     }
 }
-
-

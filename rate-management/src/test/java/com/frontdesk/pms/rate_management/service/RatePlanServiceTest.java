@@ -5,6 +5,8 @@ import com.frontdesk.pms.rate_management.dto.RatePlanPriceResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RatePlanResponseDTO;
 import com.frontdesk.pms.rate_management.dto.RoomDTO;
 import com.frontdesk.pms.rate_management.entity.MasterRoomPricing;
+import com.frontdesk.pms.rate_management.entity.MasterRoom;
+import com.frontdesk.pms.rate_management.entity.MasterRoomRoomTypeMapping;
 import com.frontdesk.pms.rate_management.entity.RatePlan;
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
@@ -14,6 +16,7 @@ import com.frontdesk.pms.rate_management.exception.InvalidRatePlanException;
 import com.frontdesk.pms.rate_management.exception.RatePlanNotFoundException;
 import com.frontdesk.pms.rate_management.repository.MasterRoomPricingRepository;
 import com.frontdesk.pms.rate_management.repository.RatePlanRepository;
+import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +52,9 @@ class RatePlanServiceTest {
 
     @Mock
     private PropertyWizardClient propertyWizardClient;
+
+    @Mock
+    private MasterRoomRoomTypeMappingRepository mappingRepository;
 
     @InjectMocks
     private RatePlanService ratePlanService;
@@ -111,6 +118,32 @@ class RatePlanServiceTest {
     }
 
     @Test
+    void getAllRatePlans_shouldDeactivateExpiredActivePlans() {
+        RatePlan expiredPlan = new RatePlan();
+        expiredPlan.setId(1L);
+        expiredPlan.setPropertyId(PROPERTY_ID);
+        expiredPlan.setName("Expired Plan");
+        expiredPlan.setCode("EXPIRED");
+        expiredPlan.setOccupancyType("2 Guest");
+        expiredPlan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        expiredPlan.setType(RatePlanType.REFUNDABLE);
+        expiredPlan.setStatus(RatePlanStatus.ACTIVE);
+        expiredPlan.setStartDate(LocalDate.now().minusDays(10));
+        expiredPlan.setEndDate(LocalDate.now().minusDays(1));
+        expiredPlan.setApplicableRoomTypeIds(Set.of(101L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L));
+        when(ratePlanRepository.findByPropertyId(PROPERTY_ID)).thenReturn(List.of(expiredPlan));
+        when(ratePlanRepository.findByPropertyIdOrderByIdDesc(PROPERTY_ID)).thenReturn(List.of(expiredPlan));
+
+        ratePlanService.getAllRatePlans(PROPERTY_ID);
+
+        assertEquals(RatePlanStatus.INACTIVE, expiredPlan.getStatus());
+        verify(ratePlanRepository).saveAll(anyList());
+    }
+
+    @Test
     void getAvailableRatePlans_shouldReturnActivePlansForRoomTypeAndDate() {
         RatePlan plan = new RatePlan();
         plan.setId(1L);
@@ -149,6 +182,44 @@ class RatePlanServiceTest {
     }
 
     @Test
+    void getAvailableRatePlans_shouldExcludePlansOnUnselectedWeekdays() {
+        RatePlan plan = new RatePlan();
+        plan.setId(1L);
+        plan.setName("Weekend Plan");
+        plan.setCode("WEEKEND");
+        plan.setOccupancyType("2 Guest");
+        plan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        plan.setType(RatePlanType.REFUNDABLE);
+        plan.setStatus(RatePlanStatus.ACTIVE);
+        plan.setStartDate(LocalDate.of(2026, 6, 1));
+        plan.setEndDate(LocalDate.of(2026, 6, 30));
+        plan.setActiveDaysOfWeek(Set.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY));
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        LocalDate weekday = LocalDate.of(2026, 6, 10);
+        when(ratePlanRepository.findAvailableByRoomTypeMealAndDate(
+                PROPERTY_ID,
+                101L,
+                MasterRoomMealOption.BREAKFAST,
+                weekday,
+                RatePlanStatus.ACTIVE))
+                .thenReturn(List.of(plan));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L));
+
+        List<RatePlanResponseDTO> result = ratePlanService.getAvailableRatePlans(
+                PROPERTY_ID,
+                101L,
+                "2 Guest",
+                MasterRoomMealOption.BREAKFAST,
+                weekday);
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
     void calculatePriceFromMasterBar_shouldUseMasterBarForPercentOff() {
         RatePlan plan = new RatePlan();
         plan.setId(10L);
@@ -159,10 +230,11 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -184,10 +256,11 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -209,10 +282,11 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -242,12 +316,13 @@ class RatePlanServiceTest {
 
         MasterRoomPricing pricing = new MasterRoomPricing();
         pricing.setRoomTypeId(101L);
-        pricing.setOccupancyType("2 Guest");
+        pricing.setOccupancyType("2_GUEST");
         pricing.setPrice(2000.0);
 
         when(ratePlanRepository.findByIdAndPropertyId(11L, PROPERTY_ID)).thenReturn(Optional.of(childPlan));
         when(ratePlanRepository.findByIdAndPropertyId(10L, PROPERTY_ID)).thenReturn(Optional.of(barPlan));
-        when(masterRoomPricingRepository.findByRoomTypeIdAndOccupancyType(101L, "2 Guest"))
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
                 .thenReturn(Optional.of(pricing));
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
@@ -257,6 +332,102 @@ class RatePlanServiceTest {
         assertEquals(2000.0, priceResponseDTO.getMasterBarAmount());
         assertEquals(1700.0, priceResponseDTO.getFinalAmount());
     }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldUseRequestedOccupancyForBarLookup() {
+        RatePlan plan = new RatePlan();
+        plan.setId(30L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        MasterRoomPricing pricingForOneGuest = new MasterRoomPricing();
+        pricingForOneGuest.setRoomTypeId(101L);
+        pricingForOneGuest.setOccupancyType("1_GUEST");
+        pricingForOneGuest.setPrice(1500.0);
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(30L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "1_GUEST"))
+            .thenReturn(Optional.of(pricingForOneGuest));
+
+        RatePlanPriceResponseDTO responseDTO =
+            ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 30L, 101L, "1 Guest");
+
+        assertEquals(1500.0, responseDTO.getMasterBarAmount());
+        assertEquals(1350.0, responseDTO.getFinalAmount());
+        }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldFallbackToRatePlanOccupancyWhenNoOverrideProvided() {
+        RatePlan plan = new RatePlan();
+        plan.setId(31L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        MasterRoomPricing pricingForTwoGuest = new MasterRoomPricing();
+        pricingForTwoGuest.setRoomTypeId(101L);
+        pricingForTwoGuest.setOccupancyType("2_GUEST");
+        pricingForTwoGuest.setPrice(2000.0);
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(31L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+        stubMasterRoomMapping(101L, 1L);
+        when(masterRoomPricingRepository.findByMasterRoomIdAndRoomTypeIdAndOccupancyType(1L, 101L, "2_GUEST"))
+            .thenReturn(Optional.of(pricingForTwoGuest));
+
+        RatePlanPriceResponseDTO responseDTO =
+            ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 31L, 101L, null);
+
+        assertEquals(2000.0, responseDTO.getMasterBarAmount());
+        assertEquals(1800.0, responseDTO.getFinalAmount());
+        }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldUseRequestedOccupancyForManualPlanPricing() {
+        RatePlan plan = new RatePlan();
+        plan.setId(32L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.MANUAL);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+        plan.setManualAmount(2100.0);
+        plan.setManualPricingByOccupancy(Map.of("1 Guest", 1100.0, "2 Guest", 2100.0));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(32L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+
+        RatePlanPriceResponseDTO responseDTO =
+            ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 32L, 101L, "1 Guest");
+
+        assertEquals(1100.0, responseDTO.getFinalAmount());
+        }
+
+        @Test
+        void calculatePriceFromMasterBar_shouldFailWhenRequestedOccupancyIsInvalid() {
+        RatePlan plan = new RatePlan();
+        plan.setId(33L);
+        plan.setOccupancyType("2 Guest");
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.findByIdAndPropertyId(33L, PROPERTY_ID)).thenReturn(Optional.of(plan));
+
+        InvalidRatePlanException exception = assertThrows(
+            InvalidRatePlanException.class,
+            () -> ratePlanService.calculatePriceFromMasterBar(PROPERTY_ID, 33L, 101L, "5 Guest"));
+
+        assertTrue(exception.getMessage().contains("Invalid occupancy type"));
+        }
 
     @Test
     void createRatePlan_shouldFailWhenMealOptionMissing() {
@@ -311,24 +482,6 @@ class RatePlanServiceTest {
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, requestDTO.getCode())).thenReturn(false);
-        when(ratePlanRepository.countOverlappingActivePlans(
-                PROPERTY_ID,
-                requestDTO.getApplicableRoomTypeIds(),
-                "1 Guest",
-                requestDTO.getMealOption(),
-                requestDTO.getStartDate(),
-                requestDTO.getEndDate(),
-                RatePlanStatus.ACTIVE,
-                null)).thenReturn(0L);
-        when(ratePlanRepository.countOverlappingActivePlans(
-                PROPERTY_ID,
-                requestDTO.getApplicableRoomTypeIds(),
-                "2 Guest",
-                requestDTO.getMealOption(),
-                requestDTO.getStartDate(),
-                requestDTO.getEndDate(),
-                RatePlanStatus.ACTIVE,
-                null)).thenReturn(0L);
         when(ratePlanRepository.save(org.mockito.ArgumentMatchers.any(RatePlan.class))).thenReturn(saved);
 
         RatePlanResponseDTO result = ratePlanService.createRatePlan(PROPERTY_ID, requestDTO);
@@ -338,30 +491,22 @@ class RatePlanServiceTest {
     }
 
         @Test
-        void createRatePlan_shouldFailWhenOverlappingActivePlanExists() {
+        void createRatePlan_shouldAllowOverlappingActivePlan() {
         RatePlanRequestDTO requestDTO = validRequest();
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
         when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, "BAR10")).thenReturn(false);
-        when(ratePlanRepository.countOverlappingActivePlans(
-            PROPERTY_ID,
-            requestDTO.getApplicableRoomTypeIds(),
-            requestDTO.getOccupancyType(),
-            requestDTO.getMealOption(),
-            requestDTO.getStartDate(),
-            requestDTO.getEndDate(),
-            RatePlanStatus.ACTIVE,
-            null)).thenReturn(1L);
+        RatePlan saved = new RatePlan();
+        saved.setId(100L);
+        saved.setName(requestDTO.getName());
+        saved.setCode(requestDTO.getCode());
+        when(ratePlanRepository.save(org.mockito.ArgumentMatchers.any(RatePlan.class))).thenReturn(saved);
 
-        InvalidRatePlanException exception =
-            assertThrows(InvalidRatePlanException.class, () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
-
-        assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
-        verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
+        assertEquals(100L, ratePlanService.createRatePlan(PROPERTY_ID, requestDTO).getId());
         }
 
         @Test
-        void updateRatePlanStatus_shouldFailWhenActivatingOverlappingPlan() {
+        void updateRatePlanStatus_shouldAllowActivatingOverlappingPlan() {
         RatePlan existing = new RatePlan();
         existing.setId(22L);
         existing.setStatus(RatePlanStatus.INACTIVE);
@@ -374,23 +519,26 @@ class RatePlanServiceTest {
 
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByIdAndPropertyId(22L, PROPERTY_ID)).thenReturn(Optional.of(existing));
-        when(ratePlanRepository.countOverlappingActivePlans(
-            PROPERTY_ID,
-            existing.getApplicableRoomTypeIds(),
-            existing.getOccupancyType(),
-            existing.getMealOption(),
-            existing.getStartDate(),
-            existing.getEndDate(),
-            RatePlanStatus.ACTIVE,
-            existing.getId())).thenReturn(1L);
+        when(ratePlanRepository.save(existing)).thenReturn(existing);
 
-        InvalidRatePlanException exception = assertThrows(
-            InvalidRatePlanException.class,
-            () -> ratePlanService.updateRatePlanStatus(PROPERTY_ID, 22L, RatePlanStatus.ACTIVE));
-
-        assertTrue(exception.getMessage().contains("Overlapping active rate plan"));
-        verify(ratePlanRepository, never()).save(existing);
+        assertEquals(RatePlanStatus.ACTIVE,
+                ratePlanService.updateRatePlanStatus(PROPERTY_ID, 22L, RatePlanStatus.ACTIVE).getStatus());
         }
+
+    @Test
+    void createRatePlan_shouldFailWhenNameAlreadyExists() {
+        RatePlanRequestDTO requestDTO = validRequest();
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L, 102L));
+        when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, requestDTO.getCode())).thenReturn(false);
+        when(ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(PROPERTY_ID, requestDTO.getName())).thenReturn(true);
+
+        InvalidRatePlanException exception = assertThrows(InvalidRatePlanException.class,
+                () -> ratePlanService.createRatePlan(PROPERTY_ID, requestDTO));
+
+        assertTrue(exception.getMessage().contains("Rate plan name already exists"));
+        verify(ratePlanRepository, never()).save(org.mockito.ArgumentMatchers.any(RatePlan.class));
+    }
 
     @Test
     void deleteRatePlan_shouldDeleteWhenExists() {
@@ -485,6 +633,18 @@ class RatePlanServiceTest {
         return requestDTO;
     }
 
+    private void stubMasterRoomMapping(Long roomTypeId, Long masterRoomId) {
+        MasterRoom masterRoom = new MasterRoom();
+        masterRoom.setId(masterRoomId);
+
+        MasterRoomRoomTypeMapping mapping = new MasterRoomRoomTypeMapping();
+        mapping.setMasterRoom(masterRoom);
+        mapping.setRoomTypeId(roomTypeId);
+
+        when(mappingRepository.findByMasterRoomPropertyIdAndRoomTypeId(PROPERTY_ID, roomTypeId))
+                .thenReturn(Optional.of(mapping));
+    }
+
     private RoomDTO[] roomTypes(Long... roomTypeIds) {
         RoomDTO[] roomTypes = new RoomDTO[roomTypeIds.length];
         for (int i = 0; i < roomTypeIds.length; i++) {
@@ -496,4 +656,3 @@ class RatePlanServiceTest {
         return roomTypes;
     }
 }
-

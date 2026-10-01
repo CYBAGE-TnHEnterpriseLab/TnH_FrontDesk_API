@@ -7,9 +7,12 @@ import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.ReservationRoomCalendarResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
+import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.service.ReservationRoomCalendarService;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +43,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
 
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final PropertyInventoryPort propertyInventoryPort;
+    private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final ReservationBookingRepository reservationBookingRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
 
@@ -53,16 +58,15 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         if (!StringUtils.hasText(propertyId)) {
             throw new BadRequestException("propertyId is required");
         }
+        if (!propertyWizardServiceProperties.isEnabled()) {
+            throw new BadRequestException("Room calendar is unavailable because Property Wizard integration is disabled");
+        }
         if (arrivalDate == null || departureDate == null) {
             throw new BadRequestException("arrivalDate and departureDate are required");
         }
         if (departureDate.isBefore(arrivalDate)) {
             throw new BadRequestException("departureDate must be on or after arrivalDate");
         }
-        if (!propertyWizardServiceProperties.isEnabled()) {
-            throw new BadRequestException("Room calendar is unavailable because Property Wizard integration is disabled");
-        }
-
         List<LocalDate> dates = buildDateRangeInclusive(arrivalDate, departureDate);
         LocalDate overlapUpperExclusive = departureDate.plusDays(1);
 
@@ -74,20 +78,14 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                 );
 
         List<String> effectiveRoomTypes = sanitizeRoomTypes(roomTypes);
-        Set<String> requestedRoomTypes = normalizeRoomTypes(effectiveRoomTypes);
-        String upstreamRoomTypeFilter = requestedRoomTypes.size() == 1
-            ? requestedRoomTypes.iterator().next()
-            : null;
+        Set<String> requestedRoomTypes = resolveRequestedRoomTypes(propertyId, effectiveRoomTypes);
 
-        List<PropertyRoomInventoryDto> liveInventory = propertyInventoryPort.fetchLiveInventory(
-                propertyId,
-                arrivalDate,
-                departureDate,
-            upstreamRoomTypeFilter
-        );
+        List<PropertyRoomInventoryDto> liveInventory = housekeepingRoomCalendarClient.fetchRooms(
+                propertyId, arrivalDate, departureDate);
         if (liveInventory == null) {
             liveInventory = List.of();
         }
+        liveInventory = normalizeLiveInventoryRoomTypes(propertyId, liveInventory);
 
         List<HousekeepingRoomStatusRecord> housekeepingStatuses = housekeepingRoomStatusRepository
                 .findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(propertyId, arrivalDate, departureDate);
@@ -115,7 +113,13 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         Map<String, Map<LocalDate, MutableCell>> grid = initializeGrid(roomMetaByNo.keySet(), dates);
 
         applyBookingStatuses(grid, overlappingBookings, arrivalDate, departureDate, requestedRoomTypes);
-        applyHousekeepingStatuses(grid, housekeepingStatuses, bookingRefByConfirmation, requestedRoomTypes, roomMetaByNo);
+        applyHousekeepingStatuses(
+            grid,
+            housekeepingStatuses,
+            bookingRefByConfirmation,
+            overlappingBookings,
+            requestedRoomTypes,
+            roomMetaByNo);
 
         List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> roomRows = buildRoomRows(roomMetaByNo, grid, dates);
         List<ReservationRoomCalendarResponseDto.RoomCalendarDaySummaryDto> summary = buildDaySummary(dates, roomRows);
@@ -129,6 +133,87 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                 .rooms(roomRows)
                 .summary(summary)
                 .build();
+    }
+
+    private Set<String> resolveRequestedRoomTypes(String propertyId, List<String> roomTypes) {
+        Set<String> requestedRoomTypes = new LinkedHashSet<>(normalizeRoomTypes(roomTypes));
+        if (requestedRoomTypes.isEmpty()) {
+            return Set.of();
+        }
+
+        for (PropertyRoomOutletTypeDto roomType : propertyInventoryPort.fetchRoomOutletTypes(propertyId)) {
+            if (roomType == null) {
+                continue;
+            }
+
+            String normalizedCode = normalize(roomType.getRoomCode());
+            String normalizedName = normalize(roomType.getRoomName());
+            String normalizedNumericId = roomType.getId() == null ? "" : normalize(String.valueOf(roomType.getId()));
+            String normalizedInventoryId = normalize(inventoryRoomTypeId(propertyId, roomType));
+            if (requestedRoomTypes.contains(normalizedCode)
+                    || requestedRoomTypes.contains(normalizedName)
+                    || requestedRoomTypes.contains(normalizedNumericId)
+                    || requestedRoomTypes.contains(normalizedInventoryId)) {
+                if (StringUtils.hasText(normalizedCode)) {
+                    requestedRoomTypes.add(normalizedCode);
+                }
+                if (StringUtils.hasText(normalizedName)) {
+                    requestedRoomTypes.add(normalizedName);
+                }
+            }
+        }
+
+        return requestedRoomTypes;
+    }
+
+    private List<PropertyRoomInventoryDto> normalizeLiveInventoryRoomTypes(
+            String propertyId,
+            List<PropertyRoomInventoryDto> liveInventory
+    ) {
+        List<PropertyRoomOutletTypeDto> propertyRoomTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+        if (propertyRoomTypes == null || propertyRoomTypes.isEmpty()) {
+            return liveInventory;
+        }
+
+        Map<String, String> displayNameByIdentifier = new LinkedHashMap<>();
+        for (PropertyRoomOutletTypeDto propertyRoomType : propertyRoomTypes) {
+            if (propertyRoomType == null || !StringUtils.hasText(propertyRoomType.getRoomName())) {
+                continue;
+            }
+            String displayName = propertyRoomType.getRoomName().trim();
+            addRoomTypeIdentifier(displayNameByIdentifier, propertyRoomType.getRoomCode(), displayName);
+            addRoomTypeIdentifier(displayNameByIdentifier, propertyRoomType.getRoomName(), displayName);
+            if (propertyRoomType.getId() != null) {
+                addRoomTypeIdentifier(displayNameByIdentifier, String.valueOf(propertyRoomType.getId()), displayName);
+            }
+            addRoomTypeIdentifier(displayNameByIdentifier, inventoryRoomTypeId(propertyId, propertyRoomType), displayName);
+        }
+
+        for (PropertyRoomInventoryDto inventoryItem : liveInventory) {
+            if (inventoryItem == null || !StringUtils.hasText(inventoryItem.getRoomType())) {
+                continue;
+            }
+            String displayName = displayNameByIdentifier.get(normalize(inventoryItem.getRoomType()));
+            if (displayName != null) {
+                inventoryItem.setRoomType(displayName);
+            }
+        }
+        return liveInventory;
+    }
+
+    private void addRoomTypeIdentifier(Map<String, String> displayNameByIdentifier, String identifier, String displayName) {
+        if (StringUtils.hasText(identifier)) {
+            displayNameByIdentifier.putIfAbsent(normalize(identifier), displayName);
+        }
+    }
+
+    private String inventoryRoomTypeId(String propertyId, PropertyRoomOutletTypeDto roomType) {
+        String roomKey = StringUtils.hasText(roomType.getRoomCode())
+                ? roomType.getRoomCode().trim()
+                : roomType.getRoomName() == null ? "" : roomType.getRoomName().trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+                .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private Map<String, RoomMeta> collectRoomMeta(
@@ -152,10 +237,13 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             String roomNo = inventoryItem.getRoomNumber().trim();
             roomMetaByNo.compute(roomNo, (ignored, existing) -> {
                 if (existing == null) {
-                    return new RoomMeta(roomNo, inventoryRoomType, null);
+                    return new RoomMeta(roomNo, inventoryRoomType, parseFloor(inventoryItem.getFloor()));
                 }
                 if (!StringUtils.hasText(existing.roomType) && StringUtils.hasText(inventoryRoomType)) {
                     existing.roomType = inventoryRoomType;
+                }
+                if (existing.floor == null) {
+                    existing.floor = parseFloor(inventoryItem.getFloor());
                 }
                 return existing;
             });
@@ -199,6 +287,17 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         return roomMetaByNo;
     }
 
+    private Integer parseFloor(String floor) {
+        if (!StringUtils.hasText(floor)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(floor.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
     private Map<String, BookingRef> buildBookingReferenceMap(List<ReservationBookingRecord> overlappingBookings) {
         Map<String, BookingRef> bookingRefByConfirmation = new LinkedHashMap<>();
         for (ReservationBookingRecord booking : overlappingBookings) {
@@ -207,7 +306,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             }
             bookingRefByConfirmation.putIfAbsent(
                     booking.getConfirmationNumber(),
-                    new BookingRef(booking.getId(), booking.getReservationStatus())
+                    new BookingRef(booking.getId(), booking.getGuestName(), booking.getReservationStatus())
             );
         }
         return bookingRefByConfirmation;
@@ -274,6 +373,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                         cell,
                         cellStatus,
                         booking.getConfirmationNumber(),
+                        booking.getGuestName(),
                         booking.getId(),
                         booking.getReservationStatus()
                 );
@@ -285,6 +385,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             Map<String, Map<LocalDate, MutableCell>> grid,
             List<HousekeepingRoomStatusRecord> housekeepingStatuses,
             Map<String, BookingRef> bookingRefByConfirmation,
+            List<ReservationBookingRecord> overlappingBookings,
             Set<String> requestedRoomTypes,
             Map<String, RoomMeta> roomMetaByNo
     ) {
@@ -294,6 +395,9 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             }
 
             String roomNo = housekeepingStatus.getRoomNo().trim();
+            if (!matchesCurrentBookingRoom(housekeepingStatus, roomNo, overlappingBookings)) {
+                continue;
+            }
             RoomMeta roomMeta = roomMetaByNo.get(roomNo);
                 if (!requestedRoomTypes.isEmpty()
                     && roomMeta != null
@@ -322,10 +426,39 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                     cell,
                     normalizedStatus,
                     confirmationNumber,
+                    bookingRef == null ? null : bookingRef.guestName,
                     bookingRef == null ? null : bookingRef.bookingId,
                     bookingRef == null ? cell.reservationStatus : bookingRef.reservationStatus
             );
         }
+    }
+
+    private boolean matchesCurrentBookingRoom(
+            HousekeepingRoomStatusRecord housekeepingStatus,
+            String roomNo,
+            List<ReservationBookingRecord> overlappingBookings
+    ) {
+        if (overlappingBookings == null || overlappingBookings.isEmpty()) {
+            return true;
+        }
+
+        if (housekeepingStatus.getBookingId() != null) {
+            return overlappingBookings.stream()
+                    .filter(booking -> housekeepingStatus.getBookingId().equals(booking.getId()))
+                    .anyMatch(booking -> roomNo.equalsIgnoreCase(safeRoomNumber(booking.getAssignedRoomNo())));
+        }
+
+        if (!StringUtils.hasText(housekeepingStatus.getConfirmationNumber())) {
+            return true;
+        }
+
+        return overlappingBookings.stream()
+                .filter(booking -> housekeepingStatus.getConfirmationNumber().equals(booking.getConfirmationNumber()))
+                .anyMatch(booking -> roomNo.equalsIgnoreCase(safeRoomNumber(booking.getAssignedRoomNo())));
+    }
+
+    private String safeRoomNumber(String roomNumber) {
+        return roomNumber == null ? "" : roomNumber.trim();
     }
 
     private List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> buildRoomRows(
@@ -346,6 +479,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                                         .date(date)
                                         .status(cell.status)
                                         .confirmationNumber(cell.confirmationNumber)
+                                        .guestName(cell.guestName)
                                         .bookingId(cell.bookingId)
                                         .reservationStatus(cell.reservationStatus)
                                         .build();
@@ -417,6 +551,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             MutableCell cell,
             String status,
             String confirmationNumber,
+            String guestName,
             Long bookingId,
             String reservationStatus
     ) {
@@ -431,6 +566,9 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             cell.status = status;
             if (StringUtils.hasText(confirmationNumber)) {
                 cell.confirmationNumber = confirmationNumber;
+            }
+            if (StringUtils.hasText(guestName)) {
+                cell.guestName = guestName;
             }
             if (bookingId != null) {
                 cell.bookingId = bookingId;
@@ -460,7 +598,8 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         if (!StringUtils.hasText(status)) {
             return STATUS_AVAILABLE;
         }
-        return status.trim().toUpperCase(Locale.ROOT);
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return "CLEAN".equals(normalized) ? STATUS_CLEANED : normalized;
     }
 
     private int statusPriority(String status) {
@@ -568,6 +707,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
     private static final class MutableCell {
         private String status;
         private String confirmationNumber;
+        private String guestName;
         private Long bookingId;
         private String reservationStatus;
 
@@ -580,10 +720,12 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
 
     private static final class BookingRef {
         private final Long bookingId;
+        private final String guestName;
         private final String reservationStatus;
 
-        private BookingRef(Long bookingId, String reservationStatus) {
+        private BookingRef(Long bookingId, String guestName, String reservationStatus) {
             this.bookingId = bookingId;
+            this.guestName = guestName;
             this.reservationStatus = reservationStatus;
         }
     }

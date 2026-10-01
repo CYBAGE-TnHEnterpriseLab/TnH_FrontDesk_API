@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Component
 public class HousekeepingWindowScheduler {
@@ -40,7 +39,7 @@ public class HousekeepingWindowScheduler {
         LocalDate nextTailDay = LocalDate.now().plusDays(horizonDays);
         LocalDate toDateExclusive = nextTailDay.plusDays(1);
 
-        Map<UUID, List<RoomMasterProjection>> byProperty = new HashMap<>();
+        Map<String, List<RoomMasterProjection>> byProperty = new HashMap<>();
         for (RoomMasterProjection projection : roomMasterProjectionRepository.findAll()) {
             if (!projection.isActive()) {
                 continue;
@@ -48,7 +47,7 @@ public class HousekeepingWindowScheduler {
             byProperty.computeIfAbsent(projection.getPropertyId(), ignored -> new ArrayList<>()).add(projection);
         }
 
-        for (Map.Entry<UUID, List<RoomMasterProjection>> entry : byProperty.entrySet()) {
+        for (Map.Entry<String, List<RoomMasterProjection>> entry : byProperty.entrySet()) {
             List<RoomMasterSyncRequest.RoomMasterUnit> rooms = entry.getValue().stream()
                     .map(this::toRoomUnit)
                     .toList();

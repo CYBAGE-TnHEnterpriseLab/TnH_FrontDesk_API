@@ -1,4 +1,4 @@
-package com.pms.property.domain.tax.service;
+package com.pms.property.domain.tax.service.serviceImpl;
 
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.tax.dto.TaxRuleRequest;
@@ -6,6 +6,8 @@ import com.pms.property.domain.tax.dto.TaxRuleResponse;
 import com.pms.property.domain.tax.dto.TaxSummaryResponse;
 import com.pms.property.domain.tax.entity.TaxRuleEntity;
 import com.pms.property.domain.tax.repository.TaxRuleRepository;
+import com.pms.property.domain.tax.service.TaxService;
+
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

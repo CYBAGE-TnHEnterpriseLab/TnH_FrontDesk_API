@@ -2,10 +2,12 @@ package com.pms.housekeeping.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -58,15 +60,15 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class HousekeepingRoomDayStatus {
+@SuperBuilder
+public class HousekeepingRoomDayStatus extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    private String propertyId;
 
     @Column(name = "business_date", nullable = false)
     private LocalDate businessDate;
@@ -75,7 +77,7 @@ public class HousekeepingRoomDayStatus {
     private String roomNumber;
 
     @Column(name = "room_type_id", nullable = false)
-    private UUID roomTypeId;
+        private String roomTypeId;
 
     @Column(name = "room_type_name", nullable = false, length = 100)
     private String roomTypeName;
@@ -118,22 +120,13 @@ public class HousekeepingRoomDayStatus {
     private HousekeepingPriority priority;
 
     @Column(name = "is_sellable", nullable = false)
-    private boolean sellable;
-
-    @Column(name = "updated_by", length = 120)
-    private String updatedBy;
+    private boolean sellable = true;
 
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @Column(name = "features_csv", length = 500)
+    @Column(name = "features_csv", length = 4000)
     private String featuresCsv;
 }
 

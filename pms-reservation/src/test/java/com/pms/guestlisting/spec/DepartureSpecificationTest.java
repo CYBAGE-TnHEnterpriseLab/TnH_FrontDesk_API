@@ -24,7 +24,7 @@ class DepartureSpecificationTest {
         LocalDate businessDate = LocalDate.of(2026, 6, 2);
 
         DepartureRecord matchingDeparture = DepartureRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(businessDate)
                 .checkInDate(businessDate.minusDays(2))
                 .checkOutDate(businessDate)
@@ -49,7 +49,7 @@ class DepartureSpecificationTest {
                 .build();
 
         DepartureRecord nonMatchingDeparture = DepartureRecord.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .businessDate(businessDate)
                 .checkInDate(businessDate.minusDays(3))
                 .checkOutDate(businessDate.plusDays(1))
@@ -76,7 +76,7 @@ class DepartureSpecificationTest {
         departureRecordRepository.saveAll(List.of(matchingDeparture, nonMatchingDeparture));
 
         DepartureSearchRequestDto request = new DepartureSearchRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setBusinessDate(businessDate);
         request.setFloor(3);
         request.setPage(0);

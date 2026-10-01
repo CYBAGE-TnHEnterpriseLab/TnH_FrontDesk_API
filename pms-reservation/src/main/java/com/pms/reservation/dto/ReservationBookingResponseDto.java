@@ -9,7 +9,7 @@ import lombok.Builder;
 import lombok.Value;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class ReservationBookingResponseDto {
     Long bookingId;
     String confirmationNumber;
@@ -18,9 +18,15 @@ public class ReservationBookingResponseDto {
     String salutation;
     Boolean vipTag;
     String guestName;
+    LocalDate dateOfBirth;
+    String state;
+    String idType;
+    String idNumber;
+    Boolean enrollGuest;
     List<String> guestNames;
     String personalEmail;
     String officialEmail;
+    String address;
     String city;
     String country;
     String zipCode;
@@ -63,4 +69,5 @@ public class ReservationBookingResponseDto {
     String paymentProcessorName;
     LocalDateTime paymentProcessedAt;
     LocalDateTime createdAt;
+    List<ReservationRoomBookingSummaryDto> roomBookings;
 }

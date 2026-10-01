@@ -12,20 +12,32 @@ import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
+import com.pms.reservation.integration.dto.InventoryAvailabilityDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.mapper.ReservationAvailabilityMapper;
+import com.pms.reservation.config.AvailabilityPerformanceProperties;
+import com.pms.reservation.support.AvailabilityParallelExecutor;
+import com.pms.reservation.support.TtlCache;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import com.pms.reservation.service.ReservationAvailabilityService;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.pms.reservation.integration.InventoryServiceClient;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,26 +53,57 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
     private final RateManagementPort rateManagementPort;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationAvailabilityMapper reservationAvailabilityMapper;
+    private final InventoryServiceClient inventoryServiceClient;
+    private final AvailabilityParallelExecutor parallelExecutor;
+    private final AvailabilityPerformanceProperties performanceProperties;
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     @Override
     public ReservationAvailabilityResponseDto getAvailability(ReservationAvailabilityRequestDto request) {
+     //validateRequestedRoomCount(request.getNumberOfRooms());
         validateDates(request.getArrivalDate(), request.getDepartureDate());
 
         if (!propertyWizardServiceProperties.isEnabled()) {
             throw new BadRequestException("Live inventory is unavailable because Property Wizard integration is disabled");
         }
 
-        List<PropertyTaxRuleResponseDto> taxRules = safeFetchTaxRules(request.getPropertyId());
+        CompletableFuture<List<PropertyTaxRuleResponseDto>> taxRulesFuture =
+            parallelExecutor.submitIo(() -> safeFetchTaxRules(request.getPropertyId()));
+        CompletableFuture<List<PropertyRoomOutletTypeDto>> roomOutletTypesFuture =
+            parallelExecutor.submitIo(() -> propertyInventoryPort.fetchRoomOutletTypes(request.getPropertyId()));
+
+        List<PropertyTaxRuleResponseDto> taxRules = parallelExecutor.join(taxRulesFuture);
+        List<PropertyRoomOutletTypeDto> roomOutletTypes = parallelExecutor.join(roomOutletTypesFuture);
+
+        int forecastDays = Math.max(1, performanceProperties.getForecastDays());
+        LocalDate forecastEnd = request.getArrivalDate().plusDays(forecastDays);
+        LocalDate windowEnd = request.getDepartureDate().isAfter(forecastEnd)
+            ? request.getDepartureDate()
+            : forecastEnd;
+
+        AvailabilityLookupContext lookupContext = new AvailabilityLookupContext(
+            request.getPropertyId(),
+            request.getArrivalDate(),
+            windowEnd
+        );
+        warmInventoryWindow(lookupContext, roomOutletTypes);
 
         AvailabilityRangeResult primaryRange = fetchAvailabilityForRange(
             request,
             request.getArrivalDate(),
             request.getDepartureDate(),
-            taxRules
+            taxRules,
+            roomOutletTypes,
+            lookupContext
         );
 
-        List<DailyAvailabilityPricingDto> next15DaysPricing = fetchNext15DaysPricing(request, taxRules);
+        List<DailyAvailabilityPricingDto> next15DaysPricing = fetchForecastPricing(
+            request,
+            taxRules,
+            roomOutletTypes,
+            lookupContext,
+            forecastDays
+        );
 
         List<String> availableRateCodes = extractAvailableRateCodes(primaryRange.rateQuotes());
 
@@ -72,52 +115,115 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         );
     }
 
+
+    /*private void validateRequestedRoomCount(Integer numberOfRooms) {
+        if (numberOfRooms == null || numberOfRooms < 1 || numberOfRooms > 9) {
+            throw new BadRequestException("numberOfRooms must be between 1 and 9");
+        }
+    }
+
         private List<DailyAvailabilityPricingDto> fetchNext15DaysPricing(
             ReservationAvailabilityRequestDto request,
             List<PropertyTaxRuleResponseDto> taxRules
         ) {
         List<DailyAvailabilityPricingDto> result = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
-            LocalDate date = request.getArrivalDate().plusDays(i);
-            AvailabilityRangeResult dailyRange = fetchAvailabilityForRange(
-                request,
-                date,
-                date.plusDays(1),
-                taxRules
-            );
+            LocalDate date = request.getArrivalDate().plusDays(i);*/
 
-            result.add(DailyAvailabilityPricingDto.builder()
+    /**
+     * Loads the full forecast window for every known room type up front so the per-day lookups
+     * below become in-memory slices instead of one inventory round trip per day per room type.
+     */
+    private void warmInventoryWindow(
+        AvailabilityLookupContext lookupContext,
+        List<PropertyRoomOutletTypeDto> roomOutletTypes
+    ) {
+        if (roomOutletTypes == null || roomOutletTypes.isEmpty()) {
+            return;
+        }
+
+        List<String> inventoryRoomTypeIds = roomOutletTypes.stream()
+            .filter(roomType -> roomType != null && roomType.getId() != null)
+            .map(roomType -> inventoryRoomTypeId(
+                lookupContext.propertyId(), roomType.getRoomCode(), roomType.getRoomName()))
+            .distinct()
+            .toList();
+
+        try {
+            parallelExecutor.mapIo(inventoryRoomTypeIds, lookupContext::availabilityByDate);
+        } catch (RuntimeException ex) {
+            log.warn("Inventory window prefetch failed for propertyId={}; falling back to on-demand lookups. reason={}",
+                lookupContext.propertyId(), ex.getMessage());
+        }
+    }
+
+    private List<DailyAvailabilityPricingDto> fetchForecastPricing(
+        ReservationAvailabilityRequestDto request,
+        List<PropertyTaxRuleResponseDto> taxRules,
+        List<PropertyRoomOutletTypeDto> roomOutletTypes,
+        AvailabilityLookupContext lookupContext,
+        int forecastDays
+    ) {
+        List<Integer> dayOffsets = IntStream.range(0, forecastDays).boxed().toList();
+
+        return parallelExecutor.mapDays(dayOffsets, offset -> {
+            LocalDate date = request.getArrivalDate().plusDays(offset);
+
+            AvailabilityRangeResult dailyRange;
+            try {
+                dailyRange = fetchAvailabilityForRange(
+                    request,
+                    date,
+                    date.plusDays(1),
+                    taxRules,
+                    roomOutletTypes,
+                    lookupContext
+                );
+            } catch (RuntimeException ex) {
+                // The forecast strip is informational; a single failing day must not fail the whole search.
+                log.warn("Forecast availability failed propertyId={} date={}; returning empty day. reason={}",
+                    request.getPropertyId(), date, ex.toString());
+                return DailyAvailabilityPricingDto.builder()
+                    .date(date)
+                    .availability(List.of())
+                    .build();
+            }
+
+            return DailyAvailabilityPricingDto.builder()
                 .date(date)
                 .availability(dailyRange.availability())
-                .build());
-        }
-        return result;
-        }
+                .build();
+        });
+    }
 
         private AvailabilityRangeResult fetchAvailabilityForRange(
             ReservationAvailabilityRequestDto request,
             LocalDate arrivalDate,
             LocalDate departureDate,
-            List<PropertyTaxRuleResponseDto> taxRules
+            List<PropertyTaxRuleResponseDto> taxRules,
+            List<PropertyRoomOutletTypeDto> roomOutletTypes,
+            AvailabilityLookupContext lookupContext
         ) {
-        List<PropertyRoomInventoryDto> inventory = propertyInventoryPort.fetchLiveInventory(
-            request.getPropertyId(),
-            arrivalDate,
-            departureDate,
-            null
-        );
-        if (inventory == null) {
-            inventory = List.of();
-        }
+        List<PropertyRoomInventoryDto> inventory = fetchInventoryFromInventoryService(
+            arrivalDate, departureDate, roomOutletTypes, lookupContext);
 
-        inventory = enrichInventoryWithRoomTypeIds(request.getPropertyId(), inventory);
+        inventory = enrichInventoryWithRoomTypeIds(request.getPropertyId(), inventory, roomOutletTypes);
 
-            List<RatePlanPricingQuoteDto> rateQuotes = fetchRateQuotesWithRoomTypeFallback(
-                request,
+            List<PropertyRoomInventoryDto> baseInventory = inventory;
+            List<RatePlanPricingQuoteDto> rateQuotes = lookupContext.rateQuotes(
                 arrivalDate,
                 departureDate,
-                inventory
+                () -> fetchRateQuotesWithRoomTypeFallback(
+                    request, arrivalDate, departureDate, baseInventory, lookupContext)
             );
+
+        inventory = enrichInventoryFromRateQuotes(
+            arrivalDate,
+            departureDate,
+            inventory,
+            rateQuotes,
+            lookupContext
+        );
 
         Map<Long, PropertyRoomInventoryDto> inventoryByRoomTypeId = new LinkedHashMap<>();
         Map<String, PropertyRoomInventoryDto> inventoryByRoomType = new LinkedHashMap<>();
@@ -140,17 +246,12 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     inventoryByRoomType,
                     finalInventory
                 );
-                if (matchedInventory == null) {
-                    return null;
-                }
                 return reservationAvailabilityMapper.toRoomAvailability(item, matchedInventory);
             })
-            .filter(java.util.Objects::nonNull)
             .toList();
 
         List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType.stream()
             .filter(item -> item.getAvailableRooms() != null
-                && request.getNumberOfRooms() != null
                 && item.getAvailableRooms() >= request.getNumberOfRooms())
             .toList();
 
@@ -182,6 +283,85 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
         return new AvailabilityRangeResult(finalAvailability, rateQuotes);
         }
+
+    private List<PropertyRoomInventoryDto> fetchInventoryFromInventoryService(
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            List<PropertyRoomOutletTypeDto> roomOutletTypes,
+            AvailabilityLookupContext lookupContext) {
+        if (roomOutletTypes == null || roomOutletTypes.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<PropertyRoomInventoryDto> result = new ArrayList<>();
+        for (PropertyRoomOutletTypeDto roomType : roomOutletTypes) {
+            if (roomType == null || roomType.getId() == null) {
+                continue;
+            }
+            int availableRooms = lookupContext.minAvailableCount(
+                    inventoryRoomTypeId(lookupContext.propertyId(), roomType.getRoomCode(), roomType.getRoomName()),
+                    arrivalDate,
+                    departureDate);
+            PropertyRoomInventoryDto item = new PropertyRoomInventoryDto();
+            item.setRoomTypeId(roomType.getId());
+            item.setRoomCode(roomType.getRoomCode());
+            item.setRoomType(roomType.getRoomName());
+            item.setAvailableRooms(availableRooms);
+            result.add(item);
+        }
+        return result;
+    }
+
+    private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {
+        String roomKey = StringUtils.hasText(roomCode)
+                ? roomCode.trim()
+                : roomName == null ? "" : roomName.trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+                .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private List<PropertyRoomInventoryDto> enrichInventoryFromRateQuotes(
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            List<PropertyRoomInventoryDto> inventory,
+            List<RatePlanPricingQuoteDto> rateQuotes,
+            AvailabilityLookupContext lookupContext) {
+        Set<Long> knownRoomTypeIds = inventory.stream()
+            .map(PropertyRoomInventoryDto::getRoomTypeId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+
+        List<RatePlanPricingQuoteDto> missingQuotes = new ArrayList<>();
+        for (RatePlanPricingQuoteDto quote : rateQuotes) {
+            Long roomTypeId = quote.getRoomTypeId();
+            if (roomTypeId == null || !knownRoomTypeIds.add(roomTypeId)) {
+                continue;
+            }
+            missingQuotes.add(quote);
+        }
+
+        List<PropertyRoomInventoryDto> enriched = new ArrayList<>(inventory);
+        if (missingQuotes.isEmpty()) {
+            return enriched;
+        }
+
+        enriched.addAll(parallelExecutor.mapIo(missingQuotes, quote -> {
+            int availableRooms = lookupContext.minAvailableCount(
+                inventoryRoomTypeId(lookupContext.propertyId(), null, quote.getRoomType()),
+                arrivalDate,
+                departureDate
+            );
+
+            PropertyRoomInventoryDto item = new PropertyRoomInventoryDto();
+            item.setRoomTypeId(quote.getRoomTypeId());
+            item.setRoomType(quote.getRoomType());
+            item.setRoomCode(quote.getRoomType());
+            item.setAvailableRooms(availableRooms);
+            return item;
+        }));
+        return enriched;
+    }
 
     private List<String> extractAvailableRateCodes(List<RatePlanPricingQuoteDto> rateQuotes) {
         if (rateQuotes == null || rateQuotes.isEmpty()) {
@@ -259,8 +439,14 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         ReservationAvailabilityRequestDto request,
         LocalDate arrivalDate,
         LocalDate departureDate,
-        List<PropertyRoomInventoryDto> inventory
+        List<PropertyRoomInventoryDto> inventory,
+        AvailabilityLookupContext lookupContext
     ) {
+        // Authorization does not vary by stay date, so one 401/403 must not be retried for every forecast day.
+        if (lookupContext.isRateManagementUnauthorized()) {
+            return List.of();
+        }
+
         Map<String, PropertyRoomInventoryDto> roomTypeCandidates = buildRoomTypeCandidates(inventory);
 
         try {
@@ -294,6 +480,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     arrivalDate,
                     departureDate,
                     roomTypeCandidates,
+                    lookupContext,
                     "direct fetch returned quotes without joinable room-type context"
                 );
 
@@ -327,10 +514,12 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 roomTypeCandidates,
+                lookupContext,
                 "direct fetch returned empty"
             );
         } catch (ExternalServiceException ex) {
             if (isUnauthorizedRateManagementFailure(ex)) {
+                lookupContext.markRateManagementUnauthorized();
                 log.warn(
                     "Rate quote fetch unauthorized for propertyId={} arrival={} departure={}; skipping per-room fallback to avoid repeated unauthorized calls. reason={}",
                     request.getPropertyId(),
@@ -366,6 +555,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 roomTypeCandidates,
+                lookupContext,
                 ex.getMessage()
             );
         }
@@ -399,7 +589,8 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
     private List<PropertyRoomInventoryDto> enrichInventoryWithRoomTypeIds(
         String propertyId,
-        List<PropertyRoomInventoryDto> inventory
+        List<PropertyRoomInventoryDto> inventory,
+        List<PropertyRoomOutletTypeDto> outletTypes
     ) {
         if (inventory == null || inventory.isEmpty()) {
             return List.of();
@@ -409,18 +600,6 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             .filter(java.util.Objects::nonNull)
             .allMatch(item -> item.getRoomTypeId() != null);
         if (allRowsAlreadyHaveRoomTypeId) {
-            return inventory;
-        }
-
-        List<PropertyRoomOutletTypeDto> outletTypes;
-        try {
-            outletTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
-        } catch (ExternalServiceException ex) {
-            log.warn(
-                "Room outlet types unavailable for propertyId={}; continuing without roomTypeId enrichment. reason={}",
-                propertyId,
-                ex.getMessage()
-            );
             return inventory;
         }
 
@@ -499,30 +678,49 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         LocalDate arrivalDate,
         LocalDate departureDate,
         Map<String, PropertyRoomInventoryDto> roomTypeCandidates,
+        AvailabilityLookupContext lookupContext,
         String reason
     ) {
         List<RatePlanPricingQuoteDto> aggregated = new ArrayList<>();
-        for (PropertyRoomInventoryDto candidate : roomTypeCandidates.values()) {
-            String roomType = candidate.getRoomType();
-            Long roomTypeId = candidate.getRoomTypeId();
-            try {
-                List<RatePlanPricingQuoteDto> perRoomQuotes = rateManagementPort.fetchRateQuotes(
-                    request.getPropertyId(),
-                    arrivalDate,
-                    departureDate,
-                    roomType,
-                    roomTypeId,
-                    request.getAdultCount(),
-                    request.getChildCount()
-                );
 
-                if (perRoomQuotes != null && !perRoomQuotes.isEmpty()) {
-                    aggregated.addAll(perRoomQuotes);
+        List<List<RatePlanPricingQuoteDto>> perCandidateQuotes = parallelExecutor.mapIo(
+            new ArrayList<>(roomTypeCandidates.values()),
+            candidate -> {
+                String roomType = candidate.getRoomType();
+                Long roomTypeId = candidate.getRoomTypeId();
+                if (lookupContext.isRateManagementUnauthorized()) {
+                    return List.<RatePlanPricingQuoteDto>of();
                 }
-            } catch (ExternalServiceException perRoomEx) {
-                if (isUnauthorizedRateManagementFailure(perRoomEx)) {
+
+                try {
+                    List<RatePlanPricingQuoteDto> perRoomQuotes = rateManagementPort.fetchRateQuotes(
+                        request.getPropertyId(),
+                        arrivalDate,
+                        departureDate,
+                        roomType,
+                        roomTypeId,
+                        request.getAdultCount(),
+                        request.getChildCount()
+                    );
+
+                    return perRoomQuotes == null ? List.<RatePlanPricingQuoteDto>of() : perRoomQuotes;
+                } catch (ExternalServiceException perRoomEx) {
+                    if (isUnauthorizedRateManagementFailure(perRoomEx)) {
+                        lookupContext.markRateManagementUnauthorized();
+                        log.warn(
+                            "Rate quote fetch unauthorized for propertyId={} roomType={} roomTypeId={} arrival={} departure={}; skipping remaining per-room retries. reason={}",
+                            request.getPropertyId(),
+                            roomType,
+                            roomTypeId,
+                            arrivalDate,
+                            departureDate,
+                            perRoomEx.getMessage()
+                        );
+                        return List.<RatePlanPricingQuoteDto>of();
+                    }
+
                     log.warn(
-                        "Rate quote fetch unauthorized for propertyId={} roomType={} roomTypeId={} arrival={} departure={}; stopping remaining per-room retries. reason={}",
+                        "Rate quote fetch failed for propertyId={} roomType={} roomTypeId={} arrival={} departure={}. reason={}",
                         request.getPropertyId(),
                         roomType,
                         roomTypeId,
@@ -530,20 +728,12 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                         departureDate,
                         perRoomEx.getMessage()
                     );
-                    break;
+                    return List.<RatePlanPricingQuoteDto>of();
                 }
-
-                log.warn(
-                    "Rate quote fetch failed for propertyId={} roomType={} roomTypeId={} arrival={} departure={}. reason={}",
-                    request.getPropertyId(),
-                    roomType,
-                    roomTypeId,
-                    arrivalDate,
-                    departureDate,
-                    perRoomEx.getMessage()
-                );
             }
-        }
+        );
+
+        perCandidateQuotes.forEach(aggregated::addAll);
 
         if (aggregated.isEmpty()) {
             log.warn(
@@ -786,5 +976,91 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         List<RoomAvailabilityPricingDto> availability,
         List<RatePlanPricingQuoteDto> rateQuotes
     ) {
+    }
+
+    /**
+     * Request-scoped caches. Inventory is fetched once per room type for the whole forecast window
+     * and sliced per stay range; rate quotes are memoized per date range so overlapping ranges
+     * (for example a one-night stay and day 0 of the forecast) only hit Rate Management once.
+     */
+    private final class AvailabilityLookupContext {
+
+        private static final long REQUEST_SCOPED_TTL_MS = 10 * 60 * 1000L;
+
+        private final String propertyId;
+        private final LocalDate windowStart;
+        private final LocalDate windowEnd;
+        private final TtlCache<String, Map<LocalDate, Integer>> inventoryWindowCache =
+            new TtlCache<>(REQUEST_SCOPED_TTL_MS, 512);
+        private final TtlCache<String, List<RatePlanPricingQuoteDto>> rateQuoteCache =
+            new TtlCache<>(REQUEST_SCOPED_TTL_MS, 128);
+        private final AtomicBoolean rateManagementUnauthorized = new AtomicBoolean(false);
+
+        private AvailabilityLookupContext(String propertyId, LocalDate windowStart, LocalDate windowEnd) {
+            this.propertyId = propertyId;
+            this.windowStart = windowStart;
+            this.windowEnd = windowEnd;
+        }
+
+        private boolean isRateManagementUnauthorized() {
+            return rateManagementUnauthorized.get();
+        }
+
+        private void markRateManagementUnauthorized() {
+            rateManagementUnauthorized.set(true);
+        }
+
+        private String propertyId() {
+            return propertyId;
+        }
+
+        private Map<LocalDate, Integer> availabilityByDate(String inventoryRoomTypeId) {
+            return inventoryWindowCache.get(
+                inventoryRoomTypeId,
+                () -> loadAvailability(inventoryRoomTypeId, windowStart, windowEnd)
+            );
+        }
+
+        private Map<LocalDate, Integer> loadAvailability(String inventoryRoomTypeId, LocalDate from, LocalDate to) {
+            List<InventoryAvailabilityDto> rows = inventoryServiceClient.availability(
+                propertyId, inventoryRoomTypeId, from, to);
+            if (rows == null || rows.isEmpty()) {
+                return Map.of();
+            }
+
+            Map<LocalDate, Integer> availableCountByDate = new HashMap<>();
+            for (InventoryAvailabilityDto row : rows) {
+                if (row == null || row.getBusinessDate() == null || row.getAvailableCount() == null) {
+                    continue;
+                }
+                availableCountByDate.merge(row.getBusinessDate(), row.getAvailableCount(), Math::min);
+            }
+            return availableCountByDate;
+        }
+
+        /** Mirrors the previous "min available count over the stay range, 0 when no rows" rule. */
+        private int minAvailableCount(String inventoryRoomTypeId, LocalDate arrivalDate, LocalDate departureDate) {
+            Map<LocalDate, Integer> availableCountByDate =
+                arrivalDate.isBefore(windowStart) || departureDate.isAfter(windowEnd)
+                    ? loadAvailability(inventoryRoomTypeId, arrivalDate, departureDate)
+                    : availabilityByDate(inventoryRoomTypeId);
+
+            int minimum = Integer.MAX_VALUE;
+            for (LocalDate date = arrivalDate; date.isBefore(departureDate); date = date.plusDays(1)) {
+                Integer availableCount = availableCountByDate.get(date);
+                if (availableCount != null) {
+                    minimum = Math.min(minimum, availableCount);
+                }
+            }
+            return minimum == Integer.MAX_VALUE ? 0 : minimum;
+        }
+
+        private List<RatePlanPricingQuoteDto> rateQuotes(
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            Supplier<List<RatePlanPricingQuoteDto>> loader
+        ) {
+            return rateQuoteCache.get(arrivalDate + "|" + departureDate, loader);
+        }
     }
 }

@@ -1,7 +1,6 @@
 package com.pms.housekeeping.specifications;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
-import com.pms.housekeeping.entity.HousekeepingPriority;
 import com.pms.housekeeping.entity.HousekeepingRoomDayStatus;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
@@ -15,119 +14,177 @@ public final class HousekeepingRoomSpecification {
     }
 
     public static Specification<HousekeepingRoomDayStatus> build(
-            HousekeepingRoomFilterRequest request) {
+            HousekeepingRoomFilterRequest request
+    ) {
 
         return (root, query, cb) -> {
 
-            List<Predicate> predicates = new ArrayList<>();
+            List<Predicate> predicates =
+                    new ArrayList<>();
 
-            // Mandatory filters
+            // =====================================================
+            // PROPERTY
+            // =====================================================
 
             predicates.add(
-                    cb.equal(root.get("propertyId"), request.propertyId())
+                    cb.equal(
+                            root.get("propertyId"),
+                            request.propertyId()
+                    )
             );
+
+            // =====================================================
+            // BUSINESS DATE
+            // =====================================================
 
             predicates.add(
-                    cb.equal(root.get("businessDate"), request.businessDate())
+                    cb.equal(
+                            root.get("businessDate"),
+                            request.businessDate()
+                    )
             );
 
-            // Search
+            // =====================================================
+            // SEARCH
+            // =====================================================
 
-            if (request.search() != null && !request.search().isBlank()) {
+            if (request.search() != null
+                    && !request.search().isBlank()) {
 
-                String keyword = "%" + request.search().trim().toLowerCase() + "%";
+                String keyword =
+                        "%"
+                                + request.search()
+                                .trim()
+                                .toLowerCase()
+                                + "%";
 
-                Predicate roomNumber = cb.like(
-                        cb.lower(root.get("roomNumber")),
-                        keyword
-                );
+                Predicate roomNumber =
+                        cb.like(
+                                cb.lower(
+                                        root.get("roomNumber")
+                                ),
+                                keyword
+                        );
 
-                Predicate guestName = cb.like(
-                        cb.lower(root.get("guestDisplayName")),
-                        keyword
-                );
+                Predicate guestName =
+                        cb.like(
+                                cb.lower(
+                                        root.get("guestDisplayName")
+                                ),
+                                keyword
+                        );
+
+                Predicate confirmationId =
+                        cb.like(
+                                cb.lower(
+                                        root.get("confirmationId")
+                                ),
+                                keyword
+                        );
 
                 predicates.add(
-                        cb.or(roomNumber, guestName)
+                        cb.or(
+                                roomNumber,
+                                guestName,
+                                confirmationId
+                        )
                 );
             }
 
-            // Room Type
+            // =====================================================
+            // ROOM TYPE
+            // =====================================================
 
             if (request.roomTypeId() != null) {
 
                 predicates.add(
-                        cb.equal(root.get("roomTypeId"), request.roomTypeId())
+                        cb.equal(
+                                root.get("roomTypeId"),
+                                request.roomTypeId()
+                        )
                 );
-
             }
 
-            // Floor
-            // Remove this if floor belongs to RoomMaster table.
+            // =====================================================
+            // FLOOR
+            // =====================================================
 
-            if (request.floor() != null &&
-                    !request.floor().isBlank()) {
+            if (request.floor() != null
+                    && !request.floor().isBlank()) {
 
                 predicates.add(
                         cb.equal(
-                                cb.lower(root.get("floor")),
-                                request.floor().toLowerCase()
+                                cb.lower(
+                                        root.get("floor")
+                                ),
+                                request.floor()
+                                        .trim()
+                                        .toLowerCase()
                         )
                 );
-
             }
 
-            // Attendant
+            // =====================================================
+            // ATTENDANT
+            // =====================================================
 
-            if (request.attendant() != null &&
-                    !request.attendant().isBlank()) {
+            if (request.attendant() != null
+                    && !request.attendant().isBlank()) {
 
                 predicates.add(
                         cb.equal(
-                                cb.lower(root.get("attendantName")),
-                                request.attendant().toLowerCase()
+                                cb.lower(
+                                        root.get("attendantName")
+                                ),
+                                request.attendant()
+                                        .trim()
+                                        .toLowerCase()
                         )
                 );
-
             }
 
-            // Cleaning Status
+            // =====================================================
+            // CLEANING STATUS
+            // =====================================================
 
-            if (request.cleaningStatus() != null &&
-                    !request.cleaningStatus().isEmpty()) {
+            if (request.cleaningStatus() != null
+                    && !request.cleaningStatus().isEmpty()) {
 
                 predicates.add(
                         root.get("cleaningStatus")
                                 .in(request.cleaningStatus())
                 );
-
             }
 
-            // Front Office Status
+            // =====================================================
+            // FRONT OFFICE STATUS
+            // =====================================================
 
-            if (request.frontOfficeStatus() != null &&
-                    !request.frontOfficeStatus().isEmpty()) {
+            if (request.frontOfficeStatus() != null
+                    && !request.frontOfficeStatus().isEmpty()) {
 
                 predicates.add(
                         root.get("frontOfficeStatus")
                                 .in(request.frontOfficeStatus())
                 );
-
             }
 
-            // Reservation Status
+            // =====================================================
+            // RESERVATION STATUS
+            // =====================================================
 
-            if (request.reservationStatus() != null &&
-                    !request.reservationStatus().isEmpty()) {
+            if (request.reservationStatus() != null
+                    && !request.reservationStatus().isEmpty()) {
 
                 predicates.add(
                         root.get("reservationStatus")
                                 .in(request.reservationStatus())
                 );
-
             }
 
-            // VIP
+            // =====================================================
+            // PRIORITY
+            // =====================================================
 
             if (request.priority() != null) {
 
@@ -137,12 +194,13 @@ public final class HousekeepingRoomSpecification {
                                 request.priority()
                         )
                 );
-
             }
-            return cb.and(predicates.toArray(new Predicate[0]));
 
+            return cb.and(
+                    predicates.toArray(
+                            new Predicate[0]
+                    )
+            );
         };
-
     }
-
 }

@@ -1,6 +1,7 @@
 package Policy_Management.Policy.dto;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -33,8 +34,6 @@ public class PolicyDto {
 
     private Status status;
 
-    private String createdBy;
-
     private String action;
 
     private int policyCount;
@@ -42,6 +41,8 @@ public class PolicyDto {
     private String propertyId;
 
     private String propertyCode;
+
+    private String createdByUser;
 
     public Long getId() {
         return id;
@@ -139,14 +140,6 @@ public class PolicyDto {
         this.status = status;
     }
 
-    public String getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(String createdBy) {
-        this.createdBy = createdBy;
-    }
-
     public String getAction() {
         return action;
     }
@@ -161,5 +154,13 @@ public class PolicyDto {
 
     public void setPolicyCount(int policyCount) {
         this.policyCount = policyCount;
+    }
+
+    public String createdByUser() {
+        return createdByUser();
+    }
+
+    public void setCreatedByUser(String createdByUser) {
+        this.createdByUser = createdByUser;
     }
 }

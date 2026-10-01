@@ -2,6 +2,7 @@ package com.pms.property.draft.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
+import java.util.UUID;
 
 public record DraftResponse(
     Long id,
@@ -13,9 +14,9 @@ public record DraftResponse(
     JsonNode wizardData,
     Long version,
     String publishedPropertyId,
-    String createdBy,
-    String updatedBy,
-    String publishedBy
+    UUID createdBy,
+    UUID updatedBy,
+    UUID publishedBy
 ) {
 }
 
