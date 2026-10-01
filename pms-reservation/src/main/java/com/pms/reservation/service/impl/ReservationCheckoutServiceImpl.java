@@ -60,16 +60,15 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
         }
 
         BigDecimal folioBalance = folioServiceClient.getFolioBalance(
-                booking.getConfirmationNumber(), booking.getId());
+            booking.getConfirmationNumber(), booking.getId());
+        if (folioBalance != null) {
+            booking.setGuestBalance(folioBalance.max(BigDecimal.ZERO));
+        }
         if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
             throw new BadRequestException(
                     "Check-out denied: folio has outstanding balance of "
                             + folioBalance.setScale(2, RoundingMode.HALF_UP)
                             + ". Please resolve the balance before checkout.");
-        }
-
-        if (folioBalance != null) {
-            booking.setGuestBalance(folioBalance);
         }
 
         if (booking.getGuestBalance() != null && booking.getGuestBalance().compareTo(BigDecimal.ZERO) > 0) {

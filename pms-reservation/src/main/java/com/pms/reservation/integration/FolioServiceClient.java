@@ -1,6 +1,5 @@
 package com.pms.reservation.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.guestlisting.exception.ExternalServiceException;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 @RequiredArgsConstructor
@@ -25,39 +25,33 @@ public class FolioServiceClient {
     @Value("${folio-service.base-url:http://localhost:8080}")
     private String baseUrl;
 
-    private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
     public BigDecimal getFolioBalance(String confirmationNumber) {
         return getFolioBalance(confirmationNumber, null);
     }
 
-    /**
-     * Resolves the folio balance for a single room of a multi-room booking when {@code bookingId}
-     * is supplied; otherwise the balance across every folio of the confirmation is returned.
-     */
     public BigDecimal getFolioBalance(String confirmationNumber, Long bookingId) {
         if (confirmationNumber == null || confirmationNumber.isBlank()) {
             return BigDecimal.ZERO;
         }
 
         try {
-            ResponseEntity<FolioServiceDto> response = bookingId == null
-                    ? restTemplate.exchange(
-                            baseUrl + "/api/v1/billingFolio/getFolioDetails?confirmationNumber={cn}",
-                            HttpMethod.GET,
-                            new HttpEntity<>(headers()),
-                            FolioServiceDto.class,
-                            confirmationNumber)
-                    : restTemplate.exchange(
-                            baseUrl + "/api/v1/billingFolio/getFolioDetails?confirmationNumber={cn}&bookingId={bid}",
-                            HttpMethod.GET,
-                            new HttpEntity<>(headers()),
-                            FolioServiceDto.class,
-                            confirmationNumber,
-                            bookingId);
+                UriComponentsBuilder uriBuilder = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/api/v1/billingFolio/getFolioDetails")
+                    .queryParam("confirmationNumber", confirmationNumber);
+                if (bookingId != null) {
+                uriBuilder.queryParam("bookingId", bookingId);
+                }
 
-            FolioServiceDto folioResponse = response.getBody();
+                ResponseEntity<FolioServiceDto> response = restTemplate.exchange(
+                    uriBuilder.toUriString(),
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers()),
+                    FolioServiceDto.class
+                );
+                FolioServiceDto folioResponse = response.getBody();
+
             if (folioResponse == null || folioResponse.summary() == null) {
                 return BigDecimal.ZERO;
             }

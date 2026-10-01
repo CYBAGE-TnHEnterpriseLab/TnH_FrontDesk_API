@@ -6,6 +6,7 @@ import com.folio.billing.dto.GuestDetail;
 import com.folio.billing.dto.ReservationSummary;
 
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.Optional;
 
 public interface ReservationServiceClient {
@@ -24,5 +25,7 @@ public interface ReservationServiceClient {
     Optional<String> findDefaultConfirmationNumber();
 
     Optional<String> resolvePropertyId(String confirmationNumber);
+
+    void updateGuestBalance(String confirmationNumber, Long bookingId, BigDecimal guestBalance);
 }
 

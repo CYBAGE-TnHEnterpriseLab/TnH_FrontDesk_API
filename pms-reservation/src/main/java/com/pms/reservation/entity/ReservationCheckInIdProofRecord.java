@@ -1,5 +1,6 @@
 package com.pms.reservation.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -10,25 +11,22 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
-import com.pms.common.entity.BaseEntity;
-
 @Entity
-@Table(name = "reservation_checkin_signatures", indexes = {
-        @Index(name = "idx_checkin_signature_booking", columnList = "bookingId", unique = true),
-        @Index(name = "idx_checkin_signature_confirmation", columnList = "confirmationNumber")
+@Table(name = "reservation_checkin_id_proofs", indexes = {
+        @Index(name = "idx_checkin_id_proof_booking", columnList = "bookingId", unique = true),
+        @Index(name = "idx_checkin_id_proof_confirmation", columnList = "confirmationNumber")
 })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @SuperBuilder
-public class ReservationCheckInSignatureRecord extends BaseEntity {
+public class ReservationCheckInIdProofRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,6 +44,12 @@ public class ReservationCheckInSignatureRecord extends BaseEntity {
     @Column(length = 20)
     private String checkInChannel;
 
+    @Column(nullable = false, length = 40)
+    private String idProofType;
+
+    @Column(nullable = false, length = 120)
+    private String idProofNumber;
+
     @Column(nullable = false, length = 120)
     private String contentType;
 
@@ -54,5 +58,5 @@ public class ReservationCheckInSignatureRecord extends BaseEntity {
     private String payloadBase64;
 
     @Column(nullable = false)
-    private LocalDateTime signedAt;
+    private LocalDateTime uploadedAt;
 }

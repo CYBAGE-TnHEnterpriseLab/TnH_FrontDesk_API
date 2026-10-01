@@ -18,6 +18,11 @@ public class ReservationBookingResponseDto {
     String salutation;
     Boolean vipTag;
     String guestName;
+    LocalDate dateOfBirth;
+    String state;
+    String idType;
+    String idNumber;
+    Boolean enrollGuest;
     List<String> guestNames;
     String personalEmail;
     String officialEmail;
