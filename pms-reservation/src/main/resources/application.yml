@@ -88,6 +88,9 @@ housekeeping-service:
 folio-service:
   base-url: ${FOLIO_SERVICE_BASE_URL:http://localhost:8080}
 
+loyalty-service:
+  base-url: ${LOYALTY_SERVICE_BASE_URL:http://localhost:8089}
+
 dashboard:
   timeout-ms: 2500
   housekeeping:

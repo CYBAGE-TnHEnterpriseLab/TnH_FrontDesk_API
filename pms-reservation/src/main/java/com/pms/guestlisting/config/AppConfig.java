@@ -4,6 +4,7 @@ import com.pms.reservation.config.AvailabilityPerformanceProperties;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.config.InventoryServiceProperties;
 import com.pms.reservation.config.RateManagementServiceProperties;
+import com.pms.reservation.config.LoyaltyServiceProperties;
 import com.pms.reservation.integration.RateManagementAuthInterceptor;
 import com.pms.common.config.BaseOpenApiConfig;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -29,7 +30,8 @@ import org.springframework.web.client.RestTemplate;
     PropertyWizardServiceProperties.class,
     InventoryServiceProperties.class,
     RateManagementServiceProperties.class,
-    AvailabilityPerformanceProperties.class
+    AvailabilityPerformanceProperties.class,
+    LoyaltyServiceProperties.class
 })
 public class AppConfig extends BaseOpenApiConfig {
 

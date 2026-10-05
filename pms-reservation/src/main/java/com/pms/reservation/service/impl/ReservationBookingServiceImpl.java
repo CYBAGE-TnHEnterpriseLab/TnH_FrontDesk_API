@@ -20,6 +20,7 @@ import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.FolioServiceClient;
+import com.pms.reservation.integration.LoyaltyServiceClient;
 import com.pms.reservation.integration.dto.InventoryReservationRequest;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
@@ -80,6 +81,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
     private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final FolioServiceClient folioServiceClient;
+    private final LoyaltyServiceClient loyaltyServiceClient;
+    private final com.pms.reservation.config.LoyaltyServiceProperties loyaltyServiceProperties;
 
     @Override
     @Transactional
@@ -157,6 +160,19 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
             .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
         savedBookings.forEach(this::updateStandaloneHousekeeping);
+
+        try {
+            UUID guestId = resolveGuestId(request);
+            String loyaltyProgramId = request.getLoyaltyProgramId();
+            if (guestId != null && StringUtils.hasText(loyaltyProgramId)) {
+                loyaltyServiceClient.ensureMembership(guestId, UUID.fromString(loyaltyProgramId));
+            } else if (guestId != null && StringUtils.hasText(loyaltyServiceProperties.getDefaultProgramId())) {
+                loyaltyServiceClient.ensureMembership(guestId, UUID.fromString(loyaltyServiceProperties.getDefaultProgramId()));
+            }
+        } catch (Exception ex) {
+            log.warn("Loyalty enrollment failed for confirmationNumber={}", confirmationNumber, ex);
+        }
+
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
             .roomBookings(toRoomBookingSummaries(savedBookings))
             .build();
@@ -1274,6 +1290,19 @@ private ReservationBookingRequestDto requestForRoom(
         if (!existing.getAssignedRoomNo().trim().equalsIgnoreCase(request.getAssignedRoomNo().trim())) {
             throw new BadRequestException("Room cannot be changed because DNM is enabled for this reservation");
         }
+    }
+
+    private UUID resolveGuestId(ReservationBookingRequestDto request) {
+        if (request.getGuestId() != null) {
+            return request.getGuestId();
+        }
+        if (StringUtils.hasText(request.getPhoneNumber())) {
+            return UUID.nameUUIDFromBytes(request.getPhoneNumber().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        if (StringUtils.hasText(request.getGuestName())) {
+            return UUID.nameUUIDFromBytes(request.getGuestName().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return null;
     }
 }
 
