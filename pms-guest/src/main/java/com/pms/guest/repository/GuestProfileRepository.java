@@ -1,6 +1,7 @@
 package com.pms.guest.repository;
 
 import com.pms.guest.entity.GuestProfile;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,8 @@ public interface GuestProfileRepository extends JpaRepository<GuestProfile, Long
     boolean existsByGuestId(String guestId);
 
     Optional<GuestProfile> findByIdAndPropertyId(Long id, String propertyId);
+
+    List<GuestProfile> findByPropertyIdAndIdIn(String propertyId, Collection<Long> ids);
 
     List<GuestProfile> findByPropertyIdAndMobileNumber(String propertyId, String mobileNumber);
 

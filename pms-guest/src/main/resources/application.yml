@@ -35,6 +35,13 @@ spring:
     table: flyway_schema_history_guest
     locations: classpath:db/migration
 
+pms:
+  services:
+    reservation:
+      base-url: ${PMS_RESERVATION_SERVICE_BASE_URL:http://localhost:8090}
+      connect-timeout-ms: 3000
+      read-timeout-ms: 6000
+
 security:
   jwt:
     enabled: true

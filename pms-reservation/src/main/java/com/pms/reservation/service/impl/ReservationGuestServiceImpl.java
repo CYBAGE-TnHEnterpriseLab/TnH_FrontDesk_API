@@ -1,7 +1,9 @@
 package com.pms.reservation.service.impl;
 
 import com.pms.guestlisting.exception.BadRequestException;
+import com.pms.reservation.dto.ReservationGuestAssignmentDto;
 import com.pms.reservation.dto.ReservationGuestResponseDto;
+import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationGuest;
 import com.pms.reservation.integration.GuestServiceClient;
 import com.pms.reservation.integration.dto.GuestProfileResponse;
@@ -10,11 +12,16 @@ import com.pms.reservation.repository.ReservationGuestRepository;
 import com.pms.reservation.service.ResolvedReservationGuest;
 import com.pms.reservation.service.ReservationGuestService;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 @Service
 public class ReservationGuestServiceImpl implements ReservationGuestService {
@@ -132,6 +139,67 @@ public class ReservationGuestServiceImpl implements ReservationGuestService {
         if (!Boolean.TRUE.equals(removed)) {
             throw new IllegalStateException("Guest removal transaction did not complete");
         }
+    }
+
+    @Override
+    public List<ReservationGuestAssignmentDto> findGuestAssignments(
+            String propertyId,
+            Long bookingId,
+            String confirmationNumber,
+            List<Long> guestProfileIds
+    ) {
+        if (!StringUtils.hasText(propertyId)) {
+            throw new BadRequestException("propertyId is required");
+        }
+        boolean hasProfileIds = guestProfileIds != null && !guestProfileIds.isEmpty();
+        int criteria = (bookingId != null ? 1 : 0)
+                + (StringUtils.hasText(confirmationNumber) ? 1 : 0)
+                + (hasProfileIds ? 1 : 0);
+        if (criteria != 1) {
+            throw new BadRequestException(
+                    "Exactly one of bookingId, confirmationNumber or guestProfileIds is required");
+        }
+        String scopedPropertyId = propertyId.trim();
+
+        List<ReservationBookingRecord> bookings;
+        List<ReservationGuest> relationships;
+        if (bookingId != null) {
+            bookings = reservationBookingRepository.findByIdAndPropertyId(bookingId, scopedPropertyId)
+                    .map(List::of)
+                    .orElse(List.of());
+            relationships = bookings.isEmpty()
+                    ? List.of()
+                    : reservationGuestRepository.findByBookingIdInOrderByBookingIdAscIdAsc(List.of(bookingId));
+        } else if (hasProfileIds) {
+            relationships = reservationGuestRepository.findByGuestProfileIdInOrderByBookingIdAscIdAsc(
+                    new LinkedHashSet<>(guestProfileIds));
+            Set<Long> bookingIds = relationships.stream()
+                    .map(ReservationGuest::getBookingId)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            bookings = bookingIds.isEmpty()
+                    ? List.of()
+                    : reservationBookingRepository.findByPropertyIdAndIdIn(scopedPropertyId, bookingIds);
+        } else {
+            bookings = reservationBookingRepository.findByPropertyIdAndConfirmationNumberOrderByIdAsc(
+                    scopedPropertyId, confirmationNumber.trim());
+            relationships = bookings.isEmpty()
+                    ? List.of()
+                    : reservationGuestRepository.findByBookingIdInOrderByBookingIdAscIdAsc(
+                            bookings.stream().map(ReservationBookingRecord::getId).toList());
+        }
+
+        Map<Long, ReservationBookingRecord> bookingsById = bookings.stream()
+                .collect(Collectors.toMap(ReservationBookingRecord::getId, b -> b, (a, b) -> a));
+        // Relationships whose booking is outside the requested property are dropped here.
+        return relationships.stream()
+                .filter(relationship -> bookingsById.containsKey(relationship.getBookingId()))
+                .map(relationship -> ReservationGuestAssignmentDto.builder()
+                        .bookingId(relationship.getBookingId())
+                        .confirmationNumber(bookingsById.get(relationship.getBookingId()).getConfirmationNumber())
+                        .guestProfileId(relationship.getGuestProfileId())
+                        .isPrimary(relationship.getIsPrimary())
+                        .build())
+                .toList();
     }
 
     private ReservationGuestResponseDto assignWithinTransaction(

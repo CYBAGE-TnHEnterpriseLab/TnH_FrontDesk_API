@@ -1,5 +1,6 @@
 package com.pms.reservation.service;
 
+import com.pms.reservation.dto.ReservationGuestAssignmentDto;
 import com.pms.reservation.dto.ReservationGuestResponseDto;
 import java.util.List;
 
@@ -16,4 +17,15 @@ public interface ReservationGuestService {
     ReservationGuestResponseDto makePrimaryGuest(Long bookingId, Long reservationGuestId);
 
     void removeGuestFromBooking(Long bookingId, Long guestProfileId);
+
+    /**
+     * Returns property-scoped guest assignments for exactly one of bookingId, confirmationNumber
+     * or guestProfileIds. Guest profile details are intentionally not resolved here.
+     */
+    List<ReservationGuestAssignmentDto> findGuestAssignments(
+            String propertyId,
+            Long bookingId,
+            String confirmationNumber,
+            List<Long> guestProfileIds
+    );
 }

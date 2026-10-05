@@ -45,6 +45,15 @@ public interface ReservationBookingRepository
 
     List<ReservationBookingRecord> findByConfirmationNumberOrderByIdAsc(String confirmationNumber);
 
+    Optional<ReservationBookingRecord> findByIdAndPropertyId(Long id, String propertyId);
+
+    List<ReservationBookingRecord> findByPropertyIdAndConfirmationNumberOrderByIdAsc(
+            String propertyId,
+            String confirmationNumber
+    );
+
+    List<ReservationBookingRecord> findByPropertyIdAndIdIn(String propertyId, Collection<Long> ids);
+
 	List<ReservationBookingRecord> findAllByOrderByCreatedAtDesc();
 
 	List<ReservationBookingRecord> findByPropertyIdAndAssignedRoomNoIsNotNullAndArrivalDateLessThanAndDepartureDateGreaterThan(

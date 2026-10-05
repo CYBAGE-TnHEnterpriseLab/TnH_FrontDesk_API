@@ -212,4 +212,91 @@ class ReservationGuestServiceImplTest {
     private ReservationBookingRecord booking(String propertyId) {
         return ReservationBookingRecord.builder().propertyId(propertyId).build();
     }
+
+    @Test
+    void assignmentsByBookingIdAreScopedToThatBookingOnly() {
+        when(reservationBookingRepository.findByIdAndPropertyId(101L, "P1"))
+                .thenReturn(Optional.of(bookingRecord(101L, "CONF-1")));
+        when(reservationGuestRepository.findByBookingIdInOrderByBookingIdAscIdAsc(List.of(101L)))
+                .thenReturn(List.of(relationship(101L, 25L, true), relationship(101L, 31L, false)));
+
+        var result = service.findGuestAssignments("P1", 101L, null, null);
+
+        assertThat(result).extracting("bookingId", "confirmationNumber", "guestProfileId", "isPrimary")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(101L, "CONF-1", 25L, true),
+                        org.assertj.core.groups.Tuple.tuple(101L, "CONF-1", 31L, false));
+    }
+
+    @Test
+    void assignmentsByBookingIdInAnotherPropertyAreEmpty() {
+        when(reservationBookingRepository.findByIdAndPropertyId(101L, "P2")).thenReturn(Optional.empty());
+
+        assertThat(service.findGuestAssignments("P2", 101L, null, null)).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(reservationGuestRepository);
+    }
+
+    @Test
+    void assignmentsByConfirmationReturnEveryBookingAndRepeatedGuest() {
+        when(reservationBookingRepository.findByPropertyIdAndConfirmationNumberOrderByIdAsc("P1", "CONF-1"))
+                .thenReturn(List.of(bookingRecord(101L, "CONF-1"), bookingRecord(102L, "CONF-1")));
+        when(reservationGuestRepository.findByBookingIdInOrderByBookingIdAscIdAsc(List.of(101L, 102L)))
+                .thenReturn(List.of(
+                        relationship(101L, 25L, true),
+                        relationship(101L, 31L, false),
+                        relationship(102L, 25L, true),
+                        relationship(102L, 42L, false)));
+
+        var result = service.findGuestAssignments("P1", null, " CONF-1 ", null);
+
+        assertThat(result).extracting("bookingId", "guestProfileId")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(101L, 25L),
+                        org.assertj.core.groups.Tuple.tuple(101L, 31L),
+                        org.assertj.core.groups.Tuple.tuple(102L, 25L),
+                        org.assertj.core.groups.Tuple.tuple(102L, 42L));
+    }
+
+    @Test
+    void assignmentsByGuestProfileIdsDropBookingsFromOtherProperties() {
+        when(reservationGuestRepository.findByGuestProfileIdInOrderByBookingIdAscIdAsc(
+                new java.util.LinkedHashSet<>(List.of(25L))))
+                .thenReturn(List.of(relationship(101L, 25L, true), relationship(900L, 25L, true)));
+        when(reservationBookingRepository.findByPropertyIdAndIdIn(
+                "P1", new java.util.LinkedHashSet<>(List.of(101L, 900L))))
+                .thenReturn(List.of(bookingRecord(101L, "CONF-1")));
+
+        var result = service.findGuestAssignments("P1", null, null, List.of(25L));
+
+        assertThat(result).singleElement().satisfies(a -> {
+            assertThat(a.getBookingId()).isEqualTo(101L);
+            assertThat(a.getConfirmationNumber()).isEqualTo("CONF-1");
+        });
+    }
+
+    @Test
+    void assignmentsRequireExactlyOneCriterionAndProperty() {
+        assertThatThrownBy(() -> service.findGuestAssignments(" ", 1L, null, null))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findGuestAssignments("P1", null, null, List.of()))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.findGuestAssignments("P1", 1L, "CONF-1", null))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    private ReservationBookingRecord bookingRecord(Long id, String confirmationNumber) {
+        return ReservationBookingRecord.builder()
+                .id(id)
+                .propertyId("P1")
+                .confirmationNumber(confirmationNumber)
+                .build();
+    }
+
+    private ReservationGuest relationship(Long bookingId, Long guestProfileId, boolean primary) {
+        return ReservationGuest.builder()
+                .bookingId(bookingId)
+                .guestProfileId(guestProfileId)
+                .isPrimary(primary)
+                .build();
+    }
 }

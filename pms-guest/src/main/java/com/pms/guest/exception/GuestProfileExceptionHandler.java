@@ -28,14 +28,20 @@ public class GuestProfileExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "Validation failed", errors);
     }
 
-    @ExceptionHandler({
-        ConstraintViolationException.class,
-        HttpMessageNotReadableException.class,
-        MissingServletRequestParameterException.class,
-        MethodArgumentTypeMismatchException.class
-    })
-    public ResponseEntity<GuestApiErrorResponse> handleMalformedRequest(Exception ex) {
-        return error(HttpStatus.BAD_REQUEST, "Validation failed", null);
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<GuestApiErrorResponse> handleConstraintViolation(
+            ConstraintViolationException ex) {
+
+        Map<String, String> errors = new LinkedHashMap<>();
+
+        ex.getConstraintViolations().forEach(violation ->
+                errors.put(
+                        violation.getPropertyPath().toString(),
+                        violation.getMessage()
+                )
+        );
+
+        return error(HttpStatus.BAD_REQUEST, "Validation failed", errors);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -51,6 +57,11 @@ public class GuestProfileExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<GuestApiErrorResponse> handleStatusException(ResponseStatusException ex) {
         return error(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason(), null);
+    }
+
+    @ExceptionHandler(ReservationServiceException.class)
+    public ResponseEntity<GuestApiErrorResponse> handleReservationService(ReservationServiceException ex) {
+        return error(HttpStatus.BAD_GATEWAY, ex.getMessage(), null);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
