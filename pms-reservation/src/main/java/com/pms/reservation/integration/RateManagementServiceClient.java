@@ -86,7 +86,9 @@ public class RateManagementServiceClient implements RateManagementPort {
             : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
 
         // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
+
         boolean supportedOccupancy = adultCount == null || adultCount <= properties.getMaxPricedOccupancy();
+
         String pricingOccupancyType = supportedOccupancy ? occupancyType : null;
         Integer pricingGuestCount = supportedOccupancy ? guestCount : null;
 
