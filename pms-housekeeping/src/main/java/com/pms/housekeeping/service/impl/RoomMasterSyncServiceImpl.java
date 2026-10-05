@@ -90,6 +90,15 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
         List<RoomMasterProjection> deactivatedToSave = deactivateMissingRooms(
                 existingByRoom, incomingRooms, now);
 
+        // Dashboard/list counts are built from day-status rows, so rows of removed rooms must go too.
+        List<HousekeepingRoomDayStatus> orphanedDayStatuses = incomingRooms.isEmpty()
+                ? List.of()
+                : findOrphanedDayStatuses(existingDayByDateRoom, incomingRooms);
+        if (!orphanedDayStatuses.isEmpty()) {
+            dayStatusRepository.deleteAll(orphanedDayStatuses);
+            dayStatusRepository.flush();
+        }
+
         // Batched writes: a handful of statements instead of N + N*D round-trips.
         roomMasterProjectionRepository.saveAll(projectionsToSave);
         if (!deactivatedToSave.isEmpty()) {
@@ -201,6 +210,22 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
             return false;
         }
         return status.getCleaningStatus() != CleaningStatus.OUT_OF_ORDER;
+    }
+
+    private List<HousekeepingRoomDayStatus> findOrphanedDayStatuses(
+            Map<LocalDate, Map<String, HousekeepingRoomDayStatus>> existingDayByDateRoom,
+            Set<String> incomingRooms
+    ) {
+        List<HousekeepingRoomDayStatus> orphaned = new ArrayList<>();
+        for (Map<String, HousekeepingRoomDayStatus> byRoom : existingDayByDateRoom.values()) {
+            for (HousekeepingRoomDayStatus status : byRoom.values()) {
+                // Rows tied to a reservation are kept so booking history is not lost.
+                if (!incomingRooms.contains(status.getRoomNumber()) && status.getConfirmationId() == null) {
+                    orphaned.add(status);
+                }
+            }
+        }
+        return orphaned;
     }
 
     private List<RoomMasterProjection> deactivateMissingRooms(
