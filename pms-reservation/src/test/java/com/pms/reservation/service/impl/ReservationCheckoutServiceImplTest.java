@@ -103,7 +103,35 @@ class ReservationCheckoutServiceImplTest {
                 .hasMessage("Check-out can only be initiated for a checked-in reservation");
 
         verify(reservationBookingRepository, never()).save(any());
-        verify(housekeepingRoomStatusClient, never()).markRoomDirty(any(), any(), any(), any(), any());
+        verify(housekeepingRoomStatusClient, never()).markRoomDirty(
+            any(UUID.class), any(LocalDate.class), any(LocalDate.class),
+            any(LocalDate.class), any(String.class)
+        );
+    }
+
+    @Test
+    void completeCheckoutShouldUseLiveFolioBalanceWhenStoredGuestBalanceIsStale() {
+        booking.setGuestBalance(new BigDecimal("900.00"));
+        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
+
+        CheckoutCompletionResponseDto response = service.completeCheckout("CONF-101", request);
+
+        assertThat(response.getReservationStatus()).isEqualTo("CHECKED_OUT");
+        assertThat(booking.getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        verify(reservationBookingRepository).save(booking);
+    }
+
+    @Test
+    void completeCheckoutShouldRejectBusinessDateBeforeDeparture() {
+        request.setBusinessDate(LocalDate.of(2026, 8, 10));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
+
+        assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Check-out businessDate must match the reservation departureDate");
+
+        verify(reservationBookingRepository, never()).save(any());
     }
 
     @Test

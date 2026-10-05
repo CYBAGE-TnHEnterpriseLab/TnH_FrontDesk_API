@@ -7,6 +7,7 @@ import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.constant.PaymentModes;
 import com.pms.reservation.constant.PaymentTypes;
+import com.pms.reservation.constant.IdTypes;
 import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
@@ -584,12 +585,60 @@ private ReservationBookingRequestDto requestForRoom(
 
         @Override
         @Transactional(readOnly = true)
+        public ReservationViewResponseDto searchBooking(
+            String confirmationNumber,
+            Long bookingId,
+            String propertyId,
+            String phoneNumber,
+            String email) {
+        if (!StringUtils.hasText(confirmationNumber)
+            && bookingId == null
+            && !StringUtils.hasText(phoneNumber)
+            && !StringUtils.hasText(email)) {
+            throw new BadRequestException(
+                "At least one of confirmationNumber, bookingId, phoneNumber, or email is required");
+        }
+
+        ReservationBookingRecord booking;
+        if (StringUtils.hasText(confirmationNumber)) {
+            booking = reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(confirmationNumber.trim())
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else if (bookingId != null) {
+                booking = reservationBookingRepository.findById(bookingId)
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else if (StringUtils.hasText(phoneNumber)) {
+            requirePropertyIdForContactSearch(propertyId);
+            String normalizedPhoneNumber = phoneNumber.trim();
+            booking = reservationBookingRepository.findFirstByPropertyIdAndPhoneNumberOrMobileNumber(
+                propertyId.trim(), normalizedPhoneNumber, normalizedPhoneNumber)
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else {
+            requirePropertyIdForContactSearch(propertyId);
+            String normalizedEmail = email.trim();
+            booking = reservationBookingRepository.findFirstByPropertyIdAndPersonalEmailOrOfficialEmail(
+                propertyId.trim(), normalizedEmail, normalizedEmail)
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        }
+
+        return buildReservationViewForBooking(booking);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
         public ReservationViewResponseDto getBookingDetails(String confirmationNumber, Long bookingId) {
         ReservationBookingRecord booking = reservationBookingRepository.findById(bookingId)
             .filter(item -> confirmationNumber.equals(item.getConfirmationNumber()))
             .orElseThrow(() -> new BadRequestException("Room booking not found for confirmation number"));
 
         return buildReservationViewForBooking(booking);
+        }
+
+        private void requirePropertyIdForContactSearch(String propertyId) {
+            if (!StringUtils.hasText(propertyId)) {
+                throw new BadRequestException("propertyId is required when searching by phone number or email");
+            }
         }
 
         private ReservationViewResponseDto buildReservationViewForBooking(ReservationBookingRecord booking) {
@@ -687,8 +736,13 @@ private ReservationBookingRequestDto requestForRoom(
                 .email(preferredEmail(booking))
                 .address(booking.getAddress())
                 .city(booking.getCity())
+                .state(booking.getState())
                 .country(booking.getCountry())
                 .zipCode(booking.getZipCode())
+                .dateOfBirth(booking.getDateOfBirth())
+                .idType(booking.getIdType())
+                .idNumber(booking.getIdNumber())
+                .enrollGuest(booking.getEnrollGuest())
                 .loyaltyNumber(booking.getLoyaltyNumber())
                 .build();
     }
@@ -785,6 +839,20 @@ private ReservationBookingRequestDto requestForRoom(
                 .guestBalance(folioOutstanding)
                 .discount(booking.getDiscount())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void updateGuestBalance(String confirmationNumber, Long bookingId, BigDecimal guestBalance) {
+        ReservationBookingRecord booking = bookingId == null
+                ? reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(confirmationNumber)
+                .stream().findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"))
+                : reservationBookingRepository.findById(bookingId)
+                .filter(item -> confirmationNumber.equals(item.getConfirmationNumber()))
+                .orElseThrow(() -> new BadRequestException("Room booking not found for confirmation number"));
+        booking.setGuestBalance(guestBalance == null ? BigDecimal.ZERO : guestBalance.max(BigDecimal.ZERO));
+        reservationBookingRepository.save(booking);
     }
 
     private ReservationViewResponseDto.CommentsDto buildComments(ReservationBookingRecord booking) {
@@ -1037,6 +1105,8 @@ private ReservationBookingRequestDto requestForRoom(
 
         request.setPropertyId(normalizePropertyId(request.getPropertyId()));
 
+        validateIdentityProof(request);
+
         request.setSalutation(defaultIfBlank(request.getSalutation(), "Mr"));
         request.setReservationType(defaultIfBlank(request.getReservationType(), "GTD"));
         request.setCity(defaultIfBlank(request.getCity(), "UNKNOWN"));
@@ -1082,6 +1152,10 @@ private ReservationBookingRequestDto requestForRoom(
             request.setDnm(Boolean.FALSE);
         }
 
+        if (request.getEnrollGuest() == null) {
+            request.setEnrollGuest(Boolean.FALSE);
+        }
+
         if (request.getDiscount() == null) {
             request.setDiscount(BigDecimal.ZERO);
         }
@@ -1108,6 +1182,25 @@ private ReservationBookingRequestDto requestForRoom(
             return UUID.fromString(propertyId.trim()).toString();
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException("propertyId must be a valid UUID");
+        }
+    }
+
+    private void validateIdentityProof(ReservationBookingRequestDto request) {
+        boolean hasIdType = StringUtils.hasText(request.getIdType());
+        boolean hasIdNumber = StringUtils.hasText(request.getIdNumber());
+        if (hasIdType && !hasIdNumber) {
+            throw new BadRequestException("idNumber is required when idType is provided");
+        }
+        if (hasIdNumber && !hasIdType) {
+            throw new BadRequestException("idType is required when idNumber is provided");
+        }
+        if (hasIdType) {
+            String normalizedIdType = request.getIdType().trim().toUpperCase(Locale.ROOT);
+            if (!IdTypes.supportedTypes().contains(normalizedIdType)) {
+                throw new BadRequestException("idType must be AADHAAR, PAN, DRIVING_LICENSE, or PASSPORT");
+            }
+            request.setIdType(normalizedIdType);
+            request.setIdNumber(request.getIdNumber().trim());
         }
     }
 

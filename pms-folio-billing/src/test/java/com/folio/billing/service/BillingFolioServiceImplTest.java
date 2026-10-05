@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -103,6 +104,68 @@ class BillingFolioServiceImplTest {
                 assertEquals(List.of("FOLIO A", "FOLIO B"), details.folios().stream()
                         .map(FolioDetailsResponse.Folio::folioName)
                         .toList());
+        }
+
+        @Test
+        void loadsPersistedFolioTransactionsForTheRequestedBookingAndCode() {
+                ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+                FolioRepository folioRepository = mock(FolioRepository.class);
+                Instant now = Instant.now();
+                Folio folioA = new Folio("CONF-MULTI", "A", "Guest", "301",
+                                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, now, now);
+                folioA.setBookingId(72L);
+                Folio folioB = new Folio("CONF-MULTI", "B", "Guest", "301",
+                                new BigDecimal("100.00"), BigDecimal.ZERO, new BigDecimal("100.00"), now, now);
+                folioB.setBookingId(72L);
+                folioB.setTransactionsJson("[{\"date\":\"2026-09-23\",\"referenceNumber\":\"TXN-B\",\"transactionType\":\"CHARGE\",\"category\":\"ACCOMMODATION\",\"description\":\"Dinner\",\"charges\":100,\"credit\":0,\"userId\":\"agent\",\"postedAt\":null,\"originalReferenceNumber\":null,\"adjustmentReason\":null}]");
+
+                when(folioRepository.findAll()).thenReturn(List.of(folioA, folioB));
+                when(folioRepository.findByConfirmationNumberOrderByFolioCode("CONF-MULTI"))
+                                .thenReturn(List.of(folioA, folioB));
+                when(folioRepository.findByBookingIdAndFolioCode(72L, "A")).thenReturn(Optional.of(folioA));
+                when(folioRepository.findByBookingIdAndFolioCode(72L, "B")).thenReturn(Optional.of(folioB));
+                when(folioRepository.findByBookingIdOrderByFolioCode(72L)).thenReturn(List.of(folioA, folioB));
+
+                BillingFolioServiceImpl service = new BillingFolioServiceImpl(
+                                reservations, new ObjectMapper().findAndRegisterModules(), folioRepository);
+
+                FolioDetailsResponse details = service.getFolioDetails("CONF-MULTI", 72L);
+
+                assertEquals(List.of("FOLIO A", "FOLIO B"), details.folios().stream()
+                                .map(FolioDetailsResponse.Folio::folioName)
+                                .toList());
+                assertEquals(List.of("TXN-B"), details.folios().get(1).transactions().stream()
+                                .map(FolioDetailsResponse.Transaction::referenceNumber)
+                                .toList());
+                verify(folioRepository, atLeastOnce()).findByBookingIdAndFolioCode(72L, "B");
+        }
+
+    @Test
+    void synchronizesAggregateBalanceAcrossFoliosForTheBooking() {
+        ReservationServiceClient reservations = mock(ReservationServiceClient.class);
+        FolioRepository folioRepository = mock(FolioRepository.class);
+        Instant now = Instant.now();
+        Folio folioA = new Folio("CONF-AGG", "A", "Guest", "101",
+                new BigDecimal("6500.00"), BigDecimal.ZERO, new BigDecimal("6500.00"), now, now);
+        folioA.setBookingId(7L);
+        folioA.setTransactionsJson("[{\"date\":\"2026-09-24\",\"referenceNumber\":\"ROOM-1\",\"transactionType\":\"CHARGE\",\"category\":\"ACCOMMODATION\",\"description\":\"Room\",\"charges\":6500,\"credit\":0,\"userId\":\"agent\"}]");
+        Folio folioB = new Folio("CONF-AGG", "B", "Guest", "101",
+                BigDecimal.ZERO, new BigDecimal("4500.00"), new BigDecimal("-4500.00"), now, now);
+        folioB.setBookingId(7L);
+        folioB.setTransactionsJson("[{\"date\":\"2026-09-24\",\"referenceNumber\":\"PAY-1\",\"transactionType\":\"PAYMENT\",\"category\":\"CASH\",\"description\":\"Payment\",\"charges\":0,\"credit\":4500,\"userId\":\"agent\"}]");
+        when(folioRepository.findAll()).thenReturn(List.of(folioA, folioB));
+        when(folioRepository.findByBookingIdAndFolioCode(7L, "A")).thenReturn(Optional.of(folioA));
+        when(folioRepository.findByBookingIdOrderByFolioCode(7L)).thenReturn(List.of(folioA, folioB));
+
+        BillingFolioServiceImpl service = new BillingFolioServiceImpl(
+                reservations, new ObjectMapper().findAndRegisterModules(), folioRepository);
+        FolioChargePostRequest request = new FolioChargePostRequest(
+                "CONF-AGG", "101", "Guest", "Housekeeping", "Laundry",
+                new BigDecimal("100.00"), null, "agent");
+        request.setBookingId(7L);
+        service.addCharge(request);
+
+        verify(reservations).updateGuestBalance("CONF-AGG", 7L, new BigDecimal("2100.00"));
         }
 
     @Test
