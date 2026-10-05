@@ -49,7 +49,6 @@ public class RateManagementServiceClient implements RateManagementPort {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String MASTER_ROOM_PRICING_PATH = "/api/master-rooms/{id}/pricing";
-    private static final int MAX_PRICED_OCCUPANCY = 4;
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
