@@ -135,6 +135,15 @@ public class PublishServiceImpl implements PublishService {
     }
 
     private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, UUID actor) {
+        String propertyCode = normalized.property().getPropertyCode();
+        if (propertyCode != null && !propertyCode.isBlank()) {
+            boolean codeExists = propertyRepository.findAll().stream()
+                .anyMatch(p -> propertyCode.equalsIgnoreCase(p.getPropertyCode()));
+            if (codeExists) {
+                throw new BadRequestException("Property code already exists: " + propertyCode);
+            }
+        }
+
         normalized.property().setCreatedBy(actor);
         PropertyEntity property = propertyRepository.save(normalized.property());
         String propertyId = property.getId();
@@ -146,6 +155,16 @@ public class PublishServiceImpl implements PublishService {
         String propertyId = draft.getPublishedPropertyId();
         if (propertyId == null || propertyId.isBlank()) {
             throw new BadRequestException("Draft already published, but property id missing");
+        }
+
+        String propertyCode = normalized.property().getPropertyCode();
+        if (propertyCode != null && !propertyCode.isBlank()) {
+            boolean codeExists = propertyRepository.findAll().stream()
+                .filter(p -> !propertyId.equals(p.getId()))
+                .anyMatch(p -> propertyCode.equalsIgnoreCase(p.getPropertyCode()));
+            if (codeExists) {
+                throw new BadRequestException("Property code already exists: " + propertyCode);
+            }
         }
 
         PropertyEntity existing = propertyRepository.findById(propertyId)
@@ -254,6 +273,15 @@ public class PublishServiceImpl implements PublishService {
      * reservations) reference room outlet type ids, so ids must survive a republish.
      */
     private void saveRoomOutletTypes(List<RoomOutletTypeEntity> entities, String propertyId) {
+        for (RoomOutletTypeEntity entity : entities) {
+            String code = entity.getRoomCode();
+            if (code == null || code.isBlank()) {
+                throw new BadRequestException("roomCode is required for room outlet type");
+            }
+            if (!code.trim().matches("^[A-Z_]{2,20}$")) {
+                throw new BadRequestException("roomCode must match ^[A-Z_]{2,20}$");
+            }
+        }
         List<RoomOutletTypeEntity> existing = roomOutletTypeRepository.findAllByPropertyId(propertyId);
         Map<String, RoomOutletTypeEntity> existingByCode = new HashMap<>();
         Map<String, RoomOutletTypeEntity> existingByName = new HashMap<>();
