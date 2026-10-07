@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.hamcrest.Matchers.containsString;
@@ -208,12 +209,10 @@ class ReservationGuestHttpFlowTest {
     void existingGuestLookupIsReusedWithoutCreatingOrUpdatingProfile() {
         ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, false);
         ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
-        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests/lookup"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.propertyId").value(PROPERTY_ID))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.phoneNumber").value("5551000"))
+        guestHttp.expect(requestTo(containsString(GUEST_SERVICE_URL + "/api/v1/guests/lookup?")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("propertyId", PROPERTY_ID))
+                .andExpect(queryParam("phoneNumber", "5551000"))
                 .andRespond(withSuccess(profileJson(721L, "GST-EXISTING-721", PROPERTY_ID, null, null),
                         org.springframework.http.MediaType.APPLICATION_JSON));
 
@@ -242,8 +241,8 @@ class ReservationGuestHttpFlowTest {
     void existingGuestEnrollmentUpdatesAndReusesTheSameProfile() {
         ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
         ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
-        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests/lookup"))
-                .andExpect(method(HttpMethod.POST))
+        guestHttp.expect(requestTo(containsString(GUEST_SERVICE_URL + "/api/v1/guests/lookup?")))
+                .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(profileJson(731L, "GST-EXISTING-731", PROPERTY_ID, null, null),
                         org.springframework.http.MediaType.APPLICATION_JSON));
         guestHttp.expect(requestTo(
@@ -274,10 +273,9 @@ class ReservationGuestHttpFlowTest {
         roomType.setId(1L);
         roomType.setRoomCode("DLX");
         when(propertyInventoryPort.fetchRoomOutletTypes(OTHER_PROPERTY_ID)).thenReturn(List.of(roomType));
-        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests/lookup"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.propertyId").value(OTHER_PROPERTY_ID))
+        guestHttp.expect(requestTo(containsString(GUEST_SERVICE_URL + "/api/v1/guests/lookup?")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("propertyId", OTHER_PROPERTY_ID))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
         guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests"))
                 .andExpect(method(HttpMethod.POST))
@@ -293,14 +291,11 @@ class ReservationGuestHttpFlowTest {
     }
 
     private void expectNoGuestLookup(String phone, String firstName) {
-        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests/lookup"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.propertyId").value(PROPERTY_ID))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.phoneNumber").value(phone))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.firstName").value(firstName))
+        guestHttp.expect(requestTo(containsString(GUEST_SERVICE_URL + "/api/v1/guests/lookup?")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("propertyId", PROPERTY_ID))
+                .andExpect(queryParam("phoneNumber", phone))
+                .andExpect(queryParam("firstName", firstName))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
     }
 

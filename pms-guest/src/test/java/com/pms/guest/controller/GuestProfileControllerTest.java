@@ -15,6 +15,7 @@ import com.pms.guest.dto.request.GuestLookupRequest;
 import com.pms.guest.dto.request.GuestProfileUpdateRequest;
 import com.pms.guest.dto.response.GuestProfileResponse;
 import com.pms.guest.exception.GuestProfileExceptionHandler;
+import com.pms.guest.service.GuestDetailsService;
 import com.pms.guest.service.GuestProfileService;
 import jakarta.persistence.EntityNotFoundException;
 import java.time.LocalDate;
@@ -37,6 +38,9 @@ class GuestProfileControllerTest {
     @Mock
     private GuestProfileService guestProfileService;
 
+    @Mock
+    private GuestDetailsService guestDetailsService;
+
     private MockMvc mockMvc;
     private LocalValidatorFactoryBean validator;
 
@@ -44,7 +48,8 @@ class GuestProfileControllerTest {
     void setUp() {
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        mockMvc = MockMvcBuilders.standaloneSetup(new GuestProfileController(guestProfileService))
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        new GuestProfileController(guestProfileService, guestDetailsService))
                 .setValidator(validator)
                 .setControllerAdvice(new GuestProfileExceptionHandler())
                 .build();
@@ -160,18 +165,15 @@ class GuestProfileControllerTest {
     void lookupReturns404ForNoMatchAnd400WhenNoDeterministicIdentifierIsProvided() throws Exception {
         when(guestProfileService.findExistingGuest(any(GuestLookupRequest.class)))
                 .thenReturn(java.util.Optional.empty());
-        mockMvc.perform(post("/api/v1/guests/lookup")
-                        .contentType("application/json")
-                        .content("""
-                                {"propertyId":"PROP-A","phoneNumber":"555-1000"}
-                                """))
+        mockMvc.perform(get("/api/v1/guests/lookup")
+                        .param("propertyId", "PROP-A")
+                        .param("phoneNumber", "555-1000"))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(post("/api/v1/guests/lookup")
-                        .contentType("application/json")
-                        .content("""
-                                {"propertyId":"PROP-A","firstName":"Ava","lastName":"Guest"}
-                                """))
+        mockMvc.perform(get("/api/v1/guests/lookup")
+                        .param("propertyId", "PROP-A")
+                        .param("firstName", "Ava")
+                        .param("lastName", "Guest"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
@@ -181,11 +183,9 @@ class GuestProfileControllerTest {
         when(guestProfileService.findExistingGuest(any(GuestLookupRequest.class)))
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Multiple guest profiles match"));
 
-        mockMvc.perform(post("/api/v1/guests/lookup")
-                        .contentType("application/json")
-                        .content("""
-                                {"propertyId":"PROP-A","phoneNumber":"555-1000"}
-                                """))
+        mockMvc.perform(get("/api/v1/guests/lookup")
+                        .param("propertyId", "PROP-A")
+                        .param("phoneNumber", "555-1000"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false));
     }

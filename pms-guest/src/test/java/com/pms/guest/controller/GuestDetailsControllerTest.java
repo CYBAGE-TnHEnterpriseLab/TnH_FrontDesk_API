@@ -14,6 +14,7 @@ import com.pms.guest.exception.ReservationServiceException;
 import com.pms.guest.integration.ReservationServiceClient;
 import com.pms.guest.integration.dto.ReservationGuestAssignment;
 import com.pms.guest.repository.GuestProfileRepository;
+import com.pms.guest.service.GuestProfileService;
 import com.pms.guest.service.impl.GuestDetailsServiceImpl;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -35,6 +36,9 @@ class GuestDetailsControllerTest {
     @Mock
     private ReservationServiceClient reservationServiceClient;
 
+    @Mock
+    private GuestProfileService guestProfileService;
+
     private MockMvc mockMvc;
     private LocalValidatorFactoryBean validator;
 
@@ -42,7 +46,8 @@ class GuestDetailsControllerTest {
     void setUp() {
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        mockMvc = MockMvcBuilders.standaloneSetup(new GuestDetailsController(
+        mockMvc = MockMvcBuilders.standaloneSetup(new GuestProfileController(
+                        guestProfileService,
                         new GuestDetailsServiceImpl(guestProfileRepository, reservationServiceClient)))
                 .setValidator(validator)
                 .setControllerAdvice(new GuestProfileExceptionHandler())

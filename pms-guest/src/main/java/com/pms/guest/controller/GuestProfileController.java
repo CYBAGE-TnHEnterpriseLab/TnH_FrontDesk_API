@@ -3,8 +3,10 @@ package com.pms.guest.controller;
 import com.pms.guest.dto.request.GuestProfileCreateRequest;
 import com.pms.guest.dto.request.GuestLookupRequest;
 import com.pms.guest.dto.request.GuestProfileUpdateRequest;
+import com.pms.guest.dto.response.GuestDetailsResponse;
 import com.pms.guest.dto.response.GuestProfileResponse;
 import com.pms.guest.service.GuestProfileService;
+import com.pms.guest.service.GuestDetailsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -20,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,17 +38,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class GuestProfileController {
 
     private final GuestProfileService guestProfileService;
+    private final GuestDetailsService guestDetailsService;
 
-    public GuestProfileController(GuestProfileService guestProfileService) {
+    public GuestProfileController(
+            GuestProfileService guestProfileService,
+            GuestDetailsService guestDetailsService
+    ) {
         this.guestProfileService = guestProfileService;
+        this.guestDetailsService = guestDetailsService;
     }
 
-    @PostMapping("/lookup")
+    @GetMapping("/lookup")
     @Operation(
-            summary = "Find an existing guest profile using property-scoped identifiers",
-            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    required = true,
-                    content = @Content(schema = @Schema(implementation = GuestLookupRequest.class))))
+            summary = "Find an existing guest profile using property-scoped identifiers")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "200",
@@ -56,8 +61,24 @@ public class GuestProfileController {
         @ApiResponse(responseCode = "400", description = "Invalid lookup request")
     })
     public ResponseEntity<GuestProfileResponse> findExistingGuest(
-            @Valid @RequestBody GuestLookupRequest request
+            @RequestParam @NotBlank(message = "propertyId is required") String propertyId,
+            @RequestParam(required = false) String firstName,
+            @RequestParam(required = false) String lastName,
+            @RequestParam(required = false) String phoneNumber,
+            @RequestParam(required = false) String personalEmail,
+            @RequestParam(required = false) String loyaltyNumber
     ) {
+        GuestLookupRequest request = new GuestLookupRequest();
+        request.setPropertyId(propertyId);
+        request.setFirstName(firstName);
+        request.setLastName(lastName);
+        request.setPhoneNumber(phoneNumber);
+        request.setPersonalEmail(personalEmail);
+        request.setLoyaltyNumber(loyaltyNumber);
+        if (!request.isLookupIdentifierProvided()) {
+            throw new IllegalArgumentException(
+                    "At least one contact or loyalty lookup field is required");
+        }
         return guestProfileService.findExistingGuest(request)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -126,6 +147,25 @@ public class GuestProfileController {
         return guestProfileService.updateGuestProfile(id, propertyId, request);
     }
 
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete an unused guest profile")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Guest profile deleted"),
+        @ApiResponse(responseCode = "404", description = "Guest profile not found"),
+        @ApiResponse(responseCode = "409",
+                description = "Guest profile has reservation history and cannot be deleted"),
+        @ApiResponse(responseCode = "400", description = "propertyId is required")
+    })
+    public ResponseEntity<Void> deleteGuestProfile(
+            @Parameter(description = "Guest profile database ID", required = true)
+            @PathVariable Long id,
+            @Parameter(description = "Property ID used to scope the profile", required = true)
+            @RequestParam @NotBlank(message = "propertyId is required") String propertyId
+    ) {
+        guestProfileService.deleteGuestProfile(id, propertyId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/search")
     @Operation(summary = "Search guest profiles within a property")
     @ApiResponses({
@@ -160,6 +200,37 @@ public class GuestProfileController {
                 personalEmail,
                 officialEmail,
                 loyaltyNumber
+        );
+    }
+
+    @GetMapping("/details")
+    @Operation(summary = "Get guest details by exactly one of phoneNumber, email, bookingId or confirmationNumber")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "All matching guest-booking assignments (possibly empty)",
+                content = @Content(schema = @Schema(implementation = GuestDetailsResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Missing propertyId or not exactly one search criterion"),
+        @ApiResponse(responseCode = "502", description = "Reservation service unavailable")
+    })
+    public GuestDetailsResponse getGuestDetails(
+            @Parameter(description = "Property ID used to scope the search", required = true)
+            @RequestParam @NotBlank(message = "propertyId is required") String propertyId,
+            @Parameter(description = "Exact match against phoneNumber or mobileNumber")
+            @RequestParam(required = false) String phoneNumber,
+            @Parameter(description = "Exact, case-sensitive match against personalEmail or officialEmail")
+            @RequestParam(required = false) String email,
+            @Parameter(description = "Reservation booking ID")
+            @RequestParam(required = false) Long bookingId,
+            @Parameter(description = "Reservation confirmation number (may span multiple bookings)")
+            @RequestParam(required = false) String confirmationNumber
+    ) {
+        return guestDetailsService.getGuestDetails(
+                propertyId,
+                phoneNumber,
+                email,
+                bookingId,
+                confirmationNumber
         );
     }
 }

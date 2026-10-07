@@ -15,6 +15,8 @@ public interface GuestProfileService {
 
     GuestProfileResponse updateGuestProfile(Long id, String propertyId, GuestProfileUpdateRequest request);
 
+    void deleteGuestProfile(Long id, String propertyId);
+
     Optional<GuestProfileResponse> findExistingGuest(GuestLookupRequest request);
 
     List<GuestProfileResponse> searchGuestProfiles(

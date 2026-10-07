@@ -55,8 +55,8 @@ class GuestServiceClientTest {
                 .propertyId("property-1")
                 .build();
         when(restTemplate.exchange(
-                eq("http://guest-service/api/v1/guests/lookup"),
-                eq(HttpMethod.POST),
+                org.mockito.ArgumentMatchers.contains("http://guest-service/api/v1/guests/lookup?propertyId=property-1"),
+                eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 eq(GuestProfileResponse.class)
         )).thenReturn(ResponseEntity.ok(expected));
@@ -74,7 +74,7 @@ class GuestServiceClientTest {
                 .build();
         when(restTemplate.exchange(
                 any(String.class),
-                eq(HttpMethod.POST),
+                eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 eq(GuestProfileResponse.class)
         )).thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND));
@@ -90,7 +90,7 @@ class GuestServiceClientTest {
                 .build();
         when(restTemplate.exchange(
                 any(String.class),
-                eq(HttpMethod.POST),
+                eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 eq(GuestProfileResponse.class)
         )).thenThrow(new ResourceAccessException("Connection timed out"));
@@ -213,7 +213,7 @@ class GuestServiceClientTest {
                 .build();
         when(restTemplate.exchange(
                 any(String.class),
-                eq(HttpMethod.POST),
+                eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 eq(GuestProfileResponse.class)
         )).thenThrow(new HttpClientErrorException(HttpStatus.CONFLICT));
@@ -287,7 +287,7 @@ class GuestServiceClientTest {
     void clientRejectsEmptyOrMalformedSuccessfulResponses() {
         when(restTemplate.exchange(
                 any(String.class),
-                eq(HttpMethod.POST),
+                eq(HttpMethod.GET),
                 any(HttpEntity.class),
                 eq(GuestProfileResponse.class)
         )).thenReturn(ResponseEntity.ok(null));

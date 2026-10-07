@@ -163,8 +163,19 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             savedBookings.add(reservationBookingRepository.save(entity));
         }
 
-        for (ReservationBookingRecord savedBooking : savedBookings) {
-            reservationGuestService.assignResolvedGuests(savedBooking.getId(), resolvedGuests);
+        try {
+            for (ReservationBookingRecord savedBooking : savedBookings) {
+                reservationGuestService.assignResolvedGuests(savedBooking.getId(), resolvedGuests);
+            }
+        } catch (RuntimeException assignmentFailure) {
+            compensateFailedBooking(
+                    request,
+                    confirmationNumber,
+                    payableAmount,
+                    paymentResult,
+                    assignmentFailure
+            );
+            throw assignmentFailure;
         }
 
         ReservationBookingRecord saved = savedBookings.get(0);
@@ -174,6 +185,35 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
             .roomBookings(toRoomBookingSummaries(savedBookings))
             .build();
+    }
+
+    private void compensateFailedBooking(
+            ReservationBookingRequestDto request,
+            String confirmationNumber,
+            BigDecimal payableAmount,
+            PaymentProcessingResult paymentResult,
+            RuntimeException assignmentFailure
+    ) {
+        try {
+            inventoryServiceClient.release(confirmationNumber);
+        } catch (RuntimeException compensationFailure) {
+            assignmentFailure.addSuppressed(compensationFailure);
+            log.error("Failed to release inventory after guest assignment failure for confirmation {}",
+                    confirmationNumber, compensationFailure);
+        }
+
+        try {
+            paymentProcessingService.compensatePayment(
+                    request,
+                    confirmationNumber,
+                    payableAmount,
+                    paymentResult
+            );
+        } catch (RuntimeException compensationFailure) {
+            assignmentFailure.addSuppressed(compensationFailure);
+            log.error("Failed to compensate payment after guest assignment failure for confirmation {}",
+                    confirmationNumber, compensationFailure);
+        }
     }
 
 private ReservationBookingRequestDto requestForRoom(
@@ -1382,5 +1422,4 @@ private ReservationBookingRequestDto requestForRoom(
         }
     }
 }
-
 

@@ -40,16 +40,22 @@ public class GuestServiceClient {
     }
 
     public Optional<GuestProfileResponse> findExistingGuest(GuestLookupRequest request) {
-        String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+        UriComponentsBuilder uri = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
                 .path(GUESTS_PATH)
                 .path("/lookup")
-                .toUriString();
+                .queryParam("propertyId", request.getPropertyId());
+        addQueryParam(uri, "firstName", request.getFirstName());
+        addQueryParam(uri, "lastName", request.getLastName());
+        addQueryParam(uri, "phoneNumber", request.getPhoneNumber());
+        addQueryParam(uri, "personalEmail", request.getPersonalEmail());
+        addQueryParam(uri, "loyaltyNumber", request.getLoyaltyNumber());
+        String url = uri.toUriString();
 
         try {
             ResponseEntity<GuestProfileResponse> response = restTemplate.exchange(
                     url,
-                    HttpMethod.POST,
-                    new HttpEntity<>(request, requestHeaders()),
+                    HttpMethod.GET,
+                    new HttpEntity<>(requestHeaders()),
                     GuestProfileResponse.class
             );
             return Optional.of(requireBody(response.getBody(), "guest lookup"));
@@ -57,6 +63,7 @@ public class GuestServiceClient {
             if (ex.getStatusCode().value() == 404) {
                 return Optional.empty();
             }
+
             if (ex.getStatusCode().value() == 409) {
                 throw new BadRequestException(
                         "Guest lookup is ambiguous; select an existing guest profile explicitly");
@@ -64,6 +71,12 @@ public class GuestServiceClient {
             throw downstreamFailure("guest lookup", ex);
         } catch (RestClientException ex) {
             throw downstreamFailure("guest lookup", ex);
+        }
+    }
+
+    private void addQueryParam(UriComponentsBuilder uri, String name, String value) {
+        if (StringUtils.hasText(value)) {
+            uri.queryParam(name, value);
         }
     }
 

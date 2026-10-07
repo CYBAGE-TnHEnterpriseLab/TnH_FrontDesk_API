@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,6 +80,45 @@ class ReservationBookingServiceImplTest {
     @Test
     void multipleRoomsResolveOnceAndAssignSameGuestsToEachSavedBookingId() {
         verifyCreateBooking(2, List.of("Ava Guest", "Bea Guest"), List.of(101L, 102L));
+    }
+
+    @Test
+    void guestAssignmentFailureReleasesInventoryAndCompensatesPayment() {
+        ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"));
+        List<ResolvedReservationGuest> resolvedGuests = List.of(
+                new ResolvedReservationGuest(125L, true));
+        when(guestResolver.resolveGuests(eq(PROPERTY_ID), same(request.getGuests())))
+                .thenReturn(resolvedGuests);
+
+        PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
+        roomType.setId(1L);
+        roomType.setRoomCode("DLX");
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(roomType));
+
+        PaymentProcessingResult paymentResult = PaymentProcessingResult.builder()
+                .status("SUCCESS")
+                .transactionReference("PAY-123")
+                .build();
+        when(paymentProcessingService.processPayment(same(request), any(String.class), any(BigDecimal.class)))
+                .thenReturn(paymentResult);
+        when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> {
+            ReservationBookingRecord booking = invocation.getArgument(0);
+            booking.setId(101L);
+            return booking;
+        });
+        doThrow(new IllegalStateException("guest assignment failed"))
+                .when(guestService).assignResolvedGuests(101L, resolvedGuests);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.createBooking(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("guest assignment failed");
+
+        verify(inventoryServiceClient).release(any(String.class));
+        verify(paymentProcessingService).compensatePayment(
+                same(request),
+                any(String.class),
+                any(BigDecimal.class),
+                same(paymentResult));
     }
 
     private void verifyCreateBooking(int roomCount, List<String> roomNames, List<Long> savedIds) {

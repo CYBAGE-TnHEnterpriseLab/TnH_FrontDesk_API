@@ -5,6 +5,7 @@ import com.pms.guest.dto.request.GuestLookupRequest;
 import com.pms.guest.dto.request.GuestProfileUpdateRequest;
 import com.pms.guest.dto.response.GuestProfileResponse;
 import com.pms.guest.entity.GuestProfile;
+import com.pms.guest.integration.ReservationServiceClient;
 import com.pms.guest.mapper.GuestProfileMapper;
 import com.pms.guest.repository.GuestProfileRepository;
 import com.pms.guest.service.GuestProfileService;
@@ -30,13 +31,23 @@ public class GuestProfileServiceImpl implements GuestProfileService {
 
     private final GuestProfileRepository guestProfileRepository;
     private final GuestProfileMapper guestProfileMapper;
+    private final ReservationServiceClient reservationServiceClient;
+
+    public GuestProfileServiceImpl(
+            GuestProfileRepository guestProfileRepository,
+            GuestProfileMapper guestProfileMapper,
+            ReservationServiceClient reservationServiceClient
+    ) {
+        this.guestProfileRepository = guestProfileRepository;
+        this.guestProfileMapper = guestProfileMapper;
+        this.reservationServiceClient = reservationServiceClient;
+    }
 
     public GuestProfileServiceImpl(
             GuestProfileRepository guestProfileRepository,
             GuestProfileMapper guestProfileMapper
     ) {
-        this.guestProfileRepository = guestProfileRepository;
-        this.guestProfileMapper = guestProfileMapper;
+        this(guestProfileRepository, guestProfileMapper, null);
     }
 
     @Override
@@ -72,6 +83,21 @@ public class GuestProfileServiceImpl implements GuestProfileService {
         guestProfileMapper.updateEntity(request, guestProfile);
         GuestProfile saved = guestProfileRepository.save(guestProfile);
         return guestProfileMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public void deleteGuestProfile(Long id, String propertyId) {
+        GuestProfile guestProfile = findGuestProfile(id, propertyId);
+        if (reservationServiceClient == null) {
+            throw new IllegalStateException("Reservation service client is required for guest deletion");
+        }
+        if (!reservationServiceClient.findAssignmentsByGuestProfileIds(propertyId, List.of(id)).isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Guest profile cannot be deleted while reservation history exists");
+        }
+        guestProfileRepository.delete(guestProfile);
     }
 
     @Override
