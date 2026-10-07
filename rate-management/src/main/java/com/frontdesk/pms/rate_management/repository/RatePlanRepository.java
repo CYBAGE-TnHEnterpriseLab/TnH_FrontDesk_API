@@ -22,6 +22,11 @@ public interface RatePlanRepository extends JpaRepository<RatePlan, Long> {
 
         List<RatePlan> findByPropertyIdOrderByIdDesc(String propertyId);
 
+        void deleteAllByPropertyId(String propertyId);
+
+    @Query("select distinct rp from RatePlan rp join rp.policyId policy where policy = :policyId")
+    List<RatePlan> findAllByMappedPolicyId(@Param("policyId") String policyId);
+
     @Query("select distinct rp from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
             "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId and rp.mealOption = :mealOption " +
             "and rp.status = :status and :stayDate between rp.startDate and rp.endDate")
