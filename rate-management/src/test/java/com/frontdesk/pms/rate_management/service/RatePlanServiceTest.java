@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.Map;
 import java.util.List;
 import java.util.Optional;
@@ -117,6 +118,32 @@ class RatePlanServiceTest {
     }
 
     @Test
+    void getAllRatePlans_shouldDeactivateExpiredActivePlans() {
+        RatePlan expiredPlan = new RatePlan();
+        expiredPlan.setId(1L);
+        expiredPlan.setPropertyId(PROPERTY_ID);
+        expiredPlan.setName("Expired Plan");
+        expiredPlan.setCode("EXPIRED");
+        expiredPlan.setOccupancyType("2 Guest");
+        expiredPlan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        expiredPlan.setType(RatePlanType.REFUNDABLE);
+        expiredPlan.setStatus(RatePlanStatus.ACTIVE);
+        expiredPlan.setStartDate(LocalDate.now().minusDays(10));
+        expiredPlan.setEndDate(LocalDate.now().minusDays(1));
+        expiredPlan.setApplicableRoomTypeIds(Set.of(101L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L));
+        when(ratePlanRepository.findByPropertyId(PROPERTY_ID)).thenReturn(List.of(expiredPlan));
+        when(ratePlanRepository.findByPropertyIdOrderByIdDesc(PROPERTY_ID)).thenReturn(List.of(expiredPlan));
+
+        ratePlanService.getAllRatePlans(PROPERTY_ID);
+
+        assertEquals(RatePlanStatus.INACTIVE, expiredPlan.getStatus());
+        verify(ratePlanRepository).saveAll(anyList());
+    }
+
+    @Test
     void getAvailableRatePlans_shouldReturnActivePlansForRoomTypeAndDate() {
         RatePlan plan = new RatePlan();
         plan.setId(1L);
@@ -152,6 +179,44 @@ class RatePlanServiceTest {
 
         assertEquals(1, result.size());
         assertEquals("CORP10", result.get(0).getCode());
+    }
+
+    @Test
+    void getAvailableRatePlans_shouldExcludePlansOnUnselectedWeekdays() {
+        RatePlan plan = new RatePlan();
+        plan.setId(1L);
+        plan.setName("Weekend Plan");
+        plan.setCode("WEEKEND");
+        plan.setOccupancyType("2 Guest");
+        plan.setMealOption(MasterRoomMealOption.BREAKFAST);
+        plan.setType(RatePlanType.REFUNDABLE);
+        plan.setStatus(RatePlanStatus.ACTIVE);
+        plan.setStartDate(LocalDate.of(2026, 6, 1));
+        plan.setEndDate(LocalDate.of(2026, 6, 30));
+        plan.setActiveDaysOfWeek(Set.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY));
+        plan.setCalculationMethod(RatePlanCalculationMethod.PERCENT_OFF_BAR);
+        plan.setAdjustmentValue(10.0);
+        plan.setApplicableRoomTypeIds(Set.of(101L));
+
+        LocalDate weekday = LocalDate.of(2026, 6, 10);
+        when(ratePlanRepository.findAvailableByRoomTypeMealAndDate(
+                PROPERTY_ID,
+                101L,
+                MasterRoomMealOption.BREAKFAST,
+                weekday,
+                RatePlanStatus.ACTIVE))
+                .thenReturn(List.of(plan));
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L));
+
+        List<RatePlanResponseDTO> result = ratePlanService.getAvailableRatePlans(
+                PROPERTY_ID,
+                101L,
+                "2 Guest",
+                MasterRoomMealOption.BREAKFAST,
+                weekday);
+
+        assertTrue(result.isEmpty());
     }
 
     @Test

@@ -73,7 +73,7 @@ public class RatePlanController {
     public List<RatePlanResponseDTO> getAvailableRatePlans(@PathVariable String propertyId,
             @RequestParam Long roomTypeId,
             @RequestParam String occupancyType,
-            @RequestParam MasterRoomMealOption mealOption,
+            @RequestParam(required = false) MasterRoomMealOption mealOption,
             @RequestParam LocalDate stayDate) {
         return ratePlanService.getAvailableRatePlans(propertyId, roomTypeId, occupancyType, mealOption, stayDate);
     }

@@ -56,6 +56,20 @@ public class ReservationBookingRecord extends BaseEntity {
     @Column(nullable = false, length = 160)
     private String guestName;
 
+    private LocalDate dateOfBirth;
+
+    @Column(length = 80)
+    private String state;
+
+    @Column(name = "id_type", length = 40)
+    private String idType;
+
+    @Column(name = "id_number", length = 120)
+    private String idNumber;
+
+    @Column(nullable = false)
+    private Boolean enrollGuest;
+
     @Column(nullable = false, length = 4000)
     private String guestNamesEncoded;
 

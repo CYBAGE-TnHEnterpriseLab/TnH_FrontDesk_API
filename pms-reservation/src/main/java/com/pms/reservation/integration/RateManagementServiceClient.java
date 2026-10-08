@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -22,6 +23,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -93,7 +96,8 @@ public class RateManagementServiceClient implements RateManagementPort {
             propertyId,
             roomTypeId,
             occupancyType,
-            arrivalDate
+            arrivalDate,
+            departureDate
         );
         if (availablePlans.isEmpty()) {
             return List.of();
@@ -221,14 +225,17 @@ public class RateManagementServiceClient implements RateManagementPort {
             String propertyId,
             Long roomTypeId,
             String occupancyType,
-            LocalDate stayDate
+            LocalDate arrivalDate,
+            LocalDate departureDate
     ) {
         boolean shouldTryAvailableEndpoint = !availablePlansGetUnsupported.get()
             && !(roomTypeId == null && availablePlansRequireRoomTypeId.get());
 
         if (shouldTryAvailableEndpoint) {
             try {
-                return getAvailableRatePlans(propertyId, roomTypeId, occupancyType, null, stayDate);
+                List<RateManagementPlanDto> availablePlans = getAvailableRatePlans(
+                    propertyId, roomTypeId, occupancyType, null, arrivalDate);
+                return filterPlansForStay(availablePlans, arrivalDate, departureDate);
             } catch (ExternalServiceException ex) {
                 if (!isAvailableEndpointUnsupported(ex)) {
                     throw ex;
@@ -252,7 +259,7 @@ public class RateManagementServiceClient implements RateManagementPort {
         }
 
         List<RateManagementPlanDto> configuredPlans = listRatePlans(propertyId);
-        return filterFallbackPlans(configuredPlans, roomTypeId, stayDate);
+        return filterFallbackPlans(configuredPlans, roomTypeId, arrivalDate, departureDate);
     }
 
     @Override
@@ -978,7 +985,8 @@ public class RateManagementServiceClient implements RateManagementPort {
     private List<RateManagementPlanDto> filterFallbackPlans(
             List<RateManagementPlanDto> plans,
             Long requestedRoomTypeId,
-            LocalDate stayDate
+            LocalDate arrivalDate,
+            LocalDate departureDate
     ) {
         if (plans == null || plans.isEmpty()) {
             return List.of();
@@ -992,7 +1000,7 @@ public class RateManagementServiceClient implements RateManagementPort {
             if (!isPlanActive(plan)) {
                 continue;
             }
-            if (!isPlanApplicableForStayDate(plan, stayDate)) {
+            if (!isPlanApplicableForStay(plan, arrivalDate, departureDate)) {
                 continue;
             }
             if (!isApplicableToRequestedRoomTypeId(plan, requestedRoomTypeId)) {
@@ -1004,6 +1012,22 @@ public class RateManagementServiceClient implements RateManagementPort {
         return filtered;
     }
 
+    private List<RateManagementPlanDto> filterPlansForStay(
+            List<RateManagementPlanDto> plans,
+            LocalDate arrivalDate,
+            LocalDate departureDate
+    ) {
+        if (plans == null || plans.isEmpty()) {
+            return List.of();
+        }
+
+        return plans.stream()
+            .filter(plan -> plan != null
+                && isPlanActive(plan)
+                && isPlanApplicableForStay(plan, arrivalDate, departureDate))
+                .toList();
+    }
+
     private boolean isPlanActive(RateManagementPlanDto plan) {
         if (!StringUtils.hasText(plan.getStatus())) {
             return true;
@@ -1012,19 +1036,32 @@ public class RateManagementServiceClient implements RateManagementPort {
         return "ACTIVE".equalsIgnoreCase(plan.getStatus().trim());
     }
 
-    private boolean isPlanApplicableForStayDate(RateManagementPlanDto plan, LocalDate stayDate) {
-        if (stayDate == null) {
+    private boolean isPlanApplicableForStay(
+            RateManagementPlanDto plan,
+            LocalDate arrivalDate,
+            LocalDate departureDate
+    ) {
+        if (arrivalDate == null) {
             return true;
         }
 
+        LocalDate lastNight = departureDate != null && departureDate.isAfter(arrivalDate)
+                ? departureDate.minusDays(1)
+                : arrivalDate;
         LocalDate startDate = parseLocalDate(plan.getStartDate());
         LocalDate endDate = parseLocalDate(plan.getEndDate());
+        Set<DayOfWeek> activeDays = plan.getActiveDaysOfWeek();
 
-        if (startDate != null && stayDate.isBefore(startDate)) {
-            return false;
-        }
-        if (endDate != null && stayDate.isAfter(endDate)) {
-            return false;
+        for (LocalDate stayDate = arrivalDate; !stayDate.isAfter(lastNight); stayDate = stayDate.plusDays(1)) {
+            if (startDate != null && stayDate.isBefore(startDate)) {
+                return false;
+            }
+            if (endDate != null && stayDate.isAfter(endDate)) {
+                return false;
+            }
+            if (activeDays != null && !activeDays.isEmpty() && !activeDays.contains(stayDate.getDayOfWeek())) {
+                return false;
+            }
         }
 
         return true;

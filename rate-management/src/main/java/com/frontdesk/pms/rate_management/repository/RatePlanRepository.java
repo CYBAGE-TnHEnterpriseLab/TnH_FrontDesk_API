@@ -28,7 +28,8 @@ public interface RatePlanRepository extends JpaRepository<RatePlan, Long> {
     List<RatePlan> findAllByMappedPolicyId(@Param("policyId") String policyId);
 
     @Query("select distinct rp from RatePlan rp join rp.applicableRoomTypeIds roomTypeId " +
-            "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId and rp.mealOption = :mealOption " +
+            "where rp.propertyId = :propertyId and roomTypeId = :roomTypeId " +
+            "and (:mealOption is null or rp.mealOption = :mealOption) " +
             "and rp.status = :status and :stayDate between rp.startDate and rp.endDate")
     List<RatePlan> findAvailableByRoomTypeMealAndDate(@Param("propertyId") String propertyId,
                                                       @Param("roomTypeId") Long roomTypeId,

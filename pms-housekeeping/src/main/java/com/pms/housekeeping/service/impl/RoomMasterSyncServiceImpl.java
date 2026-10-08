@@ -148,7 +148,7 @@ public class RoomMasterSyncServiceImpl implements RoomMasterSyncService {
                             .roomTypeId(room.roomTypeId())
                             .roomTypeName(room.roomTypeName())
                             .floor(room.floor())
-                            .cleaningStatus(CleaningStatus.CLEAN)
+                            .cleaningStatus(CleaningStatus.DIRTY)
                             .frontOfficeStatus(FrontOfficeStatus.VACANT)
                             .reservationStatus(ReservationStatus.NOT_RESERVED)
                             .priority(HousekeepingPriority.NORMAL)

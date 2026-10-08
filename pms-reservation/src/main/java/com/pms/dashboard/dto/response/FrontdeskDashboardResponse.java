@@ -1,5 +1,7 @@
 package com.pms.dashboard.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

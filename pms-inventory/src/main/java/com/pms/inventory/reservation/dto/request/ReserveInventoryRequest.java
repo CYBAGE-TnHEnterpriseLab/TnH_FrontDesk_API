@@ -21,9 +21,9 @@ public record ReserveInventoryRequest(
         @Positive(message = "quantity must be greater than 0")
         Integer quantity
 ) {
-    @AssertTrue(message = "checkOutDate must be after checkInDate")
+    @AssertTrue(message = "checkOutDate must be on or after checkInDate")
     public boolean isDateRangeValid() {
-        return checkInDate != null && checkOutDate != null && checkOutDate.isAfter(checkInDate);
+        return checkInDate != null && checkOutDate != null && !checkOutDate.isBefore(checkInDate);
     }
 }
 

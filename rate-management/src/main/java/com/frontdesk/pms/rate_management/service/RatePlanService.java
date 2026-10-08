@@ -27,6 +27,8 @@ import java.util.Locale;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.time.DayOfWeek;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -89,6 +91,7 @@ public class RatePlanService {
         existing.setType(requestDTO.getType());
         existing.setStartDate(requestDTO.getStartDate());
         existing.setEndDate(requestDTO.getEndDate());
+        existing.setActiveDaysOfWeek(normalizeActiveDaysOfWeek(requestDTO.getActiveDaysOfWeek()));
         existing.setCalculationMethod(requestDTO.getCalculationMethod());
         existing.setAdjustmentValue(requestDTO.getAdjustmentValue());
         existing.setManualAmount(requestDTO.getManualAmount());
@@ -159,6 +162,7 @@ public class RatePlanService {
                 stayDate,
                 RatePlanStatus.ACTIVE)
                 .stream()
+                .filter(ratePlan -> ratePlan.getActiveDaysOfWeek().contains(stayDate.getDayOfWeek()))
                 .filter(ratePlan -> supportsOccupancy(ratePlan, normalizedOccupancyType))
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
@@ -267,6 +271,7 @@ public class RatePlanService {
         entity.setType(dto.getType());
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
+        entity.setActiveDaysOfWeek(normalizeActiveDaysOfWeek(dto.getActiveDaysOfWeek()));
         entity.setCalculationMethod(dto.getCalculationMethod());
         entity.setAdjustmentValue(dto.getAdjustmentValue());
         entity.setManualAmount(dto.getManualAmount());
@@ -290,6 +295,7 @@ public class RatePlanService {
         dto.setStatus(entity.getStatus());
         dto.setStartDate(entity.getStartDate());
         dto.setEndDate(entity.getEndDate());
+        dto.setActiveDaysOfWeek(entity.getActiveDaysOfWeek());
         dto.setApplicableRoomTypeIds(entity.getApplicableRoomTypeIds());
         dto.setCalculationMethod(entity.getCalculationMethod());
         dto.setAdjustmentValue(entity.getAdjustmentValue());
@@ -328,7 +334,15 @@ public class RatePlanService {
         };
     }
 
-    private Double resolveMasterBarAmount(String propertyId, RatePlan ratePlan, Long roomTypeId, String selectedOccupancyType) {
+    private Set<DayOfWeek> normalizeActiveDaysOfWeek(Set<DayOfWeek> activeDaysOfWeek) {
+        if (activeDaysOfWeek == null || activeDaysOfWeek.isEmpty()) {
+            return EnumSet.allOf(DayOfWeek.class);
+        }
+        return EnumSet.copyOf(activeDaysOfWeek);
+    }
+
+    private Double resolveMasterBarAmount(String propertyId, RatePlan ratePlan,
+            Long roomTypeId, String selectedOccupancyType) {
         if (roomTypeId == null) {
             throw new InvalidRatePlanException("Room type id is required to derive BAR amount");
         }
@@ -493,8 +507,11 @@ public class RatePlanService {
                     .filter(availableRoomTypeIds::contains)
                     .collect(Collectors.toCollection(HashSet::new));
 
-            boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
-            boolean shouldDeactivate = sanitizedRoomTypeIds.isEmpty() && ratePlan.getStatus() == RatePlanStatus.ACTIVE;
+                boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
+                boolean expired = ratePlan.getEndDate() != null
+                    && ratePlan.getEndDate().isBefore(LocalDate.now());
+                boolean shouldDeactivate = ratePlan.getStatus() == RatePlanStatus.ACTIVE
+                    && (sanitizedRoomTypeIds.isEmpty() || expired);
 
             if (roomTypesChanged || shouldDeactivate) {
                 ratePlan.setApplicableRoomTypeIds(sanitizedRoomTypeIds);

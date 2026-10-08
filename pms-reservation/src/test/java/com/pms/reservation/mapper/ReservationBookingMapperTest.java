@@ -33,6 +33,11 @@ class ReservationBookingMapperTest {
         assertThat(entity.getTotalRate()).isEqualByComparingTo("10000.00");
         assertThat(entity.getPaymentType()).isEqualTo("FULL_PAYMENT");
         assertThat(entity.getMobileNumber()).isEqualTo("9876543210");
+        assertThat(entity.getDateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 15));
+        assertThat(entity.getState()).isEqualTo("Maharashtra");
+        assertThat(entity.getIdType()).isEqualTo("PASSPORT");
+        assertThat(entity.getIdNumber()).isEqualTo("P1234567");
+        assertThat(entity.getEnrollGuest()).isTrue();
         assertThat(entity.getAssignedRoomNo()).isEqualTo("1203");
         assertThat(entity.getFloor()).isEqualTo(12);
         assertThat(entity.getCreatedAt()).isNotNull();
@@ -63,7 +68,7 @@ class ReservationBookingMapperTest {
     }
 
     @Test
-    void toEntityShouldSetTotalRateToZeroWhenStayNightsAreZero() {
+    void toEntityShouldSetTotalRateToOneNightWhenStayNightsAreZero() {
         ReservationBookingRequestDto request = validRequest();
         request.setArrivalDate(LocalDate.of(2026, 6, 20));
         request.setDepartureDate(LocalDate.of(2026, 6, 20));
@@ -72,7 +77,7 @@ class ReservationBookingMapperTest {
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
-        assertThat(entity.getTotalRate()).isEqualByComparingTo("0");
+        assertThat(entity.getTotalRate()).isEqualByComparingTo("5000.00");
     }
 
     @Test
@@ -142,6 +147,11 @@ class ReservationBookingMapperTest {
         request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");
+        request.setDateOfBirth(LocalDate.of(1990, 1, 15));
+        request.setState("Maharashtra");
+        request.setIdType("PASSPORT");
+        request.setIdNumber("P1234567");
+        request.setEnrollGuest(Boolean.TRUE);
         request.setGuestNames(List.of("Alex Johnson"));
         request.setPersonalEmail("alex.personal@example.com");
         request.setOfficialEmail("alex.official@example.com");

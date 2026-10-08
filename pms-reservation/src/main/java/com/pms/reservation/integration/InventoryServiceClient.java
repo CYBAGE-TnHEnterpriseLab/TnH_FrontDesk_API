@@ -40,6 +40,9 @@ public class InventoryServiceClient {
                     InventoryReservationResponse.class
             );
             return response.getBody();
+        } catch (HttpStatusCodeException ex) {
+            String body = ex.getResponseBodyAsString();
+            throw new ExternalServiceException("Failed to reserve inventory: " + body, ex);
         } catch (RestClientException ex) {
             throw new ExternalServiceException("Failed to reserve inventory", ex);
         }
@@ -56,6 +59,9 @@ public class InventoryServiceClient {
                     new HttpEntity<>(headers()),
                     InventoryReservationResponse.class
             );
+        } catch (HttpStatusCodeException ex) {
+            String body = ex.getResponseBodyAsString();
+            throw new ExternalServiceException("Failed to release inventory: " + body, ex);
         } catch (RestClientException ex) {
             throw new ExternalServiceException("Failed to release inventory", ex);
         }
