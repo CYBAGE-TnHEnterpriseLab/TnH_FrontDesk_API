@@ -8,6 +8,7 @@ import com.pms.reservation.service.ReservationAvailabilityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -38,7 +39,9 @@ public class ReservationAvailabilityController {
             @RequestParam(name = "arrivalDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate arrivalDate,
             @RequestParam(name = "departureDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate departureDate,
             @RequestParam(required = false) @Min(value = 1, message = "night must be >= 1") Integer night,
-            @RequestParam(required = false) @Min(value = 1, message = "numberOfRooms must be >= 1") Integer numberOfRooms,
+            @RequestParam(required = false)
+            @Min(value = 1, message = "numberOfRooms must be >= 1")
+            @Max(value = 9, message = "numberOfRooms must be <= 9") Integer numberOfRooms,
             @RequestParam(required = false) String groupCode,
             @RequestParam(required = false) @Min(value = 1, message = "adults must be >= 1") Integer adults,
             @RequestParam(required = false) @Min(value = 0, message = "children must be >= 0") Integer children,

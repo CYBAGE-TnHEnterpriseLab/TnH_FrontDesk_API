@@ -1,5 +1,6 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.pms.common.entity.BaseEntity;
 import com.frontdesk.pms.rate_management.enums.RatePlanCalculationMethod;
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.enums.RatePlanStatus;
@@ -10,10 +11,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,13 +24,14 @@ import java.util.Set;
 @Table(
         name = "rate_plan",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_rate_plan_code", columnNames = {"code"})
+            @UniqueConstraint(name = "uk_rate_plan_property_name", columnNames = {"property_id", "name"}),
+            @UniqueConstraint(name = "uk_rate_plan_property_code", columnNames = {"property_id", "code"})
         }
 )
 @Getter
 @Setter
 @NoArgsConstructor
-public class RatePlan {
+public class RatePlan extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -68,6 +72,12 @@ public class RatePlan {
 
     @Column(nullable = false)
     private LocalDate endDate;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "rate_plan_active_day", joinColumns = @JoinColumn(name = "rate_plan_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_of_week", nullable = false)
+    private Set<DayOfWeek> activeDaysOfWeek = EnumSet.allOf(DayOfWeek.class);
 
     @Column
     private Double adjustmentValue;

@@ -16,6 +16,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "reservation_bookings", indexes = {
@@ -26,16 +29,16 @@ import lombok.Setter;
 })
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReservationBookingRecord {
+@SuperBuilder
+public class ReservationBookingRecord extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 80)
+    @Column(nullable = false, length = 80)
     private String confirmationNumber;
 
     @Column(nullable = false, length = 30)
@@ -53,6 +56,20 @@ public class ReservationBookingRecord {
     @Column(nullable = false, length = 160)
     private String guestName;
 
+    private LocalDate dateOfBirth;
+
+    @Column(length = 80)
+    private String state;
+
+    @Column(name = "id_type", length = 40)
+    private String idType;
+
+    @Column(name = "id_number", length = 120)
+    private String idNumber;
+
+    @Column(nullable = false)
+    private Boolean enrollGuest;
+
     @Column(nullable = false, length = 4000)
     private String guestNamesEncoded;
 
@@ -61,6 +78,9 @@ public class ReservationBookingRecord {
 
     @Column(nullable = false, length = 160)
     private String officialEmail;
+
+    @Column(length = 255)
+    private String address;
 
     @Column(nullable = false, length = 80)
     private String city;
@@ -107,6 +127,9 @@ public class ReservationBookingRecord {
     @Column(nullable = false, length = 20)
     private String reservationType;
 
+    @Column(length = 80)
+    private String blockCode;
+
     @Column(nullable = false, length = 40)
     private String roomType;
 
@@ -123,6 +146,9 @@ public class ReservationBookingRecord {
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal rate;
+
+    @Column(precision = 5, scale = 2)
+    private BigDecimal taxPercent;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalRate;
@@ -174,7 +200,4 @@ public class ReservationBookingRecord {
     private String checkOutCompletedBy;
 
     private LocalDate checkOutBusinessDate;
-
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 }

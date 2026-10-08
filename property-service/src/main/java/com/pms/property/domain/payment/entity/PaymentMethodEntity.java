@@ -1,5 +1,6 @@
 package com.pms.property.domain.payment.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -13,7 +14,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @Table(name = "payment_method")
-public class PaymentMethodEntity {
+public class PaymentMethodEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

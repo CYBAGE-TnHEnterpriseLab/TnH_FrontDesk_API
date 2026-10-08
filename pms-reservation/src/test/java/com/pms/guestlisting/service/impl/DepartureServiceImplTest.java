@@ -37,7 +37,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class DepartureServiceImplTest {
 
-    private static final String PROPERTY_ID = "PROP001";
+    private static final String PROPERTY_ID = "7cfd4559-b6f3-4b7d-b933-e93018ac1d47";
 
     @Mock
     private DepartureRecordRepository departureRecordRepository;

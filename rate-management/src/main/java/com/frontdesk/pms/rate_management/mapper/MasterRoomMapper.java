@@ -13,6 +13,8 @@ public class MasterRoomMapper {
         entity.setName(dto.getName());
         entity.setMealOption(dto.getMealOption());
         entity.setInclusion(dto.getInclusion());
+        entity.setStartDate(dto.getStartDate());
+        entity.setEndDate(dto.getEndDate());
 
         // Map pricingList
         if (dto.getPricingList() != null && !dto.getPricingList().isEmpty()) {
@@ -37,6 +39,8 @@ public class MasterRoomMapper {
         dto.setName(entity.getName());
         dto.setMealOption(entity.getMealOption());
         dto.setInclusion(entity.getInclusion());
+        dto.setStartDate(entity.getStartDate());
+        dto.setEndDate(entity.getEndDate());
         if (entity.getPricingList() != null) {
             dto.setPricingList(entity.getPricingList().stream().map(this::toPricingResponseDTO).collect(Collectors.toList()));
         }
@@ -57,6 +61,8 @@ public class MasterRoomMapper {
         MasterRoomRoomTypeMappingResponseDTO dto = new MasterRoomRoomTypeMappingResponseDTO();
         dto.setId(entity.getId());
         dto.setRoomTypeId(entity.getRoomTypeId());
+        dto.setDifferentialType(entity.getDifferentialType());
+        dto.setDifferentialValue(entity.getDifferentialValue());
         return dto;
     }
 }

@@ -8,6 +8,7 @@ import lombok.Value;
 @Builder
 public class RoomAvailabilityPricingDto {
     String roomType;
+    String roomCode;
     String ratePlan;
     String rateCode;
     String occupancy;

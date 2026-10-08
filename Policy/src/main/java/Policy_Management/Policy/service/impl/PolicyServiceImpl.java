@@ -1,6 +1,7 @@
 package Policy_Management.Policy.service.impl;
 
 import Policy_Management.Policy.dto.PolicyDto;
+import Policy_Management.Policy.config.RateManagementClient;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyMapper;
 import Policy_Management.Policy.dto.PropertyDto;
@@ -36,6 +37,9 @@ public class PolicyServiceImpl implements PolicyService {
 
     @Autowired
     PropertyClient propertyClient;
+
+    @Autowired
+    RateManagementClient rateManagementClient;
 
     
     @Override
@@ -144,6 +148,7 @@ public class PolicyServiceImpl implements PolicyService {
             return new PolicyNotFoundException(id);
         });
         Status status = existing.getStatus();
+        rateManagementClient.deletePolicyUpdateInRatePlan(id.toString());
         repository.deleteById(id);
         repository.updatePolicyCountByStatus(status, (int) calculatePolicyCountForStatus(status));
         LOGGER.info("Service deletePolicy completed for id={} status={}", id, status);
@@ -193,8 +198,9 @@ public class PolicyServiceImpl implements PolicyService {
             if (dto.getPolicyCategory() == null || dto.getPolicyCategory().isBlank()) {
                 errors.put("policyCategory", "Policy category is required for published policies");
             }
-            if (dto.getCreatedBy() == null || dto.getCreatedBy().isBlank()) {
-                errors.put("createdBy", "Created by is required for published policies");
+
+            if (dto.getCreatedByUser() == null) {
+                errors.put("createdByUser", "Created by user is required for published policies");
             }
             if (dto.getPropertyId() == null) {
                 errors.put("propertyId", "Property id is required for published policies");

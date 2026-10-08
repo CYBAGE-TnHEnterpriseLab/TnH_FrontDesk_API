@@ -8,20 +8,28 @@ import com.pms.reservation.config.RateManagementServiceProperties;
 import com.pms.reservation.integration.dto.RateManagementPlanDto;
 import com.pms.reservation.integration.dto.RatePlanCalculatedPriceResponseDto;
 import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
+import com.pms.reservation.support.TtlCache;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -29,6 +37,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
@@ -44,7 +55,9 @@ public class RateManagementServiceClient implements RateManagementPort {
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
-    private final Map<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache = new ConcurrentHashMap<>();
+    private final TtlCache<Long, List<MasterRoomPricingEntry>> masterRoomPricingCache;
+    private final TtlCache<String, String> getResponseCache;
+    private final TtlCache<String, ExternalServiceException> getFailureCache;
 
     public RateManagementServiceClient(
             @Qualifier("rateManagementRestTemplate") RestTemplate restTemplate,
@@ -52,6 +65,9 @@ public class RateManagementServiceClient implements RateManagementPort {
     ) {
         this.restTemplate = restTemplate;
         this.properties = properties;
+        this.getResponseCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
+        this.getFailureCache = new TtlCache<>(properties.getFailureCacheTtlMs(), properties.getResponseCacheMaxSize());
+        this.masterRoomPricingCache = new TtlCache<>(properties.getResponseCacheTtlMs(), properties.getResponseCacheMaxSize());
     }
 
     @Override
@@ -65,12 +81,23 @@ public class RateManagementServiceClient implements RateManagementPort {
             Integer childCount
     ) {
         String occupancyType = buildOccupancyType(adultCount, childCount);
+        Integer guestCount = adultCount == null && childCount == null
+            ? null
+            : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
+
+        // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
+
+        boolean supportedOccupancy = adultCount == null || adultCount <= properties.getMaxPricedOccupancy();
+
+        String pricingOccupancyType = supportedOccupancy ? occupancyType : null;
+        Integer pricingGuestCount = supportedOccupancy ? guestCount : null;
 
         List<RateManagementPlanDto> availablePlans = resolvePlansForBookingContext(
             propertyId,
             roomTypeId,
             occupancyType,
-            arrivalDate
+            arrivalDate,
+            departureDate
         );
         if (availablePlans.isEmpty()) {
             return List.of();
@@ -101,7 +128,30 @@ public class RateManagementServiceClient implements RateManagementPort {
             }
 
             for (Long candidateRoomTypeId : candidateRoomTypeIds) {
-                BigDecimal resolvedFinalAmount = resolveFinalAmount(propertyId, plan, candidateRoomTypeId, occupancyType);
+                BigDecimal resolvedFinalAmount;
+                try {
+                    resolvedFinalAmount = resolveFinalAmount(
+                        propertyId,
+                        plan,
+                        candidateRoomTypeId,
+                        pricingOccupancyType,
+                        pricingGuestCount
+                    );
+                } catch (ExternalServiceException ex) {
+                    if (hasHttpStatus(ex, 401) || hasHttpStatus(ex, 403)) {
+                        throw ex;
+                    }
+                    // One misconfigured plan/room combo must not discard every other quote.
+                    log.warn(
+                        "Skipping rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
+                        propertyId,
+                        plan.getId(),
+                        resolveRateCode(plan),
+                        candidateRoomTypeId,
+                        ex.getMessage()
+                    );
+                    continue;
+                }
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomTypeId(candidateRoomTypeId);
@@ -175,14 +225,17 @@ public class RateManagementServiceClient implements RateManagementPort {
             String propertyId,
             Long roomTypeId,
             String occupancyType,
-            LocalDate stayDate
+            LocalDate arrivalDate,
+            LocalDate departureDate
     ) {
         boolean shouldTryAvailableEndpoint = !availablePlansGetUnsupported.get()
             && !(roomTypeId == null && availablePlansRequireRoomTypeId.get());
 
         if (shouldTryAvailableEndpoint) {
             try {
-                return getAvailableRatePlans(propertyId, roomTypeId, occupancyType, null, stayDate);
+                List<RateManagementPlanDto> availablePlans = getAvailableRatePlans(
+                    propertyId, roomTypeId, occupancyType, null, arrivalDate);
+                return filterPlansForStay(availablePlans, arrivalDate, departureDate);
             } catch (ExternalServiceException ex) {
                 if (!isAvailableEndpointUnsupported(ex)) {
                     throw ex;
@@ -206,7 +259,7 @@ public class RateManagementServiceClient implements RateManagementPort {
         }
 
         List<RateManagementPlanDto> configuredPlans = listRatePlans(propertyId);
-        return filterFallbackPlans(configuredPlans, roomTypeId, stayDate);
+        return filterFallbackPlans(configuredPlans, roomTypeId, arrivalDate, departureDate);
     }
 
     @Override
@@ -238,7 +291,8 @@ public class RateManagementServiceClient implements RateManagementPort {
             String propertyId,
             Long ratePlanId,
             Long roomTypeId,
-            String occupancyType
+            String occupancyType,
+            Integer guestCount
     ) {
         if (roomTypeId == null) {
             throw new ExternalServiceException("roomTypeId is required for calculated-price API");
@@ -252,6 +306,9 @@ public class RateManagementServiceClient implements RateManagementPort {
         if (StringUtils.hasText(normalizedOccupancyType)) {
             builder.queryParam("occupancyType", normalizedOccupancyType);
         }
+        if (guestCount != null) {
+            builder.queryParam("guestCount", guestCount);
+        }
 
         String url = builder
             .buildAndExpand(propertyId, ratePlanId)
@@ -262,6 +319,7 @@ public class RateManagementServiceClient implements RateManagementPort {
         context.put("ratePlanId", ratePlanId);
         context.put("roomTypeId", roomTypeId);
         context.put("occupancyType", normalizedOccupancyType);
+        context.put("guestCount", guestCount);
 
         String responseBody = executeGetWithRetry("calculated-price", url, context);
         return readObjectResponseBody(responseBody, RatePlanCalculatedPriceResponseDto.class, "calculated-price");
@@ -294,6 +352,66 @@ public class RateManagementServiceClient implements RateManagementPort {
     }
 
     private String executeGetWithRetry(String operation, String url, Map<String, Object> context) {
+        if (properties.getResponseCacheTtlMs() <= 0L && properties.getFailureCacheTtlMs() <= 0L) {
+            return executeGet(operation, url, context);
+        }
+
+        // Key includes a digest of the caller token so cached bodies never cross authorization scopes.
+        String cacheKey = authorizationScope() + '|' + url;
+
+        ExternalServiceException cachedFailure = getFailureCache.getIfPresent(cacheKey);
+        if (cachedFailure != null) {
+            log.debug("Rate Management call short-circuited by negative cache operation={} url={}", operation, url);
+            throw cachedFailure;
+        }
+
+        if (properties.getResponseCacheTtlMs() <= 0L) {
+            return executeGetAndCacheFailure(operation, url, context, cacheKey);
+        }
+        return getResponseCache.get(cacheKey, () -> executeGetAndCacheFailure(operation, url, context, cacheKey));
+    }
+
+    /**
+     * Remembers failures briefly so one broken URL is not re-attempted once per rate plan, per room
+     * type and per forecast day within a single availability lookup.
+     */
+    private String executeGetAndCacheFailure(
+            String operation,
+            String url,
+            Map<String, Object> context,
+            String cacheKey
+    ) {
+        try {
+            return executeGet(operation, url, context);
+        } catch (ExternalServiceException ex) {
+            getFailureCache.put(cacheKey, ex);
+            throw ex;
+        }
+    }
+
+    private String authorizationScope() {
+        String token = properties.getServiceAuthToken();
+        if (!StringUtils.hasText(token)) {
+            RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes instanceof ServletRequestAttributes servletRequestAttributes) {
+                token = servletRequestAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+            }
+        }
+
+        if (!StringUtils.hasText(token)) {
+            return "anonymous";
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(token.trim().getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 digest unavailable", ex);
+        }
+    }
+
+    private String executeGet(String operation, String url, Map<String, Object> context) {
         int maxAttempts = Math.max(1, properties.getRetryMaxAttempts());
         int attempt = 0;
 
@@ -486,7 +604,8 @@ public class RateManagementServiceClient implements RateManagementPort {
             String propertyId,
             RateManagementPlanDto plan,
             Long roomTypeId,
-            String requestedOccupancyType
+            String requestedOccupancyType,
+            Integer guestCount
     ) {
         if (calculatedPriceEndpointUnavailable.get()) {
             return deriveFallbackFinalAmount(propertyId, plan, requestedOccupancyType);
@@ -497,7 +616,8 @@ public class RateManagementServiceClient implements RateManagementPort {
                 propertyId,
                 plan.getId(),
                 roomTypeId,
-                requestedOccupancyType
+                requestedOccupancyType,
+                guestCount
             );
             if (calculatedPrice != null && calculatedPrice.getFinalAmount() != null) {
                 return calculatedPrice.getFinalAmount();
@@ -581,14 +701,13 @@ public class RateManagementServiceClient implements RateManagementPort {
             RateManagementPlanDto plan,
             String requestedOccupancyType
     ) {
-        if (plan.getId() == null) {
+        Long planId = plan.getId();
+        if (planId == null) {
             return null;
         }
 
-        List<MasterRoomPricingEntry> pricingEntries = masterRoomPricingCache.computeIfAbsent(
-            plan.getId(),
-            this::loadMasterRoomPricingEntries
-        );
+        List<MasterRoomPricingEntry> pricingEntries =
+            masterRoomPricingCache.get(planId, () -> loadMasterRoomPricingEntries(planId));
         if (pricingEntries.isEmpty()) {
             return null;
         }
@@ -866,7 +985,8 @@ public class RateManagementServiceClient implements RateManagementPort {
     private List<RateManagementPlanDto> filterFallbackPlans(
             List<RateManagementPlanDto> plans,
             Long requestedRoomTypeId,
-            LocalDate stayDate
+            LocalDate arrivalDate,
+            LocalDate departureDate
     ) {
         if (plans == null || plans.isEmpty()) {
             return List.of();
@@ -880,7 +1000,7 @@ public class RateManagementServiceClient implements RateManagementPort {
             if (!isPlanActive(plan)) {
                 continue;
             }
-            if (!isPlanApplicableForStayDate(plan, stayDate)) {
+            if (!isPlanApplicableForStay(plan, arrivalDate, departureDate)) {
                 continue;
             }
             if (!isApplicableToRequestedRoomTypeId(plan, requestedRoomTypeId)) {
@@ -892,6 +1012,22 @@ public class RateManagementServiceClient implements RateManagementPort {
         return filtered;
     }
 
+    private List<RateManagementPlanDto> filterPlansForStay(
+            List<RateManagementPlanDto> plans,
+            LocalDate arrivalDate,
+            LocalDate departureDate
+    ) {
+        if (plans == null || plans.isEmpty()) {
+            return List.of();
+        }
+
+        return plans.stream()
+            .filter(plan -> plan != null
+                && isPlanActive(plan)
+                && isPlanApplicableForStay(plan, arrivalDate, departureDate))
+                .toList();
+    }
+
     private boolean isPlanActive(RateManagementPlanDto plan) {
         if (!StringUtils.hasText(plan.getStatus())) {
             return true;
@@ -900,19 +1036,32 @@ public class RateManagementServiceClient implements RateManagementPort {
         return "ACTIVE".equalsIgnoreCase(plan.getStatus().trim());
     }
 
-    private boolean isPlanApplicableForStayDate(RateManagementPlanDto plan, LocalDate stayDate) {
-        if (stayDate == null) {
+    private boolean isPlanApplicableForStay(
+            RateManagementPlanDto plan,
+            LocalDate arrivalDate,
+            LocalDate departureDate
+    ) {
+        if (arrivalDate == null) {
             return true;
         }
 
+        LocalDate lastNight = departureDate != null && departureDate.isAfter(arrivalDate)
+                ? departureDate.minusDays(1)
+                : arrivalDate;
         LocalDate startDate = parseLocalDate(plan.getStartDate());
         LocalDate endDate = parseLocalDate(plan.getEndDate());
+        Set<DayOfWeek> activeDays = plan.getActiveDaysOfWeek();
 
-        if (startDate != null && stayDate.isBefore(startDate)) {
-            return false;
-        }
-        if (endDate != null && stayDate.isAfter(endDate)) {
-            return false;
+        for (LocalDate stayDate = arrivalDate; !stayDate.isAfter(lastNight); stayDate = stayDate.plusDays(1)) {
+            if (startDate != null && stayDate.isBefore(startDate)) {
+                return false;
+            }
+            if (endDate != null && stayDate.isAfter(endDate)) {
+                return false;
+            }
+            if (activeDays != null && !activeDays.isEmpty() && !activeDays.contains(stayDate.getDayOfWeek())) {
+                return false;
+            }
         }
 
         return true;

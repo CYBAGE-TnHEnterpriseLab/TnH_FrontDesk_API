@@ -1,4 +1,4 @@
-package com.pms.property.publish.service;
+package com.pms.property.publish.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
@@ -34,13 +34,24 @@ import com.pms.property.draft.service.DraftService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.mapper.PublishMapper;
+import com.pms.property.publish.service.PublishService;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class PublishServiceImpl implements PublishService {
 
     private final DraftService draftService;
@@ -104,7 +115,7 @@ public class PublishServiceImpl implements PublishService {
 
     @Override
     @Transactional
-    public PublishResponse publish(Long draftId, String actor) {
+    public PublishResponse publish(Long draftId, UUID actor, String authHeader) {
         PropertyDraftEntity draft = draftService.getById(draftId);
         PublishMapper.NormalizedPublishData normalized = publishMapper.toNormalized(draft.getWizardData());
         publishValidator.validate(normalized.root());
@@ -116,13 +127,14 @@ public class PublishServiceImpl implements PublishService {
             propertyId = publishNewProperty(normalized, actor);
         }
 
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        log.info("Publish completed for draftId={}, propertyId={}, requesting inventory sync", draftId, propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader);
 
         draftService.markPublished(draft, propertyId, actor);
         return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());
     }
 
-    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, String actor) {
+    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, UUID actor) {
         normalized.property().setCreatedBy(actor);
         PropertyEntity property = propertyRepository.save(normalized.property());
         String propertyId = property.getId();
@@ -174,7 +186,6 @@ public class PublishServiceImpl implements PublishService {
         inventoryRoomRepository.deleteByPropertyId(propertyId);
         floorPropertyAreaRepository.deleteByPropertyId(propertyId);
         floorConfigurationRepository.deleteByPropertyId(propertyId);
-        roomOutletTypeRepository.deleteByPropertyId(propertyId);
         propertyAreaRepository.deleteByPropertyId(propertyId);
         nearbyLocationAccessibilityRepository.deleteByPropertyId(propertyId);
         guestServiceAmenityRepository.deleteByPropertyId(propertyId);
@@ -187,7 +198,6 @@ public class PublishServiceImpl implements PublishService {
         inventoryRoomRepository.flush();
         floorPropertyAreaRepository.flush();
         floorConfigurationRepository.flush();
-        roomOutletTypeRepository.flush();
         propertyAreaRepository.flush();
         nearbyLocationAccessibilityRepository.flush();
         guestServiceAmenityRepository.flush();
@@ -239,11 +249,100 @@ public class PublishServiceImpl implements PublishService {
         propertyAreaRepository.saveAll(entities);
     }
 
+    /**
+     * Upserts instead of delete+insert: other services (rate-management mappings, rate plans,
+     * reservations) reference room outlet type ids, so ids must survive a republish.
+     */
     private void saveRoomOutletTypes(List<RoomOutletTypeEntity> entities, String propertyId) {
-        for (RoomOutletTypeEntity entity : entities) {
-            entity.setPropertyId(propertyId);
+        List<RoomOutletTypeEntity> existing = roomOutletTypeRepository.findAllByPropertyId(propertyId);
+        Map<String, RoomOutletTypeEntity> existingByCode = new HashMap<>();
+        Map<String, RoomOutletTypeEntity> existingByName = new HashMap<>();
+        if (existing != null) {
+            for (RoomOutletTypeEntity row : existing) {
+                String codeKey = roomTypeKey(row.getRoomCode());
+                if (codeKey != null) {
+                    existingByCode.putIfAbsent(codeKey, row);
+                }
+                String nameKey = roomTypeKey(row.getRoomName());
+                if (nameKey != null) {
+                    existingByName.putIfAbsent(nameKey, row);
+                }
+            }
         }
-        roomOutletTypeRepository.saveAll(entities);
+
+        Set<RoomOutletTypeEntity> matched = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<RoomOutletTypeEntity, RoomOutletTypeEntity> targetByIncoming = new IdentityHashMap<>();
+        // Code matches first for all rows, so a name-only match never takes a code still owned by another row (unique index).
+        for (RoomOutletTypeEntity incoming : entities) {
+            RoomOutletTypeEntity target = findUnmatched(existingByCode, roomTypeKey(incoming.getRoomCode()), matched);
+            if (target != null) {
+                matched.add(target);
+                targetByIncoming.put(incoming, target);
+            }
+        }
+        for (RoomOutletTypeEntity incoming : entities) {
+            if (targetByIncoming.containsKey(incoming)) {
+                continue;
+            }
+            RoomOutletTypeEntity target = findUnmatched(existingByName, roomTypeKey(incoming.getRoomName()), matched);
+            if (target != null) {
+                matched.add(target);
+                targetByIncoming.put(incoming, target);
+            }
+        }
+
+        // Delete removed rows before mutating kept ones: Hibernate flushes updates before deletes,
+        // so a kept row taking a removed row's code would otherwise hit the unique index.
+        if (existing != null) {
+            List<RoomOutletTypeEntity> removed = existing.stream()
+                .filter(row -> !matched.contains(row))
+                .toList();
+            if (!removed.isEmpty()) {
+                roomOutletTypeRepository.deleteAll(removed);
+                roomOutletTypeRepository.flush();
+            }
+        }
+
+        List<RoomOutletTypeEntity> toSave = new ArrayList<>();
+        for (RoomOutletTypeEntity incoming : entities) {
+            RoomOutletTypeEntity target = targetByIncoming.get(incoming);
+            if (target == null) {
+                incoming.setPropertyId(propertyId);
+                toSave.add(incoming);
+                continue;
+            }
+
+            target.setRoomName(incoming.getRoomName());
+            target.setRoomCode(incoming.getRoomCode());
+            target.setQuantity(incoming.getQuantity());
+            target.setAvailableForSell(incoming.getAvailableForSell());
+            target.setMaximumGuestOccupancy(incoming.getMaximumGuestOccupancy());
+            target.setDescription(incoming.getDescription());
+            target.setAmenitiesCsv(incoming.getAmenitiesCsv());
+            target.setImagesCsv(incoming.getImagesCsv());
+            toSave.add(target);
+        }
+
+        roomOutletTypeRepository.saveAll(toSave);
+    }
+
+    private RoomOutletTypeEntity findUnmatched(
+        Map<String, RoomOutletTypeEntity> index,
+        String key,
+        Set<RoomOutletTypeEntity> matched
+    ) {
+        if (key == null) {
+            return null;
+        }
+        RoomOutletTypeEntity candidate = index.get(key);
+        return candidate == null || matched.contains(candidate) ? null : candidate;
+    }
+
+    private String roomTypeKey(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private void savePropertyOverview(PropertyOverviewEntity propertyOverview, String propertyId) {

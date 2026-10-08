@@ -7,6 +7,7 @@ import com.frontdesk.pms.rate_management.enums.RatePlanType;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +25,7 @@ public class RatePlanResponseDTO {
     private RatePlanStatus status;
     private LocalDate startDate;
     private LocalDate endDate;
+    private Set<DayOfWeek> activeDaysOfWeek;
     private Set<Long> applicableRoomTypeIds;
     private RatePlanCalculationMethod calculationMethod;
     private Double adjustmentValue;

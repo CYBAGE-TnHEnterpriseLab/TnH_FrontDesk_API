@@ -5,6 +5,7 @@ import com.pms.dashboard.service.FrontdeskDashboardService;
 import com.pms.guestlisting.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,9 +34,11 @@ public class FrontdeskDashboardController {
     @Operation(summary = "Get frontdesk dashboard by property and business date")
     public ResponseEntity<ApiResponse<FrontdeskDashboardResponse>> getDashboard(
             @RequestParam @NotNull UUID propertyId,
-            @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate
+            @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate,
+            HttpServletRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.success("Dashboard fetched successfully", dashboardService.getDashboard(propertyId, businessDate)));
+        String authorization = request.getHeader("Authorization");
+        return ResponseEntity.ok(ApiResponse.success("Dashboard fetched successfully", dashboardService.getDashboard(propertyId, businessDate, authorization)));
     }
 }
 

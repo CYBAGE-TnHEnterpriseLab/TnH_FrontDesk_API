@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,9 +31,12 @@ public class ReservationCheckInWorkflowController {
     @Operation(summary = "Complete check-in")
     public ResponseEntity<ApiResponse<CheckInCompletionResponseDto>> completeCheckIn(
             @PathVariable String confirmationNumber,
+            @RequestParam(required = false) Long bookingId,
             @Valid @RequestBody CheckInCompleteRequestDto request
     ) {
-        CheckInCompletionResponseDto response = workflowService.completeCheckIn(confirmationNumber, request);
+        CheckInCompletionResponseDto response = bookingId == null
+            ? workflowService.completeCheckIn(confirmationNumber, request)
+            : workflowService.completeCheckIn(confirmationNumber, bookingId, request);
         return ResponseEntity.ok(ApiResponse.<CheckInCompletionResponseDto>builder()
                 .success(true)
                 .message("Check-in completed successfully")

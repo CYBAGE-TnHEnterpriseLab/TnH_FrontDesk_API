@@ -25,9 +25,15 @@ public class ReservationBookingMapper {
                 .salutation(request.getSalutation())
                 .vipTag(request.getVipTag())
             .guestName(primaryGuestName(request.getGuestName(), guestNames))
+                    .dateOfBirth(request.getDateOfBirth())
+                    .state(request.getState())
+                    .idType(request.getIdType())
+                    .idNumber(request.getIdNumber())
+                    .enrollGuest(request.getEnrollGuest())
             .guestNamesEncoded(encodeGuestNames(guestNames))
                 .personalEmail(request.getPersonalEmail())
                 .officialEmail(request.getOfficialEmail())
+                .address(request.getAddress())
                 .city(request.getCity())
                 .country(request.getCountry())
                 .zipCode(request.getZipCode())
@@ -43,12 +49,14 @@ public class ReservationBookingMapper {
                 .adultCount(request.getAdultCount())
                 .childCount(request.getChildCount())
                 .reservationType(request.getReservationType())
+                .blockCode(request.getBlockCode())
                 .roomType(request.getRoomType())
                 .assignedRoomNo(request.getAssignedRoomNo())
                 .floor(request.getFloor())
                 .rateCode(request.getRateCode())
                 .numberOfRooms(request.getNumberOfRooms())
                 .rate(request.getRate())
+                .taxPercent(request.getTaxPercent())
                 .totalRate(calculateTotalRate(
                     request.getRate(),
                     request.getNumberOfRooms(),
@@ -85,9 +93,15 @@ public class ReservationBookingMapper {
                 .salutation(saved.getSalutation())
                 .vipTag(saved.getVipTag())
                 .guestName(saved.getGuestName())
+                .dateOfBirth(saved.getDateOfBirth())
+                .state(saved.getState())
+                .idType(saved.getIdType())
+                .idNumber(saved.getIdNumber())
+                .enrollGuest(saved.getEnrollGuest())
                 .guestNames(decodeGuestNames(saved.getGuestNamesEncoded()))
                 .personalEmail(saved.getPersonalEmail())
                 .officialEmail(saved.getOfficialEmail())
+                .address(saved.getAddress())
                 .city(saved.getCity())
                 .country(saved.getCountry())
                 .zipCode(saved.getZipCode())
@@ -133,14 +147,14 @@ public class ReservationBookingMapper {
                 .build();
     }
 
-    private String primaryGuestName(String guestName, List<String> guestNames) {
+    String primaryGuestName(String guestName, List<String> guestNames) {
         if (StringUtils.hasText(guestName)) {
             return guestName.trim();
         }
         return guestNames.isEmpty() ? guestName : guestNames.get(0);
     }
 
-    private List<String> sanitizeGuestNames(List<String> guestNames) {
+    List<String> sanitizeGuestNames(List<String> guestNames) {
         if (guestNames == null) {
             return Collections.emptyList();
         }
@@ -150,7 +164,7 @@ public class ReservationBookingMapper {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    private String encodeGuestNames(List<String> guestNames) {
+    String encodeGuestNames(List<String> guestNames) {
         if (guestNames == null || guestNames.isEmpty()) {
             return "";
         }
@@ -159,7 +173,7 @@ public class ReservationBookingMapper {
                 .collect(Collectors.joining("."));
     }
 
-    private List<String> decodeGuestNames(String guestNamesEncoded) {
+    List<String> decodeGuestNames(String guestNamesEncoded) {
         if (!StringUtils.hasText(guestNamesEncoded)) {
             return Collections.emptyList();
         }
@@ -174,7 +188,7 @@ public class ReservationBookingMapper {
         return guestNames;
     }
 
-    private java.math.BigDecimal calculateTotalRate(
+    java.math.BigDecimal calculateTotalRate(
             java.math.BigDecimal rate,
             Integer numberOfRooms,
             LocalDate arrivalDate,
@@ -185,12 +199,76 @@ public class ReservationBookingMapper {
         }
 
         long nights = ChronoUnit.DAYS.between(arrivalDate, departureDate);
-        if (nights <= 0) {
+        if (nights < 0) {
             return java.math.BigDecimal.ZERO;
+        }
+        if (nights == 0) {
+            nights = 1;
         }
 
         return rate
                 .multiply(java.math.BigDecimal.valueOf(numberOfRooms.longValue()))
                 .multiply(java.math.BigDecimal.valueOf(nights));
     }
+
+    public ReservationBookingRecord mergeEntity(ReservationBookingRecord existing, ReservationBookingRequestDto request) {
+        if (request.getSalutation() != null) existing.setSalutation(request.getSalutation());
+        if (request.getVipTag() != null) existing.setVipTag(request.getVipTag());
+        if (request.getGuestName() != null) existing.setGuestName(request.getGuestName());
+        if (request.getPersonalEmail() != null) existing.setPersonalEmail(request.getPersonalEmail());
+        if (request.getOfficialEmail() != null) existing.setOfficialEmail(request.getOfficialEmail());
+        if (request.getAddress() != null) existing.setAddress(request.getAddress());
+        if (request.getCity() != null) existing.setCity(request.getCity());
+        if (request.getCountry() != null) existing.setCountry(request.getCountry());
+        if (request.getZipCode() != null) existing.setZipCode(request.getZipCode());
+        if (request.getPhoneNumber() != null) {
+            existing.setPhoneNumber(request.getPhoneNumber());
+            existing.setMobileNumber(request.getPhoneNumber());
+        }
+        if (request.getLoyaltyNumber() != null) existing.setLoyaltyNumber(request.getLoyaltyNumber());
+        if (request.getCompany() != null) existing.setCompany(request.getCompany());
+        if (request.getGuestGroup() != null) existing.setGuestGroup(request.getGuestGroup());
+        if (request.getSource() != null) existing.setSource(request.getSource());
+        if (request.getAgent() != null) existing.setAgent(request.getAgent());
+        if (request.getArrivalDate() != null) existing.setArrivalDate(request.getArrivalDate());
+        if (request.getDepartureDate() != null) existing.setDepartureDate(request.getDepartureDate());
+        if (request.getAdultCount() != null) existing.setAdultCount(request.getAdultCount());
+        if (request.getChildCount() != null) existing.setChildCount(request.getChildCount());
+        if (request.getReservationType() != null) existing.setReservationType(request.getReservationType());
+        if (request.getBlockCode() != null) existing.setBlockCode(request.getBlockCode());
+        if (request.getRoomType() != null) existing.setRoomType(request.getRoomType());
+        if (request.getAssignedRoomNo() != null) existing.setAssignedRoomNo(request.getAssignedRoomNo().trim());
+        if (request.getFloor() != null) existing.setFloor(request.getFloor());
+        if (request.getRateCode() != null) existing.setRateCode(request.getRateCode());
+        if (request.getNumberOfRooms() != null) existing.setNumberOfRooms(request.getNumberOfRooms());
+        if (request.getRate() != null) existing.setRate(request.getRate());
+        if (request.getTaxPercent() != null) existing.setTaxPercent(request.getTaxPercent());
+        if (request.getPayment() != null) existing.setPayment(request.getPayment());
+        if (request.getPaymentType() != null) existing.setPaymentType(request.getPaymentType());
+        if (request.getEta() != null) existing.setEta(request.getEta());
+        if (request.getCheckOutTime() != null) existing.setCheckOutTime(request.getCheckOutTime());
+        if (request.getDnm() != null) existing.setDnm(request.getDnm());
+        if (request.getNoPost() != null) existing.setNoPost(request.getNoPost());
+        if (request.getGuestBalance() != null) existing.setGuestBalance(request.getGuestBalance());
+        if (request.getSpecialRequests() != null) existing.setSpecialRequests(request.getSpecialRequests());
+        if (request.getDiscount() != null) existing.setDiscount(request.getDiscount());
+        if (request.getAlertsMessages() != null) existing.setAlertsMessages(request.getAlertsMessages());
+
+        existing.setTotalRate(calculateTotalRate(
+                existing.getRate(),
+                existing.getNumberOfRooms(),
+                existing.getArrivalDate(),
+                existing.getDepartureDate()
+        ));
+
+        List<String> guestNames = sanitizeGuestNames(request.getGuestNames());
+        if (!guestNames.isEmpty() || request.getGuestName() != null || request.getFirstName() != null || request.getLastName() != null) {
+            existing.setGuestName(primaryGuestName(request.getGuestName(), guestNames));
+            existing.setGuestNamesEncoded(encodeGuestNames(guestNames));
+        }
+
+        return existing;
+    }
 }
+
+

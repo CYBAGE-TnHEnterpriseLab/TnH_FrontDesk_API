@@ -8,7 +8,11 @@ import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.housekeeping.entity.HousekeepingRoomStatusRecord;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.entity.ReservationBookingRecord;
+import com.pms.reservation.entity.ReservationCheckInIdProofRecord;
+import com.pms.reservation.entity.ReservationCheckInSignatureRecord;
 import com.pms.reservation.repository.ReservationBookingRepository;
+import com.pms.reservation.repository.ReservationCheckInIdProofRepository;
+import com.pms.reservation.repository.ReservationCheckInSignatureRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.criteria.Predicate;
@@ -36,6 +40,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,16 +60,23 @@ public class GuestListingController {
     private static final String VIEW_ALL = "all";
     private static final int FIXED_PAGE_SIZE = 10;
     private static final Set<String> SUPPORTED_ROOM_STATUSES = Set.of("OCCUPIED", "DIRTY", "CLEANED");
+        private static final String STATUS_CONFIRMED = "CONFIRMED";
+        private static final String STATUS_NO_SHOW = "NO_SHOW";
+        private static final Set<String> SUPPORTED_RESERVATION_STATUSES = Set.of(
+            STATUS_CONFIRMED, "CHECKED_IN", "CHECKED_OUT", STATUS_NO_SHOW);
 
-    private record RoomStatusSnapshot(String roomStatus, String roomNo) {
+    private record RoomStatusSnapshot(String roomStatus, String roomNo, Long bookingId) {
     }
 
     private final ReservationBookingRepository reservationBookingRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
+    private final ReservationCheckInSignatureRepository signatureRepository;
+    private final ReservationCheckInIdProofRepository idProofRepository;
 
     @GetMapping("/list")
     @Operation(summary = "Get guest listing",
             description = "Unified retrieval API for arrivals/departures/all reservations with filtering, sorting, and pagination")
+        @Transactional
     public ResponseEntity<ApiResponse<PagedResponse<GuestListingResponseDto>>> getGuestListing(
             @RequestParam @NotBlank(message = "propertyId is required") String propertyId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate,
@@ -87,6 +99,8 @@ public class GuestListingController {
             @RequestParam(defaultValue = "asc") @Pattern(regexp = "(?i)asc|desc", message = "sortDir must be asc or desc") String sortDir,
             @RequestParam(defaultValue = "false") Boolean includeOptions
     ) {
+        reservationBookingRepository.markPastConfirmedReservationsAsNoShow(propertyId, businessDate);
+
         String normalizedView = normalizeView(view);
         String resolvedSortBy = resolveSortBy(sortBy, normalizedView);
         String normalizedRoomStatus = normalizeRoomStatus(roomStatus);
@@ -138,6 +152,13 @@ public class GuestListingController {
                 pageable
         );
 
+        Map<Long, RoomStatusSnapshot> roomStatusByBooking = loadRoomStatusByBooking(
+            propertyId,
+            businessDate,
+            bookingPage.getContent().stream()
+                .map(ReservationBookingRecord::getId)
+                .collect(Collectors.toSet())
+        );
         Map<String, RoomStatusSnapshot> roomStatusByConfirmation = loadRoomStatusByConfirmation(
             propertyId,
             businessDate,
@@ -146,13 +167,25 @@ public class GuestListingController {
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toSet())
         );
+            Set<Long> bookingIds = bookingPage.getContent().stream()
+                .map(ReservationBookingRecord::getId)
+                .collect(Collectors.toSet());
+            Map<Long, ReservationCheckInSignatureRecord> signaturesByBooking = signatureRepository
+                .findAllByBookingIdIn(bookingIds).stream()
+                .collect(Collectors.toMap(ReservationCheckInSignatureRecord::getBookingId, record -> record));
+            Map<Long, ReservationCheckInIdProofRecord> idProofsByBooking = idProofRepository
+                .findAllByBookingIdIn(bookingIds).stream()
+                .collect(Collectors.toMap(ReservationCheckInIdProofRecord::getBookingId, record -> record));
 
         List<GuestListingResponseDto> content = bookingPage.getContent().stream()
             .map(booking -> toGuestListingItem(
                 booking,
                 businessDate,
                 normalizedView,
-                roomStatusByConfirmation.get(booking.getConfirmationNumber())
+                roomStatusByBooking.getOrDefault(booking.getId(),
+                    roomStatusByConfirmation.get(booking.getConfirmationNumber())),
+                signaturesByBooking.get(booking.getId()),
+                idProofsByBooking.get(booking.getId())
             ))
                 .toList();
 
@@ -199,10 +232,10 @@ public class GuestListingController {
         Set<Integer> floors = new TreeSet<>(Comparator.nullsLast(Integer::compareTo));
 
         for (ReservationBookingRecord record : records) {
-            if (Boolean.TRUE.equals(record.getDnm())) {
-                reservationStatuses.add("DNM");
-            } else if (StringUtils.hasText(record.getReservationStatus())) {
-                reservationStatuses.add(record.getReservationStatus());
+            String reservationStatus = resolveReservationStatus(record, businessDate);
+            if (StringUtils.hasText(reservationStatus)
+                    && SUPPORTED_RESERVATION_STATUSES.contains(reservationStatus.toUpperCase(Locale.ROOT))) {
+                reservationStatuses.add(reservationStatus);
             }
 
             if (StringUtils.hasText(record.getReservationType())) {
@@ -279,10 +312,18 @@ public class GuestListingController {
             }
 
             if (StringUtils.hasText(status)) {
-                if ("dnm".equalsIgnoreCase(status) || "do not move".equalsIgnoreCase(status)) {
-                    predicates.add(cb.isTrue(root.get("dnm")));
+                String normalizedStatus = status.toUpperCase(Locale.ROOT);
+                if (STATUS_NO_SHOW.equals(normalizedStatus)) {
+                    predicates.add(cb.and(
+                            cb.equal(cb.upper(root.get("reservationStatus")), STATUS_CONFIRMED),
+                            cb.lessThan(root.get("arrivalDate"), businessDate)
+                    ));
                 } else {
-                    predicates.add(cb.equal(cb.lower(root.get("reservationStatus")), status.toLowerCase(Locale.ROOT)));
+                    Predicate storedStatus = cb.equal(cb.lower(root.get("reservationStatus")), status.toLowerCase(Locale.ROOT));
+                    if (STATUS_CONFIRMED.equals(normalizedStatus)) {
+                        storedStatus = cb.and(storedStatus, cb.greaterThanOrEqualTo(root.get("arrivalDate"), businessDate));
+                    }
+                    predicates.add(storedStatus);
                 }
             }
             if (StringUtils.hasText(reservationType)) {
@@ -375,14 +416,16 @@ public class GuestListingController {
     }
 
     private GuestListingResponseDto toGuestListingItem(ReservationBookingRecord booking, LocalDate businessDate, String view) {
-        return toGuestListingItem(booking, businessDate, view, null);
+        return toGuestListingItem(booking, businessDate, view, null, null, null);
         }
 
         private GuestListingResponseDto toGuestListingItem(
             ReservationBookingRecord booking,
             LocalDate businessDate,
             String view,
-            RoomStatusSnapshot roomSnapshot
+            RoomStatusSnapshot roomSnapshot,
+            ReservationCheckInSignatureRecord signature,
+            ReservationCheckInIdProofRecord idProof
         ) {
         String[] names = splitGuestName(booking.getGuestName());
         String listingType = resolveListingType(booking, businessDate, view);
@@ -392,7 +435,7 @@ public class GuestListingController {
                 .listingType(listingType)
                 .id(booking.getId())
                 .propertyId(booking.getPropertyId())
-                .status(Boolean.TRUE.equals(booking.getDnm()) ? "DNM" : booking.getReservationStatus())
+                .status(resolveReservationStatus(booking, businessDate))
                 .dnm(Boolean.TRUE.equals(booking.getDnm()))
                 .msg(false)
                 .salutation(booking.getSalutation())
@@ -420,7 +463,30 @@ public class GuestListingController {
                 .tier(booking.getLoyaltyNumber())
                 .groupCode(booking.getGuestGroup())
                 .stayStatus(resolveStayStatus(businessDate, booking.getArrivalDate(), booking.getDepartureDate(), listingType))
+                .checkInCompleted("CHECKED_IN".equalsIgnoreCase(booking.getReservationStatus())
+                    || "CHECKED_OUT".equalsIgnoreCase(booking.getReservationStatus()))
+                .checkInChannel(resolveCheckInChannel(signature, idProof))
+                .signatureCaptured(signature != null)
+                .idProofUploaded(idProof != null)
                 .build();
+    }
+
+    private String resolveCheckInChannel(ReservationCheckInSignatureRecord signature,
+                                         ReservationCheckInIdProofRecord idProof) {
+        if (signature != null && StringUtils.hasText(signature.getCheckInChannel())) {
+            return signature.getCheckInChannel();
+        }
+        return idProof == null ? null : idProof.getCheckInChannel();
+    }
+
+    private String resolveReservationStatus(ReservationBookingRecord booking, LocalDate businessDate) {
+        if (STATUS_CONFIRMED.equalsIgnoreCase(booking.getReservationStatus())
+                && businessDate != null
+                && booking.getArrivalDate() != null
+                && businessDate.isAfter(booking.getArrivalDate())) {
+            return STATUS_NO_SHOW;
+        }
+        return booking.getReservationStatus();
     }
 
     private String resolveListingType(ReservationBookingRecord booking, LocalDate businessDate, String view) {
@@ -454,6 +520,9 @@ public class GuestListingController {
     }
 
     private String resolveRoomNo(ReservationBookingRecord booking, RoomStatusSnapshot roomSnapshot) {
+        if (StringUtils.hasText(booking.getAssignedRoomNo())) {
+            return booking.getAssignedRoomNo();
+        }
         if (roomSnapshot != null && StringUtils.hasText(roomSnapshot.roomNo())) {
             return roomSnapshot.roomNo();
         }
@@ -521,6 +590,27 @@ public class GuestListingController {
         return new HashSet<>(confirmations);
     }
 
+        private Map<Long, RoomStatusSnapshot> loadRoomStatusByBooking(
+            String propertyId,
+            LocalDate businessDate,
+            Set<Long> bookingIds
+    ) {
+        if (bookingIds == null || bookingIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return housekeepingRoomStatusRepository
+                .findByPropertyIdAndBusinessDateAndBookingIdIn(propertyId, businessDate, bookingIds)
+                .stream()
+                .filter(status -> status.getBookingId() != null)
+                .collect(Collectors.toMap(
+                        HousekeepingRoomStatusRecord::getBookingId,
+                        status -> new RoomStatusSnapshot(status.getRoomStatus(), status.getRoomNo(), status.getBookingId()),
+                        (left, right) -> right,
+                        java.util.LinkedHashMap::new
+                ));
+    }
+
         private Map<String, RoomStatusSnapshot> loadRoomStatusByConfirmation(
             String propertyId,
             LocalDate businessDate,
@@ -541,7 +631,7 @@ public class GuestListingController {
                 .filter(status -> StringUtils.hasText(status.getConfirmationNumber()))
                 .collect(Collectors.toMap(
                         HousekeepingRoomStatusRecord::getConfirmationNumber,
-                status -> new RoomStatusSnapshot(status.getRoomStatus(), status.getRoomNo()),
+                status -> new RoomStatusSnapshot(status.getRoomStatus(), status.getRoomNo(), status.getBookingId()),
                         (left, right) -> right,
                         java.util.LinkedHashMap::new
                 ));

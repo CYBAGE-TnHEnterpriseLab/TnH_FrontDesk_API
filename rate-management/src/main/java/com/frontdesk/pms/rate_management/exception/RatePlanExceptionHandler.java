@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -16,11 +17,12 @@ public class RatePlanExceptionHandler {
     private static final String MESSAGE = "message";
 
     private Map<String, Object> errorBody(String message) {
-        return Map.of(
-                SUCCESS, false,
-                DATA, null,
-                MESSAGE, message
-        );
+        // Map.of rejects null values, which turned every handled 400 into an unhandled 500.
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put(SUCCESS, false);
+        body.put(DATA, null);
+        body.put(MESSAGE, message);
+        return body;
     }
 
     @ExceptionHandler(InvalidRatePlanException.class)

@@ -4,6 +4,8 @@ import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.common.exception.PropertyDeletionException;
 import com.pms.property.domain.config.InventoryClient;
+import com.pms.property.domain.config.HousekeepingClient;
+import com.pms.property.domain.config.RateManagementClient;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
@@ -30,6 +32,7 @@ import com.pms.property.upload.service.LocalImageStorageService;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +57,8 @@ public class PropertyServiceImpl implements PropertyService {
     private final LocalImageStorageService localImageStorageService;
     private final DraftService draftService;
     private final InventoryClient inventoryClient;
+    private final HousekeepingClient housekeepingClient;
+    private final RateManagementClient rateManagementClient;
 
     public PropertyServiceImpl(
             PropertyRepository propertyRepository,
@@ -72,7 +77,9 @@ public class PropertyServiceImpl implements PropertyService {
             PropertyDraftRepository propertyDraftRepository,
             LocalImageStorageService localImageStorageService,
             DraftService draftService,
-            InventoryClient inventoryClient
+            InventoryClient inventoryClient,
+            HousekeepingClient housekeepingClient,
+            RateManagementClient rateManagementClient
     ) {
         this.propertyRepository = propertyRepository;
         this.propertyOverviewRepository = propertyOverviewRepository;
@@ -91,6 +98,8 @@ public class PropertyServiceImpl implements PropertyService {
         this.localImageStorageService = localImageStorageService;
         this.draftService = draftService;
         this.inventoryClient = inventoryClient;
+        this.housekeepingClient = housekeepingClient;
+        this.rateManagementClient = rateManagementClient;
     }
 
     @Override
@@ -103,7 +112,7 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PropertyResponse> listByCreator(String creator) {
+    public List<PropertyResponse> listByCreator(UUID creator) {
         return propertyRepository.findByCreatedBy(creator)
             .stream()
             .map(PropertyMapper::toResponse)
@@ -112,7 +121,7 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     @Transactional
-    public void deleteOwnedProperty(String propertyId, String actor) {
+    public void deleteOwnedProperty(String propertyId, UUID actor) {
         PropertyEntity property = propertyRepository.findById(propertyId)
             .orElseThrow(() -> new NotFoundException("Property not found: " + propertyId));
         if (!actor.equals(property.getCreatedBy())) {
@@ -136,6 +145,8 @@ public class PropertyServiceImpl implements PropertyService {
             );
         }
 
+        rateManagementClient.deletePropertyRatePlans(propertyId);
+        rateManagementClient.deleteAllMasterRoomsForProperty(propertyId);
         cleanupDraftImages(propertyId);
         cleanupNormalizedPropertyImages(propertyId);
 
@@ -151,6 +162,9 @@ public class PropertyServiceImpl implements PropertyService {
         nearbyLocationAccessibilityRepository.deleteByPropertyId(propertyId);
         guestServiceAmenityRepository.deleteByPropertyId(propertyId);
         propertyOverviewRepository.deleteByPropertyId(propertyId);
+
+        inventoryClient.deletePropertyData(propertyId);
+        housekeepingClient.deletePropertyData(propertyId);
 
         propertyDraftRepository.deleteByPublishedPropertyId(propertyId);
         propertyRepository.delete(property);

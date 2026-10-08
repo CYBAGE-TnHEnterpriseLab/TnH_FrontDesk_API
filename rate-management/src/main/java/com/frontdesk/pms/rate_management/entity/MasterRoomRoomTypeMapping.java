@@ -1,9 +1,12 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.frontdesk.pms.rate_management.enums.DifferentialType;
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
-public class MasterRoomRoomTypeMapping {
+public class MasterRoomRoomTypeMapping extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -15,6 +18,12 @@ public class MasterRoomRoomTypeMapping {
     @Column(nullable = false)
     private Long roomTypeId; // ID from external Room Type service
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "differential_type")
+    private DifferentialType differentialType;
+
+    @Column(name = "differential_value", precision = 10, scale = 2)
+    private BigDecimal differentialValue;
     public Long getId() {
         return id;
     }
@@ -37,5 +46,21 @@ public class MasterRoomRoomTypeMapping {
 
     public void setRoomTypeId(Long roomTypeId) {
         this.roomTypeId = roomTypeId;
+    }
+
+    public DifferentialType getDifferentialType() {
+        return differentialType;
+    }
+
+    public void setDifferentialType(DifferentialType differentialType) {
+        this.differentialType = differentialType;
+    }
+
+    public BigDecimal getDifferentialValue() {
+        return differentialValue;
+    }
+
+    public void setDifferentialValue(BigDecimal differentialValue) {
+        this.differentialValue = differentialValue;
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import jakarta.validation.Validation;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +24,7 @@ class ReservationBookingRequestDtoTest {
                   "guestBalance": -1800,
                   "eta": "11:00:00",
                   "checkOutTime": "11:00:00",
-                  "propertyId": "PROP001",
+                  "propertyId": "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                   "phoneNumber": "9090912345",
                   "arrivalDate": "2026-07-15",
                   "departureDate": "2026-07-16",
@@ -52,7 +53,7 @@ class ReservationBookingRequestDtoTest {
                   "guestBalance": -1800,
                   "eta": "11:00:00",
                   "checkOutTime": "11:00:00",
-                  "propertyId": "PROP001",
+                  "propertyId": "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                   "phoneNumber": "9090912345",
                   "arrivalDate": "2026-07-15",
                   "departureDate": "2026-07-16",
@@ -83,7 +84,7 @@ class ReservationBookingRequestDtoTest {
                   "guestBalance": -1800,
                   "eta": "11:00:00",
                   "checkOutTime": "11:00:00",
-                  "propertyId": "PROP001",
+                  "propertyId": "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                   "phoneNumber": "9090912345",
                   "arrivalDate": "2026-07-15",
                   "departureDate": "2026-07-16",
@@ -112,7 +113,7 @@ class ReservationBookingRequestDtoTest {
           "guestBalance": 1800,
           "eta": "11:00:00",
           "checkOutTime": "11:00:00",
-          "propertyId": "PROP001",
+          "propertyId": "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
           "phoneNumber": "9090912345",
           "arrivalDate": "2026-07-15",
           "departureDate": "2026-07-16",
@@ -134,5 +135,61 @@ class ReservationBookingRequestDtoTest {
 
     assertThat(dto.getAssignedRoomNo()).isEqualTo("502");
     assertThat(dto.getFloor()).isEqualTo(5);
+  }
+
+  @Test
+  void shouldDeserializeMultipleReservationGuestsAndValidatePrimaryFlag() throws Exception {
+    String payload = """
+        {
+          "guests": [
+            {
+              "guestProfileId": null,
+              "isPrimary": true,
+              "enrollGuest": true,
+              "firstName": "Manish",
+              "lastName": "Das",
+              "phoneNumber": "+1-555-0101"
+            },
+            {
+              "guestProfileId": 126,
+              "isPrimary": false,
+              "enrollGuest": false
+            }
+          ]
+        }
+        """;
+
+    ReservationBookingRequestDto request =
+        objectMapper.readValue(payload, ReservationBookingRequestDto.class);
+
+    assertThat(request.getGuests()).hasSize(2);
+    assertThat(request.getGuests().get(0).getGuestProfileId()).isNull();
+    assertThat(request.getGuests().get(0).getIsPrimary()).isTrue();
+    assertThat(request.getGuests().get(0).getEnrollGuest()).isTrue();
+    assertThat(request.getGuests().get(1).getGuestProfileId()).isEqualTo(126L);
+    assertThat(request.getGuests().get(1).getIsPrimary()).isFalse();
+
+    request.getGuests().get(1).setIsPrimary(null);
+    try (var validatorFactory = Validation.buildDefaultValidatorFactory()) {
+      var violations = validatorFactory.getValidator().validate(request.getGuests().get(1));
+      assertThat(violations).anyMatch(violation ->
+          violation.getPropertyPath().toString().equals("isPrimary"));
+    }
+  }
+
+    @Test
+    void guestsAreRequiredForCreateButNotForUpdateValidation() {
+      ReservationBookingRequestDto request = new ReservationBookingRequestDto();
+      try (var validatorFactory = Validation.buildDefaultValidatorFactory()) {
+        var validator = validatorFactory.getValidator();
+        assertThat(validator.validate(request, ReservationBookingRequestDto.Create.class))
+            .anyMatch(violation -> violation.getPropertyPath().toString().equals("guests"));
+        assertThat(validator.validate(request))
+            .noneMatch(violation -> violation.getPropertyPath().toString().equals("guests"));
+
+        request.setGuests(java.util.List.of());
+        assertThat(validator.validate(request, ReservationBookingRequestDto.Create.class))
+            .anyMatch(violation -> violation.getPropertyPath().toString().equals("guests"));
+      }
   }
 }

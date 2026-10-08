@@ -3,7 +3,7 @@ import Policy_Management.Policy.dto.APIResponse;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyDto;
 import Policy_Management.Policy.dto.Status;
-import Policy_Management.Policy.security.CurrentUserProvider;
+import com.pms.common.security.CurrentUserProvider;
 import Policy_Management.Policy.service.PolicyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/policies")
@@ -30,7 +31,6 @@ public class PolicyController {
     
     @PostMapping(value = "/createPolicy")
     public ResponseEntity<APIResponse<PolicyDto>> create(@RequestBody PolicyDto dto) {
-        dto.setCreatedBy(currentUserProvider.getCurrentUsername());
         LOGGER.info("POST /api/v1/policies/createPolicy request: {}", dto);
         PolicyDto created = service.createPolicy(dto);
         APIResponse<PolicyDto> response = new APIResponse<>("success", "Policy created successfully", created);
