@@ -5,6 +5,7 @@ import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.common.exception.PropertyDeletionException;
 import com.pms.property.domain.config.InventoryClient;
 import com.pms.property.domain.config.HousekeepingClient;
+import com.pms.property.domain.config.RateManagementClient;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
@@ -57,6 +58,7 @@ public class PropertyServiceImpl implements PropertyService {
     private final DraftService draftService;
     private final InventoryClient inventoryClient;
     private final HousekeepingClient housekeepingClient;
+    private final RateManagementClient rateManagementClient;
 
     public PropertyServiceImpl(
             PropertyRepository propertyRepository,
@@ -76,7 +78,8 @@ public class PropertyServiceImpl implements PropertyService {
             LocalImageStorageService localImageStorageService,
             DraftService draftService,
             InventoryClient inventoryClient,
-            HousekeepingClient housekeepingClient
+            HousekeepingClient housekeepingClient,
+            RateManagementClient rateManagementClient
     ) {
         this.propertyRepository = propertyRepository;
         this.propertyOverviewRepository = propertyOverviewRepository;
@@ -96,6 +99,7 @@ public class PropertyServiceImpl implements PropertyService {
         this.draftService = draftService;
         this.inventoryClient = inventoryClient;
         this.housekeepingClient = housekeepingClient;
+        this.rateManagementClient = rateManagementClient;
     }
 
     @Override
@@ -141,6 +145,8 @@ public class PropertyServiceImpl implements PropertyService {
             );
         }
 
+        rateManagementClient.deletePropertyRatePlans(propertyId);
+        rateManagementClient.deleteAllMasterRoomsForProperty(propertyId);
         cleanupDraftImages(propertyId);
         cleanupNormalizedPropertyImages(propertyId);
 

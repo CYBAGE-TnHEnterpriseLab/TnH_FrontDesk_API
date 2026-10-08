@@ -1,6 +1,7 @@
 package Policy_Management.Policy.service.impl;
 
 import Policy_Management.Policy.dto.PolicyDto;
+import Policy_Management.Policy.config.RateManagementClient;
 import Policy_Management.Policy.dto.PolicyListResponse;
 import Policy_Management.Policy.dto.PolicyMapper;
 import Policy_Management.Policy.dto.PropertyDto;
@@ -36,6 +37,9 @@ public class PolicyServiceImpl implements PolicyService {
 
     @Autowired
     PropertyClient propertyClient;
+
+    @Autowired
+    RateManagementClient rateManagementClient;
 
     
     @Override
@@ -144,6 +148,7 @@ public class PolicyServiceImpl implements PolicyService {
             return new PolicyNotFoundException(id);
         });
         Status status = existing.getStatus();
+        rateManagementClient.deletePolicyUpdateInRatePlan(id.toString());
         repository.deleteById(id);
         repository.updatePolicyCountByStatus(status, (int) calculatePolicyCountForStatus(status));
         LOGGER.info("Service deletePolicy completed for id={} status={}", id, status);
