@@ -554,12 +554,46 @@ class RatePlanServiceTest {
     }
 
     @Test
+    void deletePolicyFromRatePlan_shouldRemoveOnlyDeletedPolicyFromAllMatchingPlans() {
+        RatePlan first = new RatePlan();
+        first.getPolicyId().addAll(List.of("7", "8", "7"));
+        RatePlan second = new RatePlan();
+        second.getPolicyId().add("7");
+        List<RatePlan> plans = List.of(first, second);
+        when(ratePlanRepository.findAllByMappedPolicyId("7")).thenReturn(plans);
+
+        ratePlanService.deletePolicyFromRatePlan("7");
+
+        assertEquals(List.of("8"), first.getPolicyId());
+        assertTrue(second.getPolicyId().isEmpty());
+        verify(ratePlanRepository).saveAll(plans);
+    }
+
+    @Test
+    void deletePolicyFromRatePlan_shouldSucceedWhenNoPlansAreMapped() {
+        when(ratePlanRepository.findAllByMappedPolicyId("7")).thenReturn(List.of());
+
+        ratePlanService.deletePolicyFromRatePlan("7");
+
+        verify(ratePlanRepository).saveAll(List.of());
+    }
+
+    @Test
     void deleteRatePlan_shouldFailWhenNotFound() {
         when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
         when(ratePlanRepository.findByIdAndPropertyId(58L, PROPERTY_ID)).thenReturn(Optional.empty());
 
         assertThrows(RatePlanNotFoundException.class, () -> ratePlanService.deleteRatePlan(PROPERTY_ID, 58L));
         verify(ratePlanRepository, never()).delete(org.mockito.ArgumentMatchers.any(RatePlan.class));
+    }
+
+    @Test
+    void deleteRatePlansForProperty_shouldDeleteAllPlansWhenPropertyExists() {
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+
+        ratePlanService.deleteRatePlansForProperty(PROPERTY_ID);
+
+        verify(ratePlanRepository).deleteAllByPropertyId(PROPERTY_ID);
     }
 
     @Test

@@ -127,6 +127,17 @@ public class RatePlanService {
     }
 
     @Transactional
+    public void deleteRatePlansForProperty(String propertyId) {
+        if (propertyId == null || propertyId.isBlank()) {
+            throw new IllegalArgumentException("propertyId is required in path");
+        }
+        if (!propertyWizardClient.propertyExists(propertyId)) {
+            throw new PropertyNotFoundException(propertyId);
+        }
+        ratePlanRepository.deleteAllByPropertyId(propertyId);
+    }
+
+    @Transactional
     public RatePlanResponseDTO updateRatePlanStatus(String propertyId, Long id, RatePlanStatus status) {
         validateProperty(propertyId);
         RatePlan ratePlan = ratePlanRepository.findByIdAndPropertyId(id, propertyId)
@@ -710,6 +721,18 @@ public class RatePlanService {
         }
 
         return toResponseDTO(ratePlan);
+    }
+
+    @Transactional
+    public void deletePolicyFromRatePlan(String policyId) {
+        if (policyId == null || policyId.isBlank()) {
+            throw new IllegalArgumentException("policyId is required in path");
+        }
+        List<RatePlan> ratePlans = ratePlanRepository.findAllByMappedPolicyId(policyId);
+        for (RatePlan ratePlan : ratePlans) {
+            ratePlan.getPolicyId().removeIf(policyId::equals);
+        }
+        ratePlanRepository.saveAll(ratePlans);
     }
 
     public RatePlanResponseDTO unmapPolicyToRatePlan(String propertyId, Long ratePlanId, List<String> policyId) {
