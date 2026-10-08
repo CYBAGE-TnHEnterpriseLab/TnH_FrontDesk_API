@@ -442,6 +442,8 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         List<PropertyRoomInventoryDto> inventory,
         AvailabilityLookupContext lookupContext
     ) {
+        int childAbove5Count = countChildrenAbove5(request);
+
         // Authorization does not vary by stay date, so one 401/403 must not be retried for every forecast day.
         if (lookupContext.isRateManagementUnauthorized()) {
             return List.of();
@@ -457,7 +459,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 null,
                 null,
                 request.getAdultCount(),
-                request.getChildCount()
+                childAbove5Count
             );
 
             List<RatePlanPricingQuoteDto> normalizedDirectFetch = directFetch == null ? List.of() : directFetch;
@@ -559,6 +561,24 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 ex.getMessage()
             );
         }
+    }
+
+    private int countChildrenAbove5(ReservationAvailabilityRequestDto request) {
+        List<Integer> childAges = request.getChildAges();
+        if (childAges == null || childAges.isEmpty()) {
+            childAges = new ArrayList<>();
+            if (request.getAgeOfChild1() != null) {
+                childAges.add(request.getAgeOfChild1());
+            }
+            if (request.getAgeOfChild2() != null) {
+                childAges.add(request.getAgeOfChild2());
+            }
+        }
+
+        int count = (int) childAges.stream()
+            .filter(age -> age != null && age > 5)
+            .count();
+        return Math.min(count, request.getChildCount() == null ? 0 : request.getChildCount());
     }
 
     private Map<String, PropertyRoomInventoryDto> buildRoomTypeCandidates(List<PropertyRoomInventoryDto> inventory) {
@@ -700,7 +720,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                         roomType,
                         roomTypeId,
                         request.getAdultCount(),
-                        request.getChildCount()
+                        countChildrenAbove5(request)
                     );
 
                     return perRoomQuotes == null ? List.<RatePlanPricingQuoteDto>of() : perRoomQuotes;

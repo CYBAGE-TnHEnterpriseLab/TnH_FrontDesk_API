@@ -15,6 +15,7 @@ class OccupancyTypeTest {
         assertEquals("3 Guest", OccupancyType.normalizeOrThrow("THREE_GUESTS"));
         assertEquals("4 Guest", OccupancyType.normalizeOrThrow("FOUR_GUESTS"));
         assertEquals("Extra Guest Charges(2P)", OccupancyType.normalizeOrThrow("EXTRA_GUEST"));
+        assertEquals("CHILD ABOVE 5", OccupancyType.normalizeOrThrow("CHILD_ABOVE_5"));
     }
 
     @Test

@@ -18,6 +18,7 @@ public class ReservationAvailabilityResponseDto {
     Integer children;
     Integer ageOfChild1;
     Integer ageOfChild2;
+    List<Integer> childAges;
     String groupCode;
     String company;
     String rateCode;

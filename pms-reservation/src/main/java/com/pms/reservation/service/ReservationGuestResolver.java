@@ -22,7 +22,9 @@ import org.springframework.util.StringUtils;
 @Component
 public class ReservationGuestResolver {
 
+    // Reservation enrollment uses a temporary number until the guest receives a permanent membership number.
     private static final String TEMPORARY_LOYALTY_NUMBER = "TEMP-GUEST";
+    // New enrollments start at the default loyalty tier; keep aligned with the guest service tier configuration.
     private static final String DEFAULT_LOYALTY_TIER = "STANDARD";
 
     private final GuestServiceClient guestServiceClient;

@@ -78,12 +78,12 @@ public class RateManagementServiceClient implements RateManagementPort {
             String roomType,
             Long roomTypeId,
             Integer adultCount,
-            Integer childCount
+            Integer childAbove5Count
     ) {
-        String occupancyType = buildOccupancyType(adultCount, childCount);
-        Integer guestCount = adultCount == null && childCount == null
+        String occupancyType = buildOccupancyType(adultCount);
+        Integer guestCount = adultCount == null
             ? null
-            : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
+            : adultCount;
 
         // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
 
@@ -153,6 +153,14 @@ public class RateManagementServiceClient implements RateManagementPort {
                     continue;
                 }
 
+                if (childAbove5Count != null && childAbove5Count > 0) {
+                    BigDecimal childRate = resolveChildAbove5Rate(propertyId, plan, candidateRoomTypeId);
+                    if (childRate != null) {
+                        resolvedFinalAmount = resolvedFinalAmount.add(
+                            childRate.multiply(BigDecimal.valueOf(childAbove5Count)));
+                    }
+                }
+
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomTypeId(candidateRoomTypeId);
                 quote.setRoomType(resolveRoomType(plan, roomType));
@@ -168,6 +176,51 @@ public class RateManagementServiceClient implements RateManagementPort {
         }
 
         return deduplicateQuotes(quotes);
+    }
+
+    private BigDecimal resolveChildAbove5Rate(
+            String propertyId,
+            RateManagementPlanDto plan,
+            Long roomTypeId
+    ) {
+        if ("MANUAL".equalsIgnoreCase(plan.getCalculationMethod())
+                && resolveManualChildAbove5Rate(plan) == null) {
+            return null;
+        }
+
+        try {
+            RatePlanCalculatedPriceResponseDto calculatedPrice = getCalculatedPrice(
+                propertyId,
+                plan.getId(),
+                roomTypeId,
+                "CHILD ABOVE 5",
+                null
+            );
+            return calculatedPrice == null ? null : calculatedPrice.getFinalAmount();
+        } catch (ExternalServiceException ex) {
+            log.info(
+                "No child-above-5 rate available propertyId={} ratePlanId={} roomTypeId={}; retaining base rate. reason={}",
+                propertyId,
+                plan.getId(),
+                roomTypeId,
+                ex.getMessage()
+            );
+            return null;
+        }
+    }
+
+    private BigDecimal resolveManualChildAbove5Rate(RateManagementPlanDto plan) {
+        Map<String, Object> manualPricing = plan.getManualPricingByOccupancy();
+        if (manualPricing == null) {
+            return null;
+        }
+
+        for (Map.Entry<String, Object> entry : manualPricing.entrySet()) {
+            if ("childabove5".equals(normalizeOccupancyKey(entry.getKey()))) {
+                return toBigDecimal(entry.getValue());
+            }
+        }
+        return null;
     }
 
     @Override
@@ -1317,19 +1370,14 @@ public class RateManagementServiceClient implements RateManagementPort {
         return normalized;
     }
 
-    private String buildOccupancyType(Integer adultCount, Integer childCount) {
+    private String buildOccupancyType(Integer adultCount) {
         int adults = adultCount == null ? 0 : adultCount;
-        int children = childCount == null ? 0 : childCount;
 
-        if (adults <= 0 && children <= 0) {
+        if (adults <= 0) {
             return null;
         }
 
-        if (children <= 0) {
-            return adults + " Adults";
-        }
-
-        return adults + " Adults " + children + " Children";
+        return adults + " Guest";
     }
 
     private static class MasterRoomPricingEntry {
