@@ -16,6 +16,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
+import jakarta.validation.groups.Default;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -28,6 +30,9 @@ import org.springframework.util.StringUtils;
 @Getter
 @Setter
 public class ReservationBookingRequestDto {
+
+    public interface Create extends Default {
+    }
 
     @NotBlank(message = "propertyId is required")
     private String propertyId;
@@ -68,6 +73,9 @@ public class ReservationBookingRequestDto {
         private String lastName;
 
     private List<@NotBlank(message = "guestNames must not contain blank values") String> guestNames;
+
+    @NotEmpty(message = "guests is required", groups = Create.class)
+    private List<@Valid ReservationGuestRequestDto> guests;
 
     @Email(message = "personalEmail must be a valid email")
     private String personalEmail;

@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:reservation-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS frontdeskdb
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    properties:
+      hibernate:
+        default_schema: frontdeskdb
+  flyway:
+    baseline-on-migrate: false
+    schemas: frontdeskdb
+    default-schema: frontdeskdb
+    create-schemas: true
+    placeholders:
+      generated-column-storage: ''

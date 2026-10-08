@@ -19,6 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         service:
+          - pms-guest
           - pms-reservation
           - pms-auth
           - pms-housekeeping

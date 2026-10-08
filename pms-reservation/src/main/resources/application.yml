@@ -29,6 +29,8 @@ spring:
     enabled: true
     validate-on-migrate: false
     baseline-on-migrate: true
+    placeholders:
+      generated-column-storage: STORED
     locations: classpath:db/migration
     create-schemas: true
     schemas: frontdeskdb
@@ -92,6 +94,13 @@ housekeeping-service:
 
 folio-service:
   base-url: ${FOLIO_SERVICE_BASE_URL:http://localhost:8080}
+
+pms:
+  services:
+    guest:
+      base-url: ${PMS_GUEST_SERVICE_BASE_URL:http://localhost:8089}
+      connect-timeout-ms: 3000
+      read-timeout-ms: 6000
 
 dashboard:
   timeout-ms: 2500

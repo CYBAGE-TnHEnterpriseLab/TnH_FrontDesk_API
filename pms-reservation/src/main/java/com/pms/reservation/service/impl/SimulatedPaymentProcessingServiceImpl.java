@@ -43,6 +43,16 @@ public class SimulatedPaymentProcessingServiceImpl implements PaymentProcessingS
                 .build();
     }
 
+    @Override
+    public void compensatePayment(
+            ReservationBookingRequestDto request,
+            String confirmationNumber,
+            BigDecimal amount,
+            PaymentProcessingResult paymentResult
+    ) {
+        // The simulated processor has no external state to reverse.
+    }
+
     private String generateTransactionReference(String prefix) {
         int randomSuffix = ThreadLocalRandom.current().nextInt(100, 1000);
         return prefix + "-" + LocalDateTime.now().format(TXN_TIME_FORMATTER) + "-" + randomSuffix;
