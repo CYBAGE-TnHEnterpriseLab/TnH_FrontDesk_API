@@ -27,6 +27,7 @@ class SimulatedPaymentProcessingServiceImplTest {
         assertThat(result.getProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(result.getFailureReason()).isNull();
         assertThat(result.getProcessedAt()).isNotNull();
+        assertThat(result.getAmount()).isEqualTo(new BigDecimal("5000.00"));
     }
 
     @Test
@@ -45,6 +46,7 @@ class SimulatedPaymentProcessingServiceImplTest {
         assertThat(result.getProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(result.getFailureReason()).isNull();
         assertThat(result.getProcessedAt()).isNotNull();
+        assertThat(result.getAmount()).isEqualTo(new BigDecimal("2500.00"));
     }
 
     @Test
@@ -63,5 +65,6 @@ class SimulatedPaymentProcessingServiceImplTest {
         assertThat(result.getProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(result.getFailureReason()).isEqualTo("amount must be greater than zero");
         assertThat(result.getProcessedAt()).isNotNull();
+        assertThat(result.getAmount()).isEqualTo(BigDecimal.ZERO);
     }
 }

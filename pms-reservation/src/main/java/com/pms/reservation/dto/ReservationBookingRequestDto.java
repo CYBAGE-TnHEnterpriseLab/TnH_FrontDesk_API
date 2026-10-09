@@ -87,7 +87,7 @@ public class ReservationBookingRequestDto {
 
     @NotBlank(message = "phoneNumber is required")
         @JsonAlias({"phone", "contactNumber"})
-        @Pattern(regexp = "^\\d{10}$", message = "phoneNumber must be exactly 10 digits")
+        @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "phoneNumber must be a valid E.164 number")
     private String phoneNumber;
 
     private String loyaltyNumber;

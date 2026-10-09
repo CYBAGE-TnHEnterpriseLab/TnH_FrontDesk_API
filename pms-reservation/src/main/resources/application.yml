@@ -97,7 +97,7 @@ loyalty-service:
   base-url: ${LOYALTY_SERVICE_BASE_URL:http://localhost:8089}
 
 dashboard:
-  timeout-ms: 2500
+  timeout-ms: 3000
   housekeeping:
     base-url: http://localhost:8086
     primary-path: /api/v1/housekeeping/dashboard

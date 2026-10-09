@@ -55,13 +55,13 @@ public record FrontdeskDashboardResponse(
     public record TurndownStatus(long required, long notRequired, long completed) {
     }
 
-    public record DailyGuestActivity(Today today, Arrivals arrivals, OtherActivity otherActivity) {
+    public record DailyGuestActivity(Arrivals arrivals, Departures departures, OtherActivity otherActivity) {
     }
 
-    public record Today(long expected, long checkedIn, long walkIns, long newReservations) {
+    public record Arrivals(long expected, long checkedIn, long walkIns, long newReservations) {
     }
 
-    public record Arrivals(long expected, long checkedOut, long earlyDepartures) {
+    public record Departures(long expected, long checkedOut, long earlyDepartures) {
     }
 
     public record OtherActivity(long stayovers, long extendedStays, long dayUseRooms, long sameDayCancels) {

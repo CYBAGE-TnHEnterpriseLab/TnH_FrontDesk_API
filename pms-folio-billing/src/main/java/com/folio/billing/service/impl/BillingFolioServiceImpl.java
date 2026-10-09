@@ -419,7 +419,9 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             .map(FolioDetailsResponse.Folio::balance)
             .map(BillingFolioServiceImpl::safeAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-        reservationServiceClient.updateGuestBalance(confirmationNumber, bookingId, balance);
+        if (!selectedFolios.isEmpty()) {
+            reservationServiceClient.updateGuestBalance(confirmationNumber, bookingId, balance);
+        }
 
         Folio selectedPersisted = folioRepository.findByBookingIdOrderByFolioCode(bookingId).stream()
             .filter(folio -> normalizedConfirmationNumber.equals(normalize(folio.getConfirmationNumber())))
@@ -1134,36 +1136,46 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 totalPayment,
                 bookingId
         );
-            reservationServiceClient.updateGuestBalance(
-                confirmationNumber,
-                bookingId,
-                aggregateOutstandingBalance(confirmationNumber, bookingId)
-            );
+            BigDecimal outstandingBalance = aggregateOutstandingBalance(confirmationNumber, bookingId);
+            if (outstandingBalance != null) {
+                reservationServiceClient.updateGuestBalance(confirmationNumber, bookingId, outstandingBalance);
+            }
 
         return folioState.snapshot();
     }
 
+            /**
+             * Resolves the outstanding balance across every folio for this booking, or null when no
+             * folio exists at all. A missing folio must never be reported as a zero balance, because
+             * that would overwrite a real outstanding amount already tracked by the reservation.
+             */
             private BigDecimal aggregateOutstandingBalance(String confirmationNumber, Long bookingId) {
-            BigDecimal balance;
             if (folioRepository != null) {
                 List<Folio> folios = bookingId == null
                     ? folioRepository.findByConfirmationNumberOrderByFolioCode(normalize(confirmationNumber))
                     : folioRepository.findByBookingIdOrderByFolioCode(bookingId).stream()
                     .filter(folio -> normalize(confirmationNumber).equals(normalize(folio.getConfirmationNumber())))
                     .toList();
-                balance = folios.stream()
+                if (folios.isEmpty()) {
+                    return null;
+                }
+                return folios.stream()
                     .map(Folio::getOutstandingBalance)
                     .map(BillingFolioServiceImpl::safeAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            } else {
-                balance = foliosByKey.values().stream()
+            }
+
+            List<FolioState> states = foliosByKey.values().stream()
                     .filter(state -> normalize(confirmationNumber).equals(normalize(state.confirmationNumber())))
                     .filter(state -> bookingId == null || bookingId.equals(state.bookingId()))
+                    .toList();
+            if (states.isEmpty()) {
+                return null;
+            }
+            return states.stream()
                     .map(FolioState::outstandingBalance)
                     .map(BillingFolioServiceImpl::safeAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            }
-            return balance;
             }
 
     private BillingTotals resolveTotals(String confirmationNumber, String folioCode,

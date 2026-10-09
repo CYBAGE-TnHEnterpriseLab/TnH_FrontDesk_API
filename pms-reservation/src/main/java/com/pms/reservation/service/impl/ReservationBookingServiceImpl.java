@@ -152,8 +152,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             applyPropertyTaxOnBooking(entity);
             entity.setConfirmationNumber(confirmationNumber);
             entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
+            entity.setOriginalDepartureDate(request.getDepartureDate());
             entity.setInventoryDeductedAt(LocalDateTime.now());
             entity.setInventorySyncedAt(LocalDateTime.now());
+            entity.setGuestBalance(payableAmount != null ? payableAmount.max(BigDecimal.ZERO) : BigDecimal.ZERO);
             savedBookings.add(reservationBookingRepository.save(entity));
         }
 
@@ -322,6 +324,13 @@ private ReservationBookingRequestDto requestForRoom(
 
         ReservationBookingRecord updated = reservationBookingMapper.mergeEntity(existing, request);
 
+        boolean checkedIn = existing.getCheckInCompletedAt() != null;
+        boolean departureChanged = request.getDepartureDate() != null
+                && !request.getDepartureDate().equals(existing.getDepartureDate());
+        if (!checkedIn && departureChanged) {
+            updated.setOriginalDepartureDate(request.getDepartureDate());
+        }
+
         if (request.getAssignedRoomNo() != null && !Boolean.TRUE.equals(existing.getDnm())) {
             updated.setAssignedRoomNo(request.getAssignedRoomNo().trim());
             populateRoomFloor(updated);
@@ -419,6 +428,11 @@ private ReservationBookingRequestDto requestForRoom(
      * After a stay-length change the guest balance must follow the folio for this specific room.
      * For multi-room bookings each room has its own folio, so the balance is resolved by bookingId
      * and only falls back to the locally derived value when the folio could not be reached.
+     *
+     * The locally derived value is authoritative when the folio is unavailable: extending the stay
+     * adds the extra nights' cost to the outstanding balance, shortening it removes that cost.
+     * The folio is only trusted when it actually reports a positive outstanding amount, because a
+     * missing folio is reported as zero and must never wipe out a real balance.
      */
     private BigDecimal resolveGuestBalanceAfterRateChange(
             ReservationBookingRecord booking,
@@ -427,8 +441,8 @@ private ReservationBookingRequestDto requestForRoom(
             boolean folioAdjusted
     ) {
         BigDecimal newTotalRate = booking.getTotalRate() != null ? booking.getTotalRate() : BigDecimal.ZERO;
-        BigDecimal amountPaid = originalTotalRate.subtract(originalGuestBalance);
-        BigDecimal derivedBalance = newTotalRate.subtract(amountPaid);
+        BigDecimal amountPaid = originalTotalRate.subtract(originalGuestBalance != null ? originalGuestBalance : BigDecimal.ZERO);
+        BigDecimal derivedBalance = newTotalRate.subtract(amountPaid).max(BigDecimal.ZERO);
 
         if (!folioAdjusted) {
             return derivedBalance;
@@ -437,7 +451,10 @@ private ReservationBookingRequestDto requestForRoom(
         try {
             BigDecimal folioBalance = folioServiceClient.getFolioBalance(
                     booking.getConfirmationNumber(), booking.getId());
-            return folioBalance != null ? folioBalance : derivedBalance;
+            if (folioBalance == null || folioBalance.signum() <= 0) {
+                return derivedBalance;
+            }
+            return folioBalance.max(BigDecimal.ZERO);
         } catch (Exception ex) {
             log.warn("Folio balance refresh failed for confirmationNumber={} bookingId={}",
                     booking.getConfirmationNumber(), booking.getId(), ex);
@@ -658,6 +675,15 @@ private ReservationBookingRequestDto requestForRoom(
         BigDecimal folioBalance = folioServiceClient.getFolioBalance(
                 booking.getConfirmationNumber(), booking.getId());
 
+        BigDecimal folioOutstanding = folioBalance != null ? folioBalance.max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        BigDecimal bookingBalance = booking.getGuestBalance() != null
+                ? booking.getGuestBalance().max(BigDecimal.ZERO)
+                : BigDecimal.ZERO;
+        BigDecimal fallbackTotal = booking.getTotalRate() != null ? booking.getTotalRate().max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        BigDecimal effectiveBalance = folioOutstanding.signum() > 0 ? folioOutstanding
+                : bookingBalance.signum() > 0 ? bookingBalance
+                : fallbackTotal;
+
         return ReservationViewResponseDto.builder()
                 .reservationId(booking.getConfirmationNumber())
                 .confirmationNumber(booking.getConfirmationNumber())
@@ -677,7 +703,7 @@ private ReservationBookingRequestDto requestForRoom(
                 .stay(buildStay(booking))
                 .room(buildRoom(booking))
                 .booking(buildBookingDetails(booking))
-                .pricing(buildPricing(booking, taxSummary, folioBalance))
+                .pricing(buildPricing(booking, taxSummary, effectiveBalance))
                 .comments(buildComments(booking))
                 .actions(buildActions(booking))
                 .roomBookings(toRoomBookingSummaries(
@@ -826,17 +852,15 @@ private ReservationBookingRequestDto requestForRoom(
     private ReservationViewResponseDto.PricingDto buildPricing(
             ReservationBookingRecord booking,
             TaxSummary taxSummary,
-            BigDecimal folioBalance
+            BigDecimal guestBalance
     ) {
-        BigDecimal folioOutstanding = folioBalance != null ? folioBalance : BigDecimal.ZERO;
-
         return ReservationViewResponseDto.PricingDto.builder()
                 .currency(DEFAULT_CURRENCY)
                 .roomRate(booking.getRate())
                 .taxPercent(booking.getTaxPercent() == null ? taxSummary.taxPercent : booking.getTaxPercent())
                 .taxAmount(taxSummary.taxAmount)
                 .totalRate(booking.getTotalRate())
-                .guestBalance(folioOutstanding)
+                .guestBalance(guestBalance)
                 .discount(booking.getDiscount())
                 .build();
     }
@@ -1349,8 +1373,8 @@ private ReservationBookingRequestDto requestForRoom(
             throw new BadRequestException("phoneNumber is required");
         }
 
-        if (!phoneNumber.matches("\\d{10}")) {
-            throw new BadRequestException("phoneNumber must be exactly 10 digits");
+        if (!phoneNumber.matches("^\\+?[1-9]\\d{1,14}$")) {
+            throw new BadRequestException("phoneNumber must be a valid E.164 number");
         }
     }
 

@@ -59,26 +59,27 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
         }
 
+        BigDecimal bookingBalance = booking.getGuestBalance() != null
+                ? booking.getGuestBalance().max(BigDecimal.ZERO)
+                : BigDecimal.ZERO;
+
         BigDecimal folioBalance = folioServiceClient.getFolioBalance(
             booking.getConfirmationNumber(), booking.getId());
-        if (folioBalance != null) {
-            booking.setGuestBalance(folioBalance.max(BigDecimal.ZERO));
-        }
-        if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
-            throw new BadRequestException(
-                    "Check-out denied: folio has outstanding balance of "
-                            + folioBalance.setScale(2, RoundingMode.HALF_UP)
-                            + ". Please resolve the balance before checkout.");
+        BigDecimal folioOutstanding = folioBalance != null ? folioBalance.max(BigDecimal.ZERO) : BigDecimal.ZERO;
+
+        if (folioOutstanding.signum() > 0) {
+            booking.setGuestBalance(folioOutstanding);
         }
 
-        if (booking.getGuestBalance() != null && booking.getGuestBalance().compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal outstandingBalance = bookingBalance.max(folioOutstanding);
+        if (outstandingBalance.signum() > 0) {
             throw new BadRequestException(
                     "Check-out denied: guest has outstanding balance of "
-                            + booking.getGuestBalance().setScale(2, RoundingMode.HALF_UP)
+                            + outstandingBalance.setScale(2, RoundingMode.HALF_UP)
                             + ". Please resolve the balance before checkout.");
         }
 
-        LocalDate originalDepartureDate = booking.getDepartureDate();
+        LocalDate originalDepartureDate = booking.getOriginalDepartureDate() != null ? booking.getOriginalDepartureDate() : booking.getDepartureDate();
         LocalDate businessDate = request.getBusinessDate();
 
         if (businessDate.isAfter(originalDepartureDate)) {

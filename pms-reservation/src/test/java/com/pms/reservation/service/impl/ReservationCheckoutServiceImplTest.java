@@ -110,16 +110,29 @@ class ReservationCheckoutServiceImplTest {
     }
 
     @Test
-    void completeCheckoutShouldUseLiveFolioBalanceWhenStoredGuestBalanceIsStale() {
+    void completeCheckoutShouldRejectWhenFolioReportsZeroButBookingHasOutstandingBalance() {
         booking.setGuestBalance(new BigDecimal("900.00"));
         when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
         when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
-        CheckoutCompletionResponseDto response = service.completeCheckout("CONF-101", request);
+        assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("outstanding balance of 900.00");
 
-        assertThat(response.getReservationStatus()).isEqualTo("CHECKED_OUT");
-        assertThat(booking.getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
-        verify(reservationBookingRepository).save(booking);
+        verify(reservationBookingRepository, never()).save(any());
+    }
+
+    @Test
+    void completeCheckoutShouldUseLiveFolioBalanceWhenItIsHigherThanStoredGuestBalance() {
+        booking.setGuestBalance(new BigDecimal("200.00"));
+        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(new BigDecimal("900.00"));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
+
+        assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("outstanding balance of 900.00");
+
+        verify(reservationBookingRepository, never()).save(any());
     }
 
     @Test
