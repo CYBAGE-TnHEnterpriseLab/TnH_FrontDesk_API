@@ -62,7 +62,7 @@ class ReservationAvailabilityServiceImplTest {
         }
 
     @Test
-    void getAvailabilityShouldReuseRoomOutletTypesAcrossPrimaryAndNext15Days() {
+    void getAvailabilityShouldReuseRoomOutletTypesAndPriceOnlyChildrenAboveFive() {
         String propertyId = "property-1";
         LocalDate arrivalDate = LocalDate.of(2026, 9, 20);
         PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
@@ -77,7 +77,8 @@ class ReservationAvailabilityServiceImplTest {
         request.setNight(3);
         request.setNumberOfRooms(1);
         request.setAdultCount(2);
-        request.setChildCount(0);
+        request.setChildCount(4);
+        request.setChildAges(List.of(4, 5, 6, 8));
 
         when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
         when(propertyInventoryPort.fetchTaxRules(propertyId)).thenReturn(List.of());
@@ -91,7 +92,7 @@ class ReservationAvailabilityServiceImplTest {
                 any(),
                 any(),
                 eq(2),
-                eq(0)
+                eq(2)
         )).thenReturn(List.of());
         when(reservationAvailabilityMapper.toResponse(any(), any(), any(), any()))
                 .thenReturn(ReservationAvailabilityResponseDto.builder().build());

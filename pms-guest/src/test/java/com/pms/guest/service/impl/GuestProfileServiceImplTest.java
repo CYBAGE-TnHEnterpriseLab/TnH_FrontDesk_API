@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,12 +14,14 @@ import com.pms.guest.dto.request.GuestProfileCreateRequest;
 import com.pms.guest.dto.request.GuestLookupRequest;
 import com.pms.guest.dto.request.GuestProfileUpdateRequest;
 import com.pms.guest.entity.GuestProfile;
+import com.pms.guest.integration.ReservationServiceClient;
 import com.pms.guest.mapper.GuestProfileMapper;
 import com.pms.guest.repository.GuestProfileRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.web.server.ResponseStatusException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +44,32 @@ class GuestProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new GuestProfileServiceImpl(guestProfileRepository, new GuestProfileMapper());
+    }
+
+    @Test
+    void springSelectsConstructorWithReservationServiceClient() {
+        GuestProfileMapper mapper = new GuestProfileMapper();
+        ReservationServiceClient reservationClient = mock(ReservationServiceClient.class);
+        GuestProfile profile = new GuestProfile();
+        profile.setId(27L);
+        profile.setPropertyId("PROP001");
+        when(guestProfileRepository.findByIdAndPropertyId(27L, "PROP001"))
+                .thenReturn(Optional.of(profile));
+        when(reservationClient.findAssignmentsByGuestProfileIds("PROP001", List.of(27L)))
+                .thenReturn(List.of());
+
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(GuestProfileRepository.class, () -> guestProfileRepository);
+            context.registerBean(GuestProfileMapper.class, () -> mapper);
+            context.registerBean(ReservationServiceClient.class, () -> reservationClient);
+            context.register(GuestProfileServiceImpl.class);
+            context.refresh();
+
+            context.getBean(GuestProfileServiceImpl.class).deleteGuestProfile(27L, "PROP001");
+
+            verify(reservationClient).findAssignmentsByGuestProfileIds("PROP001", List.of(27L));
+            verify(guestProfileRepository).delete(profile);
+        }
     }
 
     @Test

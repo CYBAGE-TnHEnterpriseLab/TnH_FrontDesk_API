@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
+import com.pms.reservation.dto.ReservationAvailabilityRequestDto;
 import com.pms.reservation.dto.DailyAvailabilityPricingDto;
 import com.pms.reservation.dto.RatePlanAvailabilityDto;
 import com.pms.reservation.dto.ReservationAvailabilityResponseDto;
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -107,7 +109,8 @@ class ReservationAvailabilityControllerTest {
                         .param("rateCode", "BAR001")
                         .param("blockCode", "BLK01")
                         .param("adults", "2")
-                        .param("children", "1"))
+                        .param("children", "1")
+                        .param("ageOfChild1", "6"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Availability and pricing fetched successfully"))
@@ -124,7 +127,11 @@ class ReservationAvailabilityControllerTest {
                 .andExpect(jsonPath("$.data.next15DaysPricing[0].date").value("2026-07-01"))
                 .andExpect(jsonPath("$.data.next15DaysPricing[0].availability[0].roomType").value("Deluxe King"));
 
-        verify(reservationAvailabilityService).getAvailability(any());
+        ArgumentCaptor<ReservationAvailabilityRequestDto> requestCaptor =
+                ArgumentCaptor.forClass(ReservationAvailabilityRequestDto.class);
+        verify(reservationAvailabilityService).getAvailability(requestCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().getAgeOfChild1()).isEqualTo(6);
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().getChildAges()).containsExactly(6);
     }
 
     @Test

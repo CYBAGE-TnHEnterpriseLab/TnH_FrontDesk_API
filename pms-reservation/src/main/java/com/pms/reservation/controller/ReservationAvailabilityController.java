@@ -12,6 +12,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +49,9 @@ public class ReservationAvailabilityController {
             @RequestParam(required = false) @Min(value = 0, message = "children must be >= 0") Integer children,
             @RequestParam(required = false) @Min(value = 1, message = "adultCount must be >= 1") Integer adultCount,
             @RequestParam(required = false) @Min(value = 0, message = "childCount must be >= 0") Integer childCount,
+            @RequestParam(required = false) Integer ageOfChild1,
+            @RequestParam(required = false) Integer ageOfChild2,
+            @RequestParam(required = false) List<Integer> childAges,
             @RequestParam(required = false) String company,
             @RequestParam(required = false) String rateCode,
             @RequestParam(required = false) String blockCode
@@ -88,8 +93,31 @@ public class ReservationAvailabilityController {
         request.setBlockCode(blockCode);
         request.setAdultCount(resolvedAdults);
         request.setChildCount(resolvedChildren);
+        List<Integer> resolvedChildAges = resolveChildAges(childAges, ageOfChild1, ageOfChild2);
+        request.setAgeOfChild1(ageOfChild1 != null ? ageOfChild1 : ageAt(resolvedChildAges, 0));
+        request.setAgeOfChild2(ageOfChild2 != null ? ageOfChild2 : ageAt(resolvedChildAges, 1));
+        request.setChildAges(resolvedChildAges);
 
         ReservationAvailabilityResponseDto result = reservationAvailabilityService.getAvailability(request);
         return ResponseEntity.ok(ApiResponse.success("Availability and pricing fetched successfully", result));
+    }
+
+    private List<Integer> resolveChildAges(List<Integer> childAges, Integer ageOfChild1, Integer ageOfChild2) {
+        if (childAges != null && !childAges.isEmpty()) {
+            return childAges;
+        }
+
+        List<Integer> resolved = new ArrayList<>(2);
+        if (ageOfChild1 != null) {
+            resolved.add(ageOfChild1);
+        }
+        if (ageOfChild2 != null) {
+            resolved.add(ageOfChild2);
+        }
+        return resolved;
+    }
+
+    private Integer ageAt(List<Integer> ages, int index) {
+        return ages.size() > index ? ages.get(index) : null;
     }
 }

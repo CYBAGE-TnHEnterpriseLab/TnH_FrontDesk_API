@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+/** Combines guest profiles with reservation assignments for guest-details responses. */
 @Service
 public class GuestDetailsServiceImpl implements GuestDetailsService {
 

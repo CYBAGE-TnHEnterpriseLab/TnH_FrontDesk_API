@@ -123,6 +123,7 @@ public class ReservationAvailabilityMapper {
                                 .children(request.getChildCount())
                                 .ageOfChild1(request.getAgeOfChild1())
                                 .ageOfChild2(request.getAgeOfChild2())
+                                .childAges(request.getChildAges())
                                 .groupCode(request.getGroupCode())
                                 .company(request.getCompany())
                                 .rateCode(request.getRateCode())

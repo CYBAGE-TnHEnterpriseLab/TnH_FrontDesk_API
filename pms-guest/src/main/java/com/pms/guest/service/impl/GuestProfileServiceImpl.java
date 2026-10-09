@@ -17,12 +17,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+/** Creates and manages property-scoped guest profiles, including guest IDs and loyalty data. */
 @Service
 @Transactional(readOnly = true)
 public class GuestProfileServiceImpl implements GuestProfileService {
@@ -33,6 +35,7 @@ public class GuestProfileServiceImpl implements GuestProfileService {
     private final GuestProfileMapper guestProfileMapper;
     private final ReservationServiceClient reservationServiceClient;
 
+    @Autowired
     public GuestProfileServiceImpl(
             GuestProfileRepository guestProfileRepository,
             GuestProfileMapper guestProfileMapper,
@@ -236,6 +239,7 @@ public class GuestProfileServiceImpl implements GuestProfileService {
 
     private String generateGuestId() {
         for (int attempt = 0; attempt < GUEST_ID_GENERATION_ATTEMPTS; attempt++) {
+            // Keep the GST prefix as the guest-ID namespace; UUIDs make IDs unique across profiles.
             String guestId = "GST-" + UUID.randomUUID();
             if (!guestProfileRepository.existsByGuestId(guestId)) {
                 return guestId;
