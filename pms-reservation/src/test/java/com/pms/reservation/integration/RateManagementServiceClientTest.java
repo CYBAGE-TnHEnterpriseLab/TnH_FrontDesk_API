@@ -116,6 +116,139 @@ class RateManagementServiceClientTest {
     }
 
     @Test
+    void fetchRateQuotesShouldAddConfiguredChildAboveFiveRatePerApplicableChild() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                return ResponseEntity.ok("""
+                    [
+                      {
+                        "id": 32,
+                        "name": "Standard",
+                        "code": "STD",
+                        "occupancyType": "2 Guest",
+                        "calculationMethod": "MANUAL",
+                        "manualPricingByOccupancy": {
+                          "2 Guest": 9000,
+                          "CHILD_ABOVE_5": 400
+                        },
+                        "applicableRoomTypeIds": [28]
+                      }
+                    ]
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.toLowerCase().contains("child")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 400,
+                      "finalAmount": 400
+                    }
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 10000,
+                      "finalAmount": 9000
+                    }
+                    """);
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        var quotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 7, 14),
+            LocalDate.of(2026, 7, 16),
+            "Deluxe Room",
+            28L,
+            2,
+            2
+        );
+
+        assertThat(quotes).hasSize(1);
+        assertThat(quotes.get(0).getBaseRate()).isEqualByComparingTo("9800");
+        assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("9800");
+    }
+
+    @Test
+    void fetchRateQuotesShouldKeepManualPlanWhenChildRateIsNotConfigured() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                return ResponseEntity.ok("""
+                    [
+                      {
+                        "id": 32,
+                        "name": "Standard",
+                        "code": "STD",
+                        "occupancyType": "2 Guest",
+                        "calculationMethod": "MANUAL",
+                        "manualPricingByOccupancy": {
+                          "2 Guest": 9000
+                        },
+                        "applicableRoomTypeIds": [28]
+                      }
+                    ]
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 9000,
+                      "finalAmount": 9000
+                    }
+                    """);
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        var quotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 7, 14),
+            LocalDate.of(2026, 7, 16),
+            "Deluxe Room",
+            28L,
+            2,
+            1
+        );
+
+        assertThat(quotes).hasSize(1);
+        assertThat(quotes.get(0).getBaseRate()).isEqualByComparingTo("9000");
+        assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("9000");
+        verify(restTemplate, times(2)).exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        );
+    }
+
+    @Test
     void fetchRateQuotesShouldFallbackToListWhenAvailableGetReturns405() {
         configureProperties(1, 0);
 
