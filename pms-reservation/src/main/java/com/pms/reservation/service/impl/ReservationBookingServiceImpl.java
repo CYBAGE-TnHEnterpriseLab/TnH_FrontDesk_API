@@ -11,6 +11,7 @@ import com.pms.reservation.constant.IdTypes;
 import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
+import com.pms.reservation.dto.ReservationGuestRequestDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.dto.ReservationRoomBookingSummaryDto;
@@ -21,7 +22,6 @@ import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.FolioServiceClient;
-import com.pms.reservation.integration.LoyaltyServiceClient;
 import com.pms.reservation.integration.dto.InventoryReservationRequest;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
@@ -29,6 +29,9 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import com.pms.reservation.service.ReservationGuestResolver;
+import com.pms.reservation.service.ReservationGuestService;
+import com.pms.reservation.service.ResolvedReservationGuest;
 import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -78,12 +81,13 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final InventoryServiceClient inventoryServiceClient;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
+    private final ReservationGuestResolver reservationGuestResolver;
+    private final ReservationGuestService reservationGuestService;
     private final PaymentProcessingService paymentProcessingService;
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
     private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final FolioServiceClient folioServiceClient;
-    private final LoyaltyServiceClient loyaltyServiceClient;
-    private final com.pms.reservation.config.LoyaltyServiceProperties loyaltyServiceProperties;
+
 
     @Override
     @Transactional
@@ -93,6 +97,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateDates(request.getArrivalDate(), request.getDepartureDate());
         validateRequiredContactFields(request);
         validateRoomSelectionAndGuestNames(request);
+        List<ResolvedReservationGuest> resolvedGuests = reservationGuestResolver.resolveGuests(
+                request.getPropertyId(),
+                request.getGuests()
+        );
         validateAndNormalizePaymentMode(request);
         validateAndNormalizePaymentType(request);
 
@@ -143,11 +151,15 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         List<String> roomGuestNames = request.getGuestNames();
+        String assignedLoyaltyNumber = primaryGuestLoyaltyNumber(resolvedGuests);
         List<ReservationBookingRecord> savedBookings = new ArrayList<>();
         for (int roomIndex = 0; roomIndex < roomCount; roomIndex++) {
             ReservationBookingRequestDto roomRequest = requestForRoom(
                     request, roomGuestNames.get(roomIndex), roomCount > 1);
             ReservationBookingRecord entity = reservationBookingMapper.toEntity(roomRequest);
+            if (StringUtils.hasText(assignedLoyaltyNumber)) {
+                entity.setLoyaltyNumber(assignedLoyaltyNumber);
+            }
             populateRoomFloor(entity);
             applyPropertyTaxOnBooking(entity);
             entity.setConfirmationNumber(confirmationNumber);
@@ -159,26 +171,72 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             savedBookings.add(reservationBookingRepository.save(entity));
         }
 
+        try {
+            for (ReservationBookingRecord savedBooking : savedBookings) {
+                reservationGuestService.assignResolvedGuests(savedBooking.getId(), resolvedGuests);
+            }
+        } catch (RuntimeException assignmentFailure) {
+            compensateFailedBooking(
+                    request,
+                    confirmationNumber,
+                    payableAmount,
+                    paymentResult,
+                    assignmentFailure
+            );
+            throw assignmentFailure;
+        }
+
         ReservationBookingRecord saved = savedBookings.get(0);
         ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
             .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
         savedBookings.forEach(this::updateStandaloneHousekeeping);
 
+        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
+                .roomBookings(toRoomBookingSummaries(savedBookings))
+                .build();
+    }
+
+    /**
+     * The loyalty number carried by the primary guest after resolution, so a guest enrolled during this
+     * booking reports the membership number assigned to them. Returns null when the primary guest is not
+     * a member, leaving the caller-supplied loyalty number untouched.
+     */
+    private String primaryGuestLoyaltyNumber(List<ResolvedReservationGuest> resolvedGuests) {
+        return resolvedGuests.stream()
+                .filter(guest -> Boolean.TRUE.equals(guest.isPrimary()))
+                .map(ResolvedReservationGuest::loyaltyNumber)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void compensateFailedBooking(
+            ReservationBookingRequestDto request,
+            String confirmationNumber,
+            BigDecimal payableAmount,
+            PaymentProcessingResult paymentResult,
+            RuntimeException assignmentFailure
+    ) {
         try {
-            UUID guestId = resolveGuestId(request);
-            String loyaltyProgramId = request.getLoyaltyProgramId();
-            if (guestId != null && StringUtils.hasText(loyaltyProgramId)) {
-                loyaltyServiceClient.ensureMembership(guestId, UUID.fromString(loyaltyProgramId));
-            } else if (guestId != null && StringUtils.hasText(loyaltyServiceProperties.getDefaultProgramId())) {
-                loyaltyServiceClient.ensureMembership(guestId, UUID.fromString(loyaltyServiceProperties.getDefaultProgramId()));
-            }
-        } catch (Exception ex) {
-            log.warn("Loyalty enrollment failed for confirmationNumber={}", confirmationNumber, ex);
+            inventoryServiceClient.release(confirmationNumber);
+        } catch (RuntimeException compensationFailure) {
+            assignmentFailure.addSuppressed(compensationFailure);
+            log.error("Failed to release inventory after guest assignment failure for confirmation {}",
+                    confirmationNumber, compensationFailure);
         }
 
-        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
-            .roomBookings(toRoomBookingSummaries(savedBookings))
-            .build();
+        try {
+            paymentProcessingService.compensatePayment(
+                    request,
+                    confirmationNumber,
+                    payableAmount,
+                    paymentResult
+            );
+        } catch (RuntimeException compensationFailure) {
+            assignmentFailure.addSuppressed(compensationFailure);
+            log.error("Failed to compensate payment after guest assignment failure for confirmation {}",
+                    confirmationNumber, compensationFailure);
+        }
     }
 
 private ReservationBookingRequestDto requestForRoom(
@@ -1180,6 +1238,8 @@ private ReservationBookingRequestDto requestForRoom(
             request.setEnrollGuest(Boolean.FALSE);
         }
 
+        propagateLoyaltyProgramSelection(request);
+
         if (request.getDiscount() == null) {
             request.setDiscount(BigDecimal.ZERO);
         }
@@ -1190,6 +1250,26 @@ private ReservationBookingRequestDto requestForRoom(
 
         if (!StringUtils.hasText(request.getPaymentType())) {
             request.setPaymentType(PaymentTypes.FULL_PAYMENT);
+        }
+    }
+
+    /**
+     * Applies the loyalty program chosen for the booking to any guest that did not carry its own
+     * selection, so a multi-program chain can pick one program for the whole reservation while still
+     * overriding it per guest. Guests already carrying a program keep theirs.
+     */
+    private void propagateLoyaltyProgramSelection(ReservationBookingRequestDto request) {
+        if (!StringUtils.hasText(request.getLoyaltyProgramId())
+                || request.getGuests() == null
+                || request.getGuests().isEmpty()) {
+            return;
+        }
+
+        String loyaltyProgramId = request.getLoyaltyProgramId().trim();
+        for (ReservationGuestRequestDto guest : request.getGuests()) {
+            if (guest != null && !StringUtils.hasText(guest.getLoyaltyProgramId())) {
+                guest.setLoyaltyProgramId(loyaltyProgramId);
+            }
         }
     }
 
@@ -1408,19 +1488,5 @@ private ReservationBookingRequestDto requestForRoom(
             throw new BadRequestException("Room cannot be changed because DNM is enabled for this reservation");
         }
     }
-
-    private UUID resolveGuestId(ReservationBookingRequestDto request) {
-        if (request.getGuestId() != null) {
-            return request.getGuestId();
-        }
-        if (StringUtils.hasText(request.getPhoneNumber())) {
-            return UUID.nameUUIDFromBytes(request.getPhoneNumber().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        }
-        if (StringUtils.hasText(request.getGuestName())) {
-            return UUID.nameUUIDFromBytes(request.getGuestName().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        }
-        return null;
-    }
 }
-
 

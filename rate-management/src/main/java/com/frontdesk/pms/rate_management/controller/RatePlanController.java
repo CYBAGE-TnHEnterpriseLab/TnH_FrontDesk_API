@@ -109,4 +109,11 @@ public class RatePlanController {
             @RequestParam List<String> policyId) {
         return ResponseEntity.ok(ratePlanService.unmapPolicyToRatePlan(propertyId, ratePlanId, policyId));
     }
+ 
+    @DeleteMapping("/delete/policy-from-rate-plan/property/{policyId}")
+    public ResponseEntity<Void> deletePolicyFromRatePlan(@PathVariable String policyId) {
+        ratePlanService.deletePolicyFromRatePlan(policyId);
+        return ResponseEntity.noContent().build();
+    }
+
 }

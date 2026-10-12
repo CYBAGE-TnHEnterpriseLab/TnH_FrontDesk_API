@@ -31,6 +31,13 @@ public class LoyaltyExceptionHandler {
                 .body(ApiResponse.failure("Validation failed", ex.getMessage()));
     }
 
+    @ExceptionHandler(LoyaltyNumberNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMembershipNotFound(LoyaltyNumberNotFoundException ex) {
+        log.debug("Loyalty membership not found", ex);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.failure(ex.getMessage(), null));
+    }
+
     @ExceptionHandler(LoyaltyConfigurationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConfiguration(LoyaltyConfigurationException ex) {
         log.error("Loyalty configuration error", ex);
@@ -52,7 +59,10 @@ public class LoyaltyExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);
+        String detail = ex.getMessage() == null || ex.getMessage().isBlank()
+                ? ex.getClass().getSimpleName()
+                : ex.getMessage();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure("Internal server error", null));
+                .body(ApiResponse.failure("Internal server error: " + detail, null));
     }
 }

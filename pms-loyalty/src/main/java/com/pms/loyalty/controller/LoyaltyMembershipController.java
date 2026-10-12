@@ -2,6 +2,7 @@ package com.pms.loyalty.controller;
 
 import com.pms.loyalty.dto.ApiResponse;
 import com.pms.loyalty.dto.request.EnsureLoyaltyMembershipRequest;
+import com.pms.loyalty.dto.request.VerifyLoyaltyNumberRequest;
 import com.pms.loyalty.dto.response.LoyaltyMembershipResponse;
 import com.pms.loyalty.service.LoyaltyEnrollmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,5 +32,15 @@ public class LoyaltyMembershipController {
         LoyaltyMembershipResponse response = loyaltyEnrollmentService.ensureMembership(
                 request.getGuestId(), request.getLoyaltyProgramId());
         return ResponseEntity.ok(ApiResponse.success("Membership ensured successfully", response));
+    }
+
+    @PostMapping("/verify")
+    @Operation(summary = "Verify a loyalty number",
+            description = "Validates a loyalty number and returns the membership details it is assigned to.")
+    public ResponseEntity<ApiResponse<LoyaltyMembershipResponse>> verifyLoyaltyNumber(
+            @Valid @RequestBody VerifyLoyaltyNumberRequest request) {
+        LoyaltyMembershipResponse response = loyaltyEnrollmentService.verifyLoyaltyNumber(
+                request.getLoyaltyNumber());
+        return ResponseEntity.ok(ApiResponse.success("Loyalty number verified successfully", response));
     }
 }

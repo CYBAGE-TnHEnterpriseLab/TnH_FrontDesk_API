@@ -50,6 +50,12 @@ public class MasterRoomController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/delete-all-master-rooms/property/{propertyId}")
+    public ResponseEntity<Void> deleteAllMasterRooms(@PathVariable String propertyId) {
+        masterRoomService.deleteAllMasterRoomsForProperty(propertyId);
+        return ResponseEntity.noContent().build();
+    }
+
     // Add or update master pricing for a specific occupancy type.
     @PostMapping("/update-pricing-by-occupancy/property/{propertyId}/{id}/pricing")
     public ResponseEntity<MasterRoomPricingResponseDTO> addOrUpdatePricing(@PathVariable String propertyId,

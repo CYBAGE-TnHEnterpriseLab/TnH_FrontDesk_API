@@ -176,4 +176,3 @@ class ArrivalSpecificationTest {
                 .containsExactly("CNF-ABC-123");
     }
 }
-
