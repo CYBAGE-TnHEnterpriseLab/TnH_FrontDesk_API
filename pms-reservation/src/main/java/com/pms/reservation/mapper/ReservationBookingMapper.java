@@ -200,12 +200,9 @@ public class ReservationBookingMapper {
             return java.math.BigDecimal.ZERO;
         }
 
-        long nights = ChronoUnit.DAYS.between(arrivalDate, departureDate);
+        long nights = com.pms.reservation.util.BillableNights.between(arrivalDate, departureDate);
         if (nights < 0) {
             return java.math.BigDecimal.ZERO;
-        }
-        if (nights == 0) {
-            nights = 1;
         }
 
         return rate

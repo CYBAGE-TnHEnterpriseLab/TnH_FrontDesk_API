@@ -29,6 +29,7 @@ import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import com.pms.reservation.util.BillableNights;
 import com.pms.reservation.service.ReservationGuestResolver;
 import com.pms.reservation.service.ReservationGuestService;
 import com.pms.reservation.service.ResolvedReservationGuest;
@@ -141,18 +142,27 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         inventoryServiceClient.reserve(inventoryRequest);
 
         BigDecimal payableAmount = calculatePayableAmount(request);
-        PaymentProcessingResult paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
-        if (!PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(paymentResult.getStatus())) {
-            String failureReason = paymentResult.getFailureReason() == null
-                    ? "payment processing failed"
-                    : paymentResult.getFailureReason();
-            inventoryServiceClient.release(confirmationNumber);
-            throw new BadRequestException("payment processing failed: " + failureReason);
+
+        // A FULL_PAYMENT booking collects the whole stay up front and leaves no outstanding balance.
+        // Every other booking is pay-at-hotel: nothing is collected at booking time, so the full
+        // payable amount stays as the guest balance until a folio payment settles it.
+        boolean collectAtBooking = PaymentTypes.FULL_PAYMENT.equalsIgnoreCase(request.getPaymentType());
+        PaymentProcessingResult paymentResult = null;
+        BigDecimal amountPaid = BigDecimal.ZERO;
+        if (collectAtBooking) {
+            paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
+            if (paymentResult == null || !PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(paymentResult.getStatus())) {
+                String failureReason = paymentResult == null || paymentResult.getFailureReason() == null
+                        ? "payment processing failed"
+                        : paymentResult.getFailureReason();
+                inventoryServiceClient.release(confirmationNumber);
+                throw new BadRequestException("payment processing failed: " + failureReason);
+            }
+            amountPaid = paymentResult.getAmount() == null ? payableAmount : paymentResult.getAmount();
         }
 
         List<String> roomGuestNames = request.getGuestNames();
         String assignedLoyaltyNumber = primaryGuestLoyaltyNumber(resolvedGuests);
-        BigDecimal amountPaid = paymentResult.getAmount() == null ? payableAmount : paymentResult.getAmount();
         List<ReservationBookingRecord> savedBookings = new ArrayList<>();
         for (int roomIndex = 0; roomIndex < roomCount; roomIndex++) {
             ReservationBookingRequestDto roomRequest = requestForRoom(
@@ -188,8 +198,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         ReservationBookingRecord saved = savedBookings.get(0);
-        ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
-            .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
+        ReservationPaymentTransactionRecord savedPaymentTransaction = paymentResult == null
+                ? null
+                : reservationPaymentTransactionRepository.save(
+                        buildPaymentTransaction(saved, request, payableAmount, paymentResult));
         savedBookings.forEach(this::updateStandaloneHousekeeping);
 
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
@@ -490,9 +502,35 @@ private ReservationBookingRequestDto requestForRoom(
      *
      * The locally derived value is authoritative when the folio is unavailable: extending the stay
      * adds the extra nights' cost to the outstanding balance, shortening it removes that cost.
-     * The folio is only trusted when it actually reports a positive outstanding amount, because a
-     * missing folio is reported as zero and must never wipe out a real balance.
+     * The folio client reports "no folio" as absent rather than as a zero balance, so a folio that
+     * does exist is trusted even when it reports zero because the guest has settled it, and only a
+     * missing folio keeps the locally derived value.
      */
+
+    /**
+     * Amount already collected for this booking. The booking's own successful payment transaction
+     * is the ground truth; the total-rate-minus-balance inference is only a fallback for rows that
+     * predate transaction recording, because such a row recorded the full stay price as its
+     * balance and the inference would then report nothing as collected.
+     */
+    private BigDecimal resolveCollectedAmount(
+            ReservationBookingRecord booking,
+            BigDecimal originalTotalRate,
+            BigDecimal originalGuestBalance
+    ) {
+        BigDecimal recorded = booking.getId() == null
+                ? null
+                : reservationPaymentTransactionRepository
+                        .findTopByBookingIdOrderByCreatedAtDesc(booking.getId())
+                        .filter(transaction -> "SUCCESS".equalsIgnoreCase(transaction.getTransactionStatus()))
+                        .map(ReservationPaymentTransactionRecord::getAmount)
+                        .orElse(null);
+        if (recorded != null) {
+            return recorded.max(BigDecimal.ZERO);
+        }
+        BigDecimal inferred = originalTotalRate.subtract(originalGuestBalance != null ? originalGuestBalance : BigDecimal.ZERO);
+        return inferred.max(BigDecimal.ZERO);
+    }
     private BigDecimal resolveGuestBalanceAfterRateChange(
             ReservationBookingRecord booking,
             BigDecimal originalTotalRate,
@@ -500,7 +538,7 @@ private ReservationBookingRequestDto requestForRoom(
             boolean folioAdjusted
     ) {
         BigDecimal newTotalRate = booking.getTotalRate() != null ? booking.getTotalRate() : BigDecimal.ZERO;
-        BigDecimal amountPaid = originalTotalRate.subtract(originalGuestBalance != null ? originalGuestBalance : BigDecimal.ZERO);
+        BigDecimal amountPaid = resolveCollectedAmount(booking, originalTotalRate, originalGuestBalance);
         BigDecimal derivedBalance = newTotalRate.subtract(amountPaid).max(BigDecimal.ZERO);
 
         if (!folioAdjusted) {
@@ -737,11 +775,13 @@ private ReservationBookingRequestDto requestForRoom(
                 ? booking.getGuestBalance().max(BigDecimal.ZERO)
                 : BigDecimal.ZERO;
         BigDecimal fallbackTotal = booking.getTotalRate() != null ? booking.getTotalRate().max(BigDecimal.ZERO) : BigDecimal.ZERO;
-        // A reported folio, including a settled zero balance, is authoritative; the stored booking
-        // balance and the total rate are only fallbacks for a guest that has no folio yet.
+        // A reported folio, including a settled zero balance, is authoritative. An explicitly stored
+        // booking balance is the record of what that booking owes, including an explicit zero for a
+        // fully prepaid stay; the total rate is only shown when neither carries a value, exactly
+        // matching what check-out enforces.
         BigDecimal effectiveBalance = folioBalance
                 .map(balance -> balance.max(BigDecimal.ZERO))
-                .orElseGet(() -> bookingBalance.signum() > 0 ? bookingBalance : fallbackTotal);
+                .orElseGet(() -> booking.getGuestBalance() != null ? bookingBalance : fallbackTotal);
 
         return ReservationViewResponseDto.builder()
                 .reservationId(booking.getConfirmationNumber())
@@ -870,10 +910,7 @@ private ReservationBookingRequestDto requestForRoom(
     }
 
     private ReservationViewResponseDto.StayDto buildStay(ReservationBookingRecord booking) {
-        int nights = 0;
-        if (booking.getArrivalDate() != null && booking.getDepartureDate() != null) {
-            nights = Math.max(0, (int) ChronoUnit.DAYS.between(booking.getArrivalDate(), booking.getDepartureDate()));
-        }
+        int nights = BillableNights.betweenAsInt(booking.getArrivalDate(), booking.getDepartureDate());
 
         return ReservationViewResponseDto.StayDto.builder()
                 .checkInDate(booking.getArrivalDate())
@@ -1042,12 +1079,9 @@ private ReservationBookingRequestDto requestForRoom(
             return BigDecimal.ZERO;
         }
 
-        long nights = ChronoUnit.DAYS.between(booking.getArrivalDate(), booking.getDepartureDate());
+        long nights = BillableNights.between(booking.getArrivalDate(), booking.getDepartureDate());
         if (nights < 0) {
             return BigDecimal.ZERO;
-        }
-        if (nights == 0) {
-            nights = 1;
         }
 
         return booking.getRate()
@@ -1250,7 +1284,9 @@ private ReservationBookingRequestDto requestForRoom(
         }
 
         if (!StringUtils.hasText(request.getPaymentType())) {
-            request.setPaymentType(PaymentTypes.FULL_PAYMENT);
+            // Bookings default to pay-at-hotel so the guest balance keeps the full payable amount
+            // until the stay is settled; only an explicit FULL_PAYMENT collects up front.
+            request.setPaymentType(PaymentTypes.ADVANCE);
         }
     }
 
@@ -1360,12 +1396,9 @@ private ReservationBookingRequestDto requestForRoom(
             return BigDecimal.ZERO;
         }
 
-        long nights = ChronoUnit.DAYS.between(request.getArrivalDate(), request.getDepartureDate());
+        long nights = BillableNights.between(request.getArrivalDate(), request.getDepartureDate());
         if (nights < 0) {
             return BigDecimal.ZERO;
-        }
-        if (nights == 0) {
-            nights = 1;
         }
 
         return request.getRate()

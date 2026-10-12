@@ -82,6 +82,12 @@ public interface ReservationBookingRepository
             @Param("businessDate") LocalDate businessDate
     );
 
+	/**
+	 * Room charges generated for a business date: the one-night charge of every room arriving on
+	 * that date. Arrivals contribute from the moment they are expected and stay counted once
+	 * checked in, while an arrival that has already checked out no longer contributes room charges;
+	 * cancelled and no-show arrivals never do.
+	 */
 	@Query("""
     SELECT
         COALESCE(
@@ -120,11 +126,10 @@ public interface ReservationBookingRepository
 
     WHERE r.propertyId = :propertyId
 
-      AND r.arrivalDate <= :businessDate
-
-      AND r.departureDate > :businessDate
+      AND r.arrivalDate = :businessDate
 
       AND UPPER(r.reservationStatus) NOT IN (
+          'CHECKED_OUT',
           'CANCELLED',
           'CANCELED',
           'NO_SHOW'

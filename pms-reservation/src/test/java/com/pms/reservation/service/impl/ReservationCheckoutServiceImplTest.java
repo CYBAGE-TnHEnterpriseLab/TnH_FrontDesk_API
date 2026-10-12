@@ -133,6 +133,7 @@ class ReservationCheckoutServiceImplTest {
 
         assertThat(response.getReservationStatus()).isEqualTo("CHECKED_OUT");
         assertThat(booking.getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(response.getUpdatedGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
         verify(reservationBookingRepository).save(booking);
     }
 
