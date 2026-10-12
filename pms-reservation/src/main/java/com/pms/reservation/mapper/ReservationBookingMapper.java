@@ -251,7 +251,7 @@ public class ReservationBookingMapper {
         if (request.getCheckOutTime() != null) existing.setCheckOutTime(request.getCheckOutTime());
         if (request.getDnm() != null) existing.setDnm(request.getDnm());
         if (request.getNoPost() != null) existing.setNoPost(request.getNoPost());
-        if (request.getGuestBalance() != null && request.getGuestBalance().compareTo(BigDecimal.ZERO) != 0) {
+        if (request.getGuestBalance() != null) {
             existing.setGuestBalance(request.getGuestBalance());
         }
         if (request.getSpecialRequests() != null) existing.setSpecialRequests(request.getSpecialRequests());
