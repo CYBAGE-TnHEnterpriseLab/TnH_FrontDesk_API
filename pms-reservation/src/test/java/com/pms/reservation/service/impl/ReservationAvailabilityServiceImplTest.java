@@ -6,11 +6,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.pms.reservation.config.AvailabilityPerformanceProperties;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.ReservationAvailabilityRequestDto;
 import com.pms.reservation.dto.ReservationAvailabilityResponseDto;
+import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.RateManagementPort;
@@ -104,4 +107,30 @@ class ReservationAvailabilityServiceImplTest {
         verify(inventoryServiceClient, times(1)).availability(
                 eq(propertyId), anyString(), any(LocalDate.class), any(LocalDate.class));
     }
+
+        @Test
+        void getAvailabilityShouldRejectAdultsAboveMaximumRoomOccupancy() {
+                String propertyId = "property-1";
+                PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
+                roomType.setId(10L);
+                roomType.setMaximumGuestOccupancy(5);
+
+                ReservationAvailabilityRequestDto request = new ReservationAvailabilityRequestDto();
+                request.setPropertyId(propertyId);
+                request.setArrivalDate(LocalDate.of(2026, 9, 20));
+                request.setDepartureDate(LocalDate.of(2026, 9, 21));
+                request.setAdultCount(6);
+
+                when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+                when(propertyInventoryPort.fetchTaxRules(propertyId)).thenReturn(List.of());
+                when(propertyInventoryPort.fetchRoomOutletTypes(propertyId)).thenReturn(List.of(roomType));
+
+                BadRequestException exception = assertThrows(
+                                BadRequestException.class,
+                                () -> reservationAvailabilityService.getAvailability(request));
+
+                assertEquals("The maximum occupancy for this property is 5", exception.getMessage());
+                verify(inventoryServiceClient, times(0)).availability(
+                                anyString(), anyString(), any(LocalDate.class), any(LocalDate.class));
+        }
 }

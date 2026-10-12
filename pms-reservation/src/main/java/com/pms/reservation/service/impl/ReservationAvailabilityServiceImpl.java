@@ -74,6 +74,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
         List<PropertyTaxRuleResponseDto> taxRules = parallelExecutor.join(taxRulesFuture);
         List<PropertyRoomOutletTypeDto> roomOutletTypes = parallelExecutor.join(roomOutletTypesFuture);
+        validateAdultCount(request.getAdultCount(), roomOutletTypes);
 
         int forecastDays = Math.max(1, performanceProperties.getForecastDays());
         LocalDate forecastEnd = request.getArrivalDate().plusDays(forecastDays);
@@ -113,6 +114,23 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             next15DaysPricing,
             availableRateCodes
         );
+    }
+
+    private void validateAdultCount(Integer adultCount, List<PropertyRoomOutletTypeDto> roomOutletTypes) {
+        if (adultCount == null || roomOutletTypes == null || roomOutletTypes.isEmpty()) {
+            return;
+        }
+
+        int maximumOccupancy = roomOutletTypes.stream()
+            .filter(roomType -> roomType != null && roomType.getMaximumGuestOccupancy() != null)
+            .mapToInt(PropertyRoomOutletTypeDto::getMaximumGuestOccupancy)
+            .max()
+            .orElse(Integer.MAX_VALUE);
+
+        if (adultCount > maximumOccupancy) {
+            throw new BadRequestException(
+                "The maximum occupancy for this property is " + maximumOccupancy);
+        }
     }
 
 

@@ -18,4 +18,7 @@ public class PropertyRoomOutletTypeDto {
 
     @JsonAlias({"roomName", "roomType", "name"})
     private String roomName;
+
+    @JsonAlias({"maximumGuestOccupancy", "maxOccupancy"})
+    private Integer maximumGuestOccupancy;
 }
