@@ -152,6 +152,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
 
         List<String> roomGuestNames = request.getGuestNames();
         String assignedLoyaltyNumber = primaryGuestLoyaltyNumber(resolvedGuests);
+        BigDecimal amountPaid = paymentResult.getAmount() == null ? payableAmount : paymentResult.getAmount();
         List<ReservationBookingRecord> savedBookings = new ArrayList<>();
         for (int roomIndex = 0; roomIndex < roomCount; roomIndex++) {
             ReservationBookingRequestDto roomRequest = requestForRoom(
@@ -167,7 +168,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             entity.setOriginalDepartureDate(request.getDepartureDate());
             entity.setInventoryDeductedAt(LocalDateTime.now());
             entity.setInventorySyncedAt(LocalDateTime.now());
-            entity.setGuestBalance(payableAmount != null ? payableAmount.max(BigDecimal.ZERO) : BigDecimal.ZERO);
+            entity.setGuestBalance(roomOutstandingBalance(roomRequest, roomCount, amountPaid));
             savedBookings.add(reservationBookingRepository.save(entity));
         }
 
@@ -507,12 +508,11 @@ private ReservationBookingRequestDto requestForRoom(
         }
 
         try {
-            BigDecimal folioBalance = folioServiceClient.getFolioBalance(
-                    booking.getConfirmationNumber(), booking.getId());
-            if (folioBalance == null || folioBalance.signum() <= 0) {
-                return derivedBalance;
-            }
-            return folioBalance.max(BigDecimal.ZERO);
+            // A reported folio, including a fully settled zero balance, is authoritative; only a
+            // missing folio keeps the balance derived from the rate change.
+            return folioServiceClient.getFolioBalance(booking.getConfirmationNumber(), booking.getId())
+                    .map(balance -> balance.max(BigDecimal.ZERO))
+                    .orElse(derivedBalance);
         } catch (Exception ex) {
             log.warn("Folio balance refresh failed for confirmationNumber={} bookingId={}",
                     booking.getConfirmationNumber(), booking.getId(), ex);
@@ -730,17 +730,18 @@ private ReservationBookingRequestDto requestForRoom(
         ReservationBookingResponseDto baseResponse = reservationBookingMapper.toResponse(booking, paymentTransaction);
         LocalDate businessDate = resolveBusinessDate(booking);
         TaxSummary taxSummary = calculateTaxSummary(booking);
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(
+        Optional<BigDecimal> folioBalance = folioServiceClient.getFolioBalance(
                 booking.getConfirmationNumber(), booking.getId());
 
-        BigDecimal folioOutstanding = folioBalance != null ? folioBalance.max(BigDecimal.ZERO) : BigDecimal.ZERO;
         BigDecimal bookingBalance = booking.getGuestBalance() != null
                 ? booking.getGuestBalance().max(BigDecimal.ZERO)
                 : BigDecimal.ZERO;
         BigDecimal fallbackTotal = booking.getTotalRate() != null ? booking.getTotalRate().max(BigDecimal.ZERO) : BigDecimal.ZERO;
-        BigDecimal effectiveBalance = folioOutstanding.signum() > 0 ? folioOutstanding
-                : bookingBalance.signum() > 0 ? bookingBalance
-                : fallbackTotal;
+        // A reported folio, including a settled zero balance, is authoritative; the stored booking
+        // balance and the total rate are only fallbacks for a guest that has no folio yet.
+        BigDecimal effectiveBalance = folioBalance
+                .map(balance -> balance.max(BigDecimal.ZERO))
+                .orElseGet(() -> bookingBalance.signum() > 0 ? bookingBalance : fallbackTotal);
 
         return ReservationViewResponseDto.builder()
                 .reservationId(booking.getConfirmationNumber())
@@ -1333,6 +1334,25 @@ private ReservationBookingRequestDto requestForRoom(
                 .failureReason(paymentResult.getFailureReason())
                 .processedAt(paymentResult.getProcessedAt() == null ? LocalDateTime.now() : paymentResult.getProcessedAt())
                 .build();
+    }
+
+    /**
+     * Outstanding balance stored on a single room row of a reservation: that room's own share of the
+     * payable amount, less the share of the booking payment that has already been collected. The
+     * reservation-wide payable amount must never be copied onto every room row, as that would
+     * multiply the aggregate outstanding balance by the room count and ignore the payment that has
+     * already succeeded.
+     */
+    private BigDecimal roomOutstandingBalance(
+            ReservationBookingRequestDto roomRequest,
+            int roomCount,
+            BigDecimal amountPaid
+    ) {
+        int rooms = Math.max(roomCount, 1);
+        BigDecimal paidPerRoom = amountPaid == null
+                ? BigDecimal.ZERO
+                : amountPaid.divide(BigDecimal.valueOf(rooms), 2, RoundingMode.HALF_UP);
+        return calculatePayableAmount(roomRequest).subtract(paidPerRoom).max(BigDecimal.ZERO);
     }
 
     private BigDecimal calculatePayableAmount(ReservationBookingRequestDto request) {

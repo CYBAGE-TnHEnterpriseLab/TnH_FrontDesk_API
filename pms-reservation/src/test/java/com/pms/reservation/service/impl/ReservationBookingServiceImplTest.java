@@ -32,6 +32,7 @@ import com.pms.reservation.service.ReservationGuestResolver;
 import com.pms.reservation.service.ReservationGuestService;
 import com.pms.reservation.service.ResolvedReservationGuest;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -48,6 +49,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReservationBookingServiceImplTest {
 
     private static final String PROPERTY_ID = "7cfd4559-b6f3-4b7d-b933-e93018ac1d47";
+    private static final BigDecimal PAYMENT_COLLECTED = new BigDecimal("500.00");
+    private static final BigDecimal ROOM_PAYABLE = new BigDecimal("1000.00");
 
     @Mock private ReservationBookingRepository bookingRepository;
     @Mock private ReservationPaymentTransactionRepository paymentRepository;
@@ -80,6 +83,11 @@ class ReservationBookingServiceImplTest {
     @Test
     void multipleRoomsResolveOnceAndAssignSameGuestsToEachSavedBookingId() {
         verifyCreateBooking(2, List.of("Ava Guest", "Bea Guest"), List.of(101L, 102L));
+    }
+
+    @Test
+    void paymentShareIsAllocatedAcrossRoomsWithoutDuplicatingReservationTotals() {
+        verifyCreateBooking(3, List.of("Ava Guest", "Bea Guest", "Cyd Guest"), List.of(101L, 102L, 103L));
     }
 
     @Test
@@ -133,7 +141,10 @@ class ReservationBookingServiceImplTest {
         roomType.setRoomCode("DLX");
         when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(roomType));
         when(paymentProcessingService.processPayment(same(request), any(String.class), any(BigDecimal.class)))
-                .thenReturn(PaymentProcessingResult.builder().status("SUCCESS").build());
+                .thenReturn(PaymentProcessingResult.builder()
+                        .status("SUCCESS")
+                        .amount(PAYMENT_COLLECTED)
+                        .build());
 
         AtomicLong nextId = new AtomicLong(savedIds.get(0));
         when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> {
@@ -155,6 +166,16 @@ class ReservationBookingServiceImplTest {
                 .containsExactlyElementsOf(roomNames);
         assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getConfirmationNumber)
                 .containsOnly(response.getConfirmationNumber());
+
+        BigDecimal paidPerRoom = PAYMENT_COLLECTED.divide(BigDecimal.valueOf(roomCount), 2, RoundingMode.HALF_UP);
+        BigDecimal expectedRoomOutstanding = ROOM_PAYABLE.subtract(paidPerRoom).max(BigDecimal.ZERO);
+        assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getGuestBalance)
+                .allSatisfy(balance -> assertThat(balance).isEqualByComparingTo(expectedRoomOutstanding));
+        BigDecimal aggregateOutstanding = bookings.getAllValues().stream()
+                .map(ReservationBookingRecord::getGuestBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(aggregateOutstanding)
+                .isEqualByComparingTo(expectedRoomOutstanding.multiply(BigDecimal.valueOf(roomCount)));
 
         InOrder order = inOrder(guestResolver, inventoryServiceClient, paymentProcessingService,
                 bookingRepository, guestService, paymentRepository);

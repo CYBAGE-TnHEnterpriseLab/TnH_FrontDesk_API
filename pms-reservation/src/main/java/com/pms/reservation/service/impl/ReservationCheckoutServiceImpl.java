@@ -16,6 +16,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -63,15 +64,15 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 ? booking.getGuestBalance().max(BigDecimal.ZERO)
                 : BigDecimal.ZERO;
 
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(
+        Optional<BigDecimal> folioBalance = folioServiceClient.getFolioBalance(
             booking.getConfirmationNumber(), booking.getId());
-        BigDecimal folioOutstanding = folioBalance != null ? folioBalance.max(BigDecimal.ZERO) : BigDecimal.ZERO;
 
-        if (folioOutstanding.signum() > 0) {
-            booking.setGuestBalance(folioOutstanding);
-        }
+        // A folio reported by the folio service is authoritative, including one that reports a zero
+        // balance because the guest has already settled it. Only a missing folio falls back to the
+        // stored booking balance, which can be stale once the folio has been paid off.
+        folioBalance.ifPresent(balance -> booking.setGuestBalance(balance.max(BigDecimal.ZERO)));
 
-        BigDecimal outstandingBalance = bookingBalance.max(folioOutstanding);
+        BigDecimal outstandingBalance = folioBalance.orElse(bookingBalance).max(BigDecimal.ZERO);
         if (outstandingBalance.signum() > 0) {
             throw new BadRequestException(
                     "Check-out denied: guest has outstanding balance of "

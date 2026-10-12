@@ -38,9 +38,7 @@ public class SecurityConfig {
                                 "/api-docs",
                                 "/api-docs/**",
                                 "/v3/api-docs/**",
-                                "/error",
-                                "/api/v1/loyalty/internal/memberships/ensure",
-                                "/api/v1/loyalty/internal/memberships/verify"
+                                "/error"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {

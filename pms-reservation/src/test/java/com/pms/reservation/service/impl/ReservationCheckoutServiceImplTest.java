@@ -20,6 +20,7 @@ import com.pms.reservation.integration.InventoryServiceClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,7 @@ class ReservationCheckoutServiceImplTest {
         request.setActor("front-desk-user");
         request.setBusinessDate(LocalDate.of(2026, 8, 11));
 
-        lenient().when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
+        lenient().when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(Optional.of(BigDecimal.ZERO));
     }
 
     @Test
@@ -110,9 +111,9 @@ class ReservationCheckoutServiceImplTest {
     }
 
     @Test
-    void completeCheckoutShouldRejectWhenFolioReportsZeroButBookingHasOutstandingBalance() {
+    void completeCheckoutShouldRejectWhenFolioIsMissingButBookingHasOutstandingBalance() {
         booking.setGuestBalance(new BigDecimal("900.00"));
-        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(BigDecimal.ZERO);
+        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(Optional.empty());
         when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))
@@ -123,9 +124,22 @@ class ReservationCheckoutServiceImplTest {
     }
 
     @Test
+    void completeCheckoutShouldTrustSettledFolioOverStaleBookingBalance() {
+        booking.setGuestBalance(new BigDecimal("900.00"));
+        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(Optional.of(BigDecimal.ZERO));
+        when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
+
+        CheckoutCompletionResponseDto response = service.completeCheckout("CONF-101", request);
+
+        assertThat(response.getReservationStatus()).isEqualTo("CHECKED_OUT");
+        assertThat(booking.getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        verify(reservationBookingRepository).save(booking);
+    }
+
+    @Test
     void completeCheckoutShouldUseLiveFolioBalanceWhenItIsHigherThanStoredGuestBalance() {
         booking.setGuestBalance(new BigDecimal("200.00"));
-        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(new BigDecimal("900.00"));
+        when(folioServiceClient.getFolioBalance("CONF-101", 11L)).thenReturn(Optional.of(new BigDecimal("900.00")));
         when(reservationBookingRepository.findByConfirmationNumber("CONF-101")).thenReturn(List.of(booking));
 
         assertThatThrownBy(() -> service.completeCheckout("CONF-101", request))

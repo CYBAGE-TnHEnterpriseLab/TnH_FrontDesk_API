@@ -10,6 +10,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -21,12 +22,16 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ClientRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 @Component
 @RequiredArgsConstructor
 public class LoyaltyServiceClient {
 
     private static final String MEMBERSHIPS_PATH = "/api/v1/loyalty/internal/memberships";
+
+    private static final String MEMBERSHIP_NOT_FOUND_MESSAGE =
+            "loyalty number invalid and no guest profile found for the given loyalty number";
 
     private final LoyaltyServiceProperties properties;
 
@@ -76,6 +81,11 @@ public class LoyaltyServiceClient {
                     .uri(url)
                     .bodyValue(new LoyaltyNumberRequest(loyaltyNumber.trim()))
                     .retrieve()
+                    .onStatus(HttpStatus.NOT_FOUND::equals, response ->
+                            response.bodyToMono(String.class)
+                                    .defaultIfEmpty("")
+                                    .map(body -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                            MEMBERSHIP_NOT_FOUND_MESSAGE)))
                     .onStatus(HttpStatusCode::isError, response ->
                             response.bodyToMono(String.class)
                                     .defaultIfEmpty("")
@@ -87,6 +97,8 @@ public class LoyaltyServiceClient {
         } catch (WebClientResponseException ex) {
             throw new ExternalServiceException(
                     "Failed to verify loyalty number: " + ex.getResponseBodyAsString(), ex);
+        } catch (ResponseStatusException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw new ExternalServiceException("Failed to verify loyalty number", ex);
         }
