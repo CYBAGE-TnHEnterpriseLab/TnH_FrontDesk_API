@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+/** Creates and manages property-scoped guest profiles, including guest IDs and loyalty data. */
 @Service
 @Transactional(readOnly = true)
 public class GuestProfileServiceImpl implements GuestProfileService {
@@ -238,6 +239,7 @@ public class GuestProfileServiceImpl implements GuestProfileService {
 
     private String generateGuestId() {
         for (int attempt = 0; attempt < GUEST_ID_GENERATION_ATTEMPTS; attempt++) {
+            // Keep the GST prefix as the guest-ID namespace; UUIDs make IDs unique across profiles.
             String guestId = "GST-" + UUID.randomUUID();
             if (!guestProfileRepository.existsByGuestId(guestId)) {
                 return guestId;

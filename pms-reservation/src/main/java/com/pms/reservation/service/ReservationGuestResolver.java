@@ -25,7 +25,7 @@ import org.springframework.util.StringUtils;
 
 @Component
 public class ReservationGuestResolver {
-
+    
     private static final String GUEST_ID_PREFIX = "GST-";
 
     private final GuestServiceClient guestServiceClient;

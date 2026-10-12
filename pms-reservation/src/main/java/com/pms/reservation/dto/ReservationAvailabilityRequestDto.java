@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -51,4 +52,6 @@ public class ReservationAvailabilityRequestDto {
     private Integer ageOfChild1;
 
     private Integer ageOfChild2;
+
+    private List<Integer> childAges;
 }
