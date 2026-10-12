@@ -28,7 +28,10 @@ public class LoyaltyNumberGenerator {
         long seq = nextSequenceValue();
         String number = prefix + String.format("%08d", seq);
         int attempts = 0;
-        while (loyaltyMemberRepository.findByLoyaltyNumber(number).isPresent() && attempts++ < 10) {
+        while (loyaltyMemberRepository.findByLoyaltyNumber(number).isPresent()) {
+            if (attempts++ >= 10) {
+                throw new IllegalStateException("Unable to generate a unique loyalty number");
+            }
             seq = nextSequenceValue();
             number = prefix + String.format("%08d", seq);
         }
