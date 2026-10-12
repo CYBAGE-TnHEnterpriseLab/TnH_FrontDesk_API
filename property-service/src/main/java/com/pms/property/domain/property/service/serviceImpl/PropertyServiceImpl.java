@@ -107,7 +107,7 @@ public class PropertyServiceImpl implements PropertyService {
         if (propertyCode == null || propertyCode.isBlank()) {
             return true;
         }
-        return !propertyRepository.existsByPropertyCodeAndIdNot(propertyCode.trim(), excludePropertyId);
+        return !propertyRepository.existsByPropertyCodeIgnoreCaseAndIdNot(propertyCode.trim(), excludePropertyId);
     }
 
     @Override

@@ -10,7 +10,11 @@ public interface PropertyRepository extends JpaRepository<PropertyEntity, String
 
     List<PropertyEntity> findByCreatedBy(UUID createdBy);
 
+    boolean existsByPropertyCodeIgnoreCase(String propertyCode);
+
     boolean existsByPropertyCodeAndIdNot(String propertyCode, String id);
+
+    boolean existsByPropertyCodeIgnoreCaseAndIdNot(String propertyCode, String id);
 }
 
 
