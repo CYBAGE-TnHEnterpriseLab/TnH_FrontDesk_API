@@ -69,7 +69,7 @@ public class RatePlanController {
 
     // Fetch available rate plans for a room type/occupancy/meal/date in the given
     // property.
-    @GetMapping("/availdable/property/{propertyId}")
+    @GetMapping("/available/property/{propertyId}")
     public List<RatePlanResponseDTO> getAvailableRatePlans(@PathVariable String propertyId,
             @RequestParam Long roomTypeId,
             @RequestParam String occupancyType,
