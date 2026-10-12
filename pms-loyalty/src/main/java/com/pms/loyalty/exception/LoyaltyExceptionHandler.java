@@ -59,10 +59,7 @@ public class LoyaltyExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);
-        String detail = ex.getMessage() == null || ex.getMessage().isBlank()
-                ? ex.getClass().getSimpleName()
-                : ex.getMessage();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure("Internal server error: " + detail, null));
+                .body(ApiResponse.failure("Internal server error", null));
     }
 }
