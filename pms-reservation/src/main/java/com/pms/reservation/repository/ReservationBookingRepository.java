@@ -82,6 +82,12 @@ public interface ReservationBookingRepository
             @Param("businessDate") LocalDate businessDate
     );
 
+	/**
+	 * Room charges generated for a business date: the one-night charge of every room arriving on
+	 * that date. Arrivals contribute from the moment they are expected and stay counted once
+	 * checked in, while an arrival that has already checked out no longer contributes room charges;
+	 * cancelled and no-show arrivals never do.
+	 */
 	@Query("""
     SELECT
         COALESCE(
@@ -120,11 +126,10 @@ public interface ReservationBookingRepository
 
     WHERE r.propertyId = :propertyId
 
-      AND r.arrivalDate <= :businessDate
-
-      AND r.departureDate > :businessDate
+      AND r.arrivalDate = :businessDate
 
       AND UPPER(r.reservationStatus) NOT IN (
+          'CHECKED_OUT',
           'CANCELLED',
           'CANCELED',
           'NO_SHOW'
@@ -140,7 +145,7 @@ public interface ReservationBookingRepository
     FROM ReservationBookingRecord r
     WHERE r.propertyId = :propertyId
       AND r.arrivalDate = :businessDate
-      AND (r.source IS NULL OR TRIM(r.source) = '')
+      AND UPPER(TRIM(r.source)) = 'WALK IN'
     """)
 	long countWalkInsByPropertyIdAndArrivalDate(
 			@Param("propertyId") String propertyId,
@@ -160,19 +165,21 @@ public interface ReservationBookingRepository
 			@Param("businessDateEnd") LocalDateTime businessDateEnd
 	);
 
-	@Query("""
+    @Query("""
     SELECT COUNT(r)
     FROM ReservationBookingRecord r
     WHERE r.propertyId = :propertyId
       AND r.checkOutCompletedAt IS NOT NULL
       AND r.checkOutCompletedAt >= :businessDateStart
       AND r.checkOutCompletedAt < :businessDateEnd
+      AND r.departureDate = :businessDate
     """)
 	long countCheckedOutsByPropertyIdAndBusinessDate(
 			@Param("propertyId") String propertyId,
 			@Param("businessDateStart") LocalDateTime businessDateStart,
-			@Param("businessDateEnd") LocalDateTime businessDateEnd
-	);
+			@Param("businessDateEnd") LocalDateTime businessDateEnd,
+			@Param("businessDate") LocalDate businessDate
+		);
 
 	@Query("""
     SELECT COUNT(r)
@@ -194,7 +201,7 @@ public interface ReservationBookingRepository
       AND r.checkOutCompletedAt IS NOT NULL
       AND r.checkOutCompletedAt >= :businessDateStart
       AND r.checkOutCompletedAt < :businessDateEnd
-      AND r.checkOutCompletedAt < r.departureDate
+      AND r.checkOutCompletedAt < COALESCE(r.originalDepartureDate, r.departureDate)
     """)
 	long countEarlyDeparturesByPropertyIdAndBusinessDate(
 			@Param("propertyId") String propertyId,
@@ -211,11 +218,36 @@ public interface ReservationBookingRepository
       AND r.updatedAt >= :businessDateStart
       AND r.updatedAt < :businessDateEnd
     """)
-	long countSameDayCancelsByPropertyIdAndBusinessDate(
-			@Param("propertyId") String propertyId,
-			@Param("businessDateStart") LocalDateTime businessDateStart,
-			@Param("businessDateEnd") LocalDateTime businessDateEnd
-	);
+ 	long countSameDayCancelsByPropertyIdAndBusinessDate(
+ 			@Param("propertyId") String propertyId,
+ 			@Param("businessDateStart") LocalDateTime businessDateStart,
+ 			@Param("businessDateEnd") LocalDateTime businessDateEnd
+ 	);
+ 
+  	@Query("""
+       SELECT COUNT(r)
+       FROM ReservationBookingRecord r
+       WHERE r.propertyId = :propertyId
+         AND UPPER(r.reservationStatus) = 'CHECKED_IN'
+         AND r.departureDate = :businessDate
+       """)
+  	long countExpectedDeparturesByPropertyIdAndBusinessDate(
+  			@Param("propertyId") String propertyId,
+  			@Param("businessDate") LocalDate businessDate
+  		);
+
+  	@Query("""
+       SELECT COUNT(r)
+       FROM ReservationBookingRecord r
+       WHERE r.propertyId = :propertyId
+         AND r.arrivalDate = :businessDate
+         AND UPPER(r.reservationStatus) = 'CONFIRMED'
+         AND r.checkInCompletedAt IS NULL
+       """)
+  	long countExpectedArrivalsByPropertyIdAndBusinessDate(
+  			@Param("propertyId") String propertyId,
+  			@Param("businessDate") LocalDate businessDate
+  		);
 
 	@Query("""
     SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END

@@ -10,8 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
+import com.pms.reservation.util.BillableNights;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -67,12 +67,14 @@ public class ReservationAvailabilityController {
             resolvedNight = night;
             resolvedDepartureDate = resolvedArrivalDate.plusDays(night.longValue());
         } else if (arrivalDate != null && departureDate != null) {
-            long computedNights = ChronoUnit.DAYS.between(arrivalDate, departureDate);
-            if (computedNights < 1) {
+            // A same-day stay is a valid day-use booking billed as one night, so only reject a
+            // departure that falls before the arrival date.
+            if (departureDate.isBefore(arrivalDate)) {
                 throw new BadRequestException("departureDate must be on or after arrivalDate");
             }
+            long computedNights = BillableNights.between(arrivalDate, departureDate);
             resolvedNight = Math.toIntExact(computedNights);
-            resolvedDepartureDate = departureDate;
+            resolvedDepartureDate = resolvedArrivalDate.plusDays(computedNights);
         } else {
             throw new BadRequestException("night is required");
         }

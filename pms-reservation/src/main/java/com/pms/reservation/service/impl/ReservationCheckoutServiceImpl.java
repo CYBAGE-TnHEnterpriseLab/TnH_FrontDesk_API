@@ -16,6 +16,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -59,26 +60,34 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
         }
 
-        BigDecimal folioBalance = folioServiceClient.getFolioBalance(
-            booking.getConfirmationNumber(), booking.getId());
-        if (folioBalance != null) {
-            booking.setGuestBalance(folioBalance.max(BigDecimal.ZERO));
-        }
-        if (folioBalance != null && folioBalance.compareTo(BigDecimal.ZERO) > 0) {
-            throw new BadRequestException(
-                    "Check-out denied: folio has outstanding balance of "
-                            + folioBalance.setScale(2, RoundingMode.HALF_UP)
-                            + ". Please resolve the balance before checkout.");
-        }
+        BigDecimal bookingBalance = booking.getGuestBalance() != null
+                ? booking.getGuestBalance().max(BigDecimal.ZERO)
+                : BigDecimal.ZERO;
 
-        if (booking.getGuestBalance() != null && booking.getGuestBalance().compareTo(BigDecimal.ZERO) > 0) {
+        Optional<BigDecimal> folioBalance = folioServiceClient.getFolioBalance(
+            booking.getConfirmationNumber(), booking.getId());
+
+        // A folio reported by the folio service is authoritative, including one that reports a zero
+        // balance because the guest has already settled it. Only a missing folio falls back to the
+        // stored booking balance, which can be stale once the folio has been paid off.
+        folioBalance.ifPresent(balance -> booking.setGuestBalance(balance.max(BigDecimal.ZERO)));
+
+        BigDecimal outstandingBalance = folioBalance.orElse(bookingBalance).max(BigDecimal.ZERO);
+        log.info("Checkout balance evaluation for confirmationNumber={} bookingId={}: folioPresent={}, folioBalance={}, bookingBalance={}, outstanding={}",
+                booking.getConfirmationNumber(),
+                booking.getId(),
+                folioBalance.isPresent(),
+                folioBalance.map(balance -> balance.setScale(2, RoundingMode.HALF_UP).toPlainString()).orElse("absent"),
+                bookingBalance.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                outstandingBalance.setScale(2, RoundingMode.HALF_UP).toPlainString());
+        if (outstandingBalance.signum() > 0) {
             throw new BadRequestException(
                     "Check-out denied: guest has outstanding balance of "
-                            + booking.getGuestBalance().setScale(2, RoundingMode.HALF_UP)
+                            + outstandingBalance.setScale(2, RoundingMode.HALF_UP)
                             + ". Please resolve the balance before checkout.");
         }
 
-        LocalDate originalDepartureDate = booking.getDepartureDate();
+        LocalDate originalDepartureDate = booking.getOriginalDepartureDate() != null ? booking.getOriginalDepartureDate() : booking.getDepartureDate();
         LocalDate businessDate = request.getBusinessDate();
 
         if (businessDate.isAfter(originalDepartureDate)) {
@@ -102,7 +111,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 "CHECKOUT_COMPLETED",
                 "Guest checked out and room marked dirty",
                 request.getActor());
-        return toResponse(booking);
+        return toResponse(booking, outstandingBalance);
     }
     @Override
     @Transactional
@@ -137,7 +146,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
 
         updateRoomStatus(booking, request, true);
         appendAudit(booking, "CHECKOUT_CANCELLED", "Check-out cancelled; guest re-checked in and room marked occupied", request.getActor());
-        return toResponse(booking);
+        return toResponse(booking, booking.getGuestBalance());
     }
 
     private ReservationBookingRecord getBookingOrThrow(String confirmationNumber) {
@@ -198,7 +207,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 .build());
     }
 
-    private CheckoutCompletionResponseDto toResponse(ReservationBookingRecord booking) {
+    private CheckoutCompletionResponseDto toResponse(ReservationBookingRecord booking, BigDecimal outstandingBalance) {
         return CheckoutCompletionResponseDto.builder()
                 .bookingId(booking.getId())
                 .confirmationNumber(booking.getConfirmationNumber())
@@ -206,6 +215,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 .businessDate(booking.getCheckOutBusinessDate())
                 .checkOutCompletedAt(booking.getCheckOutCompletedAt())
                 .checkOutCompletedBy(booking.getCheckOutCompletedBy())
+                .updatedGuestBalance(outstandingBalance)
                 .build();
     }
 }

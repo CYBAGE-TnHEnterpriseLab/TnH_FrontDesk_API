@@ -2,6 +2,7 @@ package com.pms.reservation.integration;
 
 import com.pms.guestlisting.exception.ExternalServiceException;
 import java.math.BigDecimal;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -27,13 +28,18 @@ public class FolioServiceClient {
 
     private final RestTemplate restTemplate;
 
-    public BigDecimal getFolioBalance(String confirmationNumber) {
+    /**
+     * Fetches the outstanding balance for a confirmation. An empty result means the folio service
+     * has no folio for that booking, which is distinct from an authoritative zero balance reported
+     * for a real folio that the guest has fully settled.
+     */
+    public Optional<BigDecimal> getFolioBalance(String confirmationNumber) {
         return getFolioBalance(confirmationNumber, null);
     }
 
-    public BigDecimal getFolioBalance(String confirmationNumber, Long bookingId) {
-        if (confirmationNumber == null || confirmationNumber.isBlank()) {
-            return BigDecimal.ZERO;
+    public Optional<BigDecimal> getFolioBalance(String confirmationNumber, Long bookingId) {
+        if (!StringUtils.hasText(confirmationNumber)) {
+            return Optional.empty();
         }
 
         try {
@@ -52,15 +58,15 @@ public class FolioServiceClient {
                 );
                 FolioServiceDto folioResponse = response.getBody();
 
-            if (folioResponse == null || folioResponse.summary() == null) {
-                return BigDecimal.ZERO;
+            if (folioResponse == null || folioResponse.summary() == null || !hasFolio(folioResponse)) {
+                return Optional.empty();
             }
 
             BigDecimal totalBalance = folioResponse.summary().totalBalance();
-            return totalBalance != null ? totalBalance : BigDecimal.ZERO;
+            return totalBalance == null ? Optional.empty() : Optional.of(totalBalance);
         } catch (HttpStatusCodeException ex) {
             if (ex.getStatusCode().value() == 404) {
-                return BigDecimal.ZERO;
+                return Optional.empty();
             }
             throw new ExternalServiceException(
                     "Failed to fetch folio balance for confirmationNumber=" + confirmationNumber
@@ -72,6 +78,15 @@ public class FolioServiceClient {
                             + " | error=" + ex.getClass().getName()
                             + " | message=" + ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * A folio exists only when the folio service reports at least one folio record. A response with
+     * none is a missing folio, not a settled one, and must never be read as an authoritative zero.
+     */
+    private boolean hasFolio(FolioServiceDto folioResponse) {
+        return folioResponse.summary().totalFolios() > 0
+                || (folioResponse.folios() != null && !folioResponse.folios().isEmpty());
     }
 
     public void adjustReservationCharge(String confirmationNumber, Long bookingId, BigDecimal originalAmount, BigDecimal newAmount, String userId) {

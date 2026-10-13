@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.util.StringUtils;
@@ -94,10 +95,12 @@ public class ReservationBookingRequestDto {
 
     @NotBlank(message = "phoneNumber is required")
         @JsonAlias({"phone", "contactNumber"})
-        @Pattern(regexp = "^\\d{10}$", message = "phoneNumber must be exactly 10 digits")
+        @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "phoneNumber must be a valid E.164 number")
     private String phoneNumber;
 
     private String loyaltyNumber;
+    private String loyaltyProgramId;
+    private UUID guestId;
     private String company;
     private String guestGroup;
     private String source;
