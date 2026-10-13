@@ -4,6 +4,7 @@ import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.finance.dto.ChartOfAccountRequest;
 import com.pms.property.domain.finance.dto.ChartOfAccountResponse;
 import com.pms.property.domain.finance.dto.FinanceSummaryResponse;
+import com.pms.property.domain.finance.dto.RevenueMappingResponse;
 import com.pms.property.domain.finance.entity.ChartOfAccountEntity;
 import com.pms.property.domain.finance.repository.ChartOfAccountRepository;
 import com.pms.property.domain.finance.repository.RevenueMappingRepository;
@@ -36,6 +37,17 @@ public class FinanceServiceImpl implements FinanceService {
             chartOfAccountRepository.countByPropertyId(propertyId),
             revenueMappingRepository.countByPropertyId(propertyId)
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RevenueMappingResponse> listRevenueMappingsByPropertyId(String propertyId) {
+        return revenueMappingRepository.findAllByPropertyIdOrderByChargeTypeAsc(propertyId)
+            .stream()
+            .map(mapping -> new RevenueMappingResponse(
+                mapping.getId(), mapping.getPropertyId(), mapping.getChargeType(),
+                mapping.getMapGlAccount(), mapping.getStatus(), mapping.getDescription()))
+            .toList();
     }
 
     @Override

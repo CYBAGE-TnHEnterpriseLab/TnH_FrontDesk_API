@@ -124,6 +124,12 @@ public class ReservationBookingRecord extends BaseEntity {
     @Column(nullable = false)
     private Integer childCount;
 
+    @Column(name = "age_of_child_1")
+    private Integer ageOfChild1;
+
+    @Column(name = "age_of_child_2")
+    private Integer ageOfChild2;
+
     @Column(nullable = false, length = 20)
     private String reservationType;
 

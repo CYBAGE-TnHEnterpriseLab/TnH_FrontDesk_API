@@ -14,6 +14,7 @@ public record FolioPaymentAllocationRequest(
         @DecimalMin(value = "0.01", message = "paymentAmount must be greater than zero")
         BigDecimal paymentAmount,
         String paymentReference,
+        String utr,
         String paymentMethod,
         LocalDate allocationDate,
         @NotEmpty(message = "allocations are required")

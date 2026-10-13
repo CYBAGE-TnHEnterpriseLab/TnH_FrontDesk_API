@@ -2,6 +2,7 @@ package com.pms.auth.service.impl;
 
 import com.pms.auth.dto.AuthResponse;
 import com.pms.auth.dto.LoginRequest;
+import com.pms.auth.dto.PasswordVerificationRequest;
 import com.pms.auth.dto.LogoutRequest;
 import com.pms.auth.dto.RefreshTokenRequest;
 import com.pms.auth.dto.RegisterRequest;
@@ -25,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,6 +82,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return issueAuthTokens(account);
+    }
+
+    @Override
+    public void verifyPassword(String username, PasswordVerificationRequest request) {
+        UserAccount account = userAccountRepository.findByUsername(username.trim())
+                .orElseThrow(() -> new AuthException("Invalid credentials"));
+        if (!account.isEnabled() || !passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
+            throw new AuthException("Invalid credentials");
+        }
     }
 
     @Override

@@ -37,15 +37,24 @@ public class ReservationRoomCalendarController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate arrivalDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate departureDate,
                         @RequestParam(required = false) List<String> roomTypes,
-                        @RequestParam(required = false) String roomType
+                            @RequestParam(required = false) String roomType,
+                            @RequestParam(required = false) Integer adults,
+                            @RequestParam(required = false) Integer children,
+                            @RequestParam(required = false) String rateCode,
+                            @RequestParam(required = false) Integer ageOfChild1,
+                            @RequestParam(required = false) Integer ageOfChild2
     ) {
                 List<String> effectiveRoomTypes = mergeRoomTypes(roomTypes, roomType);
-        ReservationRoomCalendarResponseDto response = reservationRoomCalendarService.getRoomCalendar(
-                propertyId,
-                arrivalDate,
-                departureDate,
-                                effectiveRoomTypes
-        );
+        ReservationRoomCalendarResponseDto response;
+        if (adults == null && children == null && !StringUtils.hasText(rateCode)
+                && ageOfChild1 == null && ageOfChild2 == null) {
+            response = reservationRoomCalendarService.getRoomCalendar(
+                    propertyId, arrivalDate, departureDate, effectiveRoomTypes);
+        } else {
+            response = reservationRoomCalendarService.getRoomCalendar(
+                    propertyId, arrivalDate, departureDate, effectiveRoomTypes,
+                    adults, children, rateCode, ageOfChild1, ageOfChild2);
+        }
         return ResponseEntity.ok(ApiResponse.success("Room calendar fetched successfully", response));
     }
 

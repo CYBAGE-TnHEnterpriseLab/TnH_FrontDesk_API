@@ -256,6 +256,7 @@ class BillingFolioServiceImplTest {
                 request.setConfirmationNumber("CONF-1");
                 request.setTransactionType("Payment");
                 request.setCategory("UPI");
+                request.setUtr("623456789012");
                 request.setDescription("Dinner");
                 request.setAmount(new BigDecimal("1000.00"));
 
@@ -263,6 +264,8 @@ class BillingFolioServiceImplTest {
 
                 assertEquals("PAYMENT", response.transactionType());
                 assertEquals("UPI", response.category());
+                assertEquals(true, response.referenceNumber().startsWith("TXN-CHG-"));
+                assertEquals("623456789012", response.transaction().utr());
                 assertEquals(0, BigDecimal.ZERO.compareTo(response.transaction().charges()));
                 assertEquals(new BigDecimal("1000.00"), response.transaction().credit());
         }

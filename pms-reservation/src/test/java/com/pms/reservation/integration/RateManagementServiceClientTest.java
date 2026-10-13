@@ -185,6 +185,100 @@ class RateManagementServiceClientTest {
     }
 
     @Test
+    void fetchRateQuotesShouldUseRequestedOccupancyForManualFallbackPricing() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                throw HttpClientErrorException.create(
+                    HttpStatus.METHOD_NOT_ALLOWED,
+                    "Method Not Allowed",
+                    HttpHeaders.EMPTY,
+                    "get not supported".getBytes(StandardCharsets.UTF_8),
+                    StandardCharsets.UTF_8
+                );
+            }
+
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
+                && !url.contains("calculated-price")
+                && !url.contains("available")) {
+                return ResponseEntity.ok("""
+                    [
+                      {
+                        "id": 45,
+                        "name": "Occupancy Manual Plan",
+                        "code": "OCC-MANUAL",
+                        "status": "ACTIVE",
+                        "occupancyType": "2 Guest",
+                        "manualAmount": 20,
+                        "manualPricingByOccupancy": {
+                                                      "1 Guest": 1100,
+                                                      "2 Guest": 2100
+                        },
+                        "applicableRoomTypeIds": [28]
+                      }
+                    ]
+                    """);
+            }
+
+            if (url.contains("/calculated-price")) {
+                throw HttpClientErrorException.create(
+                    HttpStatus.NOT_FOUND,
+                    "Not Found",
+                    HttpHeaders.EMPTY,
+                    new byte[0],
+                    StandardCharsets.UTF_8
+                );
+            }
+
+            if (url.contains("/api/master-rooms/room-type/28/pricing")) {
+                throw HttpClientErrorException.create(
+                    HttpStatus.NOT_FOUND,
+                    "Not Found",
+                    HttpHeaders.EMPTY,
+                    new byte[0],
+                    StandardCharsets.UTF_8
+                );
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        List<RatePlanPricingQuoteDto> oneGuestQuotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 10, 13),
+            LocalDate.of(2026, 10, 14),
+            "Deluxe Room",
+            28L,
+            1,
+            0
+        );
+        List<RatePlanPricingQuoteDto> twoGuestQuotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 10, 13),
+            LocalDate.of(2026, 10, 14),
+            "Deluxe Room",
+            28L,
+            2,
+            0
+        );
+
+        assertThat(oneGuestQuotes).singleElement()
+            .extracting(RatePlanPricingQuoteDto::getFinalAmount)
+            .satisfies(amount -> assertThat((BigDecimal) amount).isEqualByComparingTo("1100"));
+        assertThat(twoGuestQuotes).singleElement()
+            .extracting(RatePlanPricingQuoteDto::getFinalAmount)
+            .satisfies(amount -> assertThat((BigDecimal) amount).isEqualByComparingTo("2100"));
+    }
+
+    @Test
     void fetchRateQuotesShouldRequireEveryStayNightToUseAnActiveWeekday() {
         configureProperties(1, 0);
 
@@ -326,7 +420,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/master-rooms/32/pricing")) {
+            if (url.contains("/api/master-rooms/room-type/28/pricing")) {
                 return ResponseEntity.ok("[]");
             }
 
@@ -402,7 +496,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/master-rooms/32/pricing")) {
+            if (url.contains("/api/master-rooms/room-type/28/pricing")) {
                 return ResponseEntity.ok("""
                     [
                       {"occupancyType":"2_GUEST","price":800}
@@ -482,7 +576,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/master-rooms/32/pricing")) {
+            if (url.contains("/api/master-rooms/room-type/28/pricing")) {
                 return ResponseEntity.ok("""
                     [
                       {"occupancyType":"2 Guest","price":0},
@@ -563,7 +657,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/master-rooms/32/pricing")) {
+            if (url.contains("/api/master-rooms/room-type/28/pricing")) {
                 return ResponseEntity.ok("""
                     [
                       {"occupancyType":"2 Guest","price":0},
@@ -943,6 +1037,76 @@ class RateManagementServiceClientTest {
         assertThat(prices).hasSize(2);
         assertThat(prices.get(27L)).isEqualByComparingTo("8700");
         assertThat(prices.get(28L)).isEqualByComparingTo("9900");
+    }
+
+    @Test
+    void fetchRateQuotesShouldKeepMappedRoomTypeWhenCalculatedPriceFails() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                return ResponseEntity.ok("""
+                    [{
+                      "id": 50,
+                      "name": "Corporate",
+                      "code": "CORP",
+                      "occupancyType": "2 Guest",
+                      "applicableRoomTypeIds": [27, 28, 29]
+                    }]
+                    """);
+            }
+
+            if (url.contains("/50/calculated-price") && url.contains("roomTypeId=27")) {
+                return ResponseEntity.ok("{\"finalAmount\":8700}");
+            }
+
+            if (url.contains("/50/calculated-price") && url.contains("roomTypeId=28")) {
+                return ResponseEntity.ok("{\"finalAmount\":9900}");
+            }
+
+            if (url.contains("/50/calculated-price") && url.contains("roomTypeId=29")) {
+                throw HttpClientErrorException.create(
+                    HttpStatus.BAD_REQUEST,
+                    "Missing calculated price",
+                    HttpHeaders.EMPTY,
+                    "missing room pricing".getBytes(StandardCharsets.UTF_8),
+                    StandardCharsets.UTF_8
+                );
+            }
+
+            if (url.contains("/api/master-rooms/room-type/29/pricing")) {
+                return ResponseEntity.ok("""
+                    [{"occupancyType":"2 Guest","price":7600}]
+                    """);
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        var quotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 7, 14),
+            LocalDate.of(2026, 7, 16),
+            null,
+            null,
+            2,
+            0
+        );
+
+        assertThat(quotes).extracting(RatePlanPricingQuoteDto::getRoomTypeId)
+            .containsExactlyInAnyOrder(27L, 28L, 29L);
+        assertThat(quotes.stream()
+            .filter(quote -> quote.getRoomTypeId().equals(29L))
+            .findFirst()
+            .orElseThrow()
+            .getFinalAmount()).isEqualByComparingTo("7600");
     }
 
     @Test

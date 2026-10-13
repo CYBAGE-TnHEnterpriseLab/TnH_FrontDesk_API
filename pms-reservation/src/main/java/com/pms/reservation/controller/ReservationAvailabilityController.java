@@ -48,6 +48,7 @@ public class ReservationAvailabilityController {
             @RequestParam(required = false) @Min(value = 1, message = "adultCount must be >= 1") Integer adultCount,
             @RequestParam(required = false) @Min(value = 0, message = "childCount must be >= 0") Integer childCount,
             @RequestParam(required = false) String company,
+            @RequestParam(required = false) String roomType,
             @RequestParam(required = false) String rateCode,
             @RequestParam(required = false) String blockCode
     ) {
@@ -84,6 +85,7 @@ public class ReservationAvailabilityController {
         request.setNumberOfRooms(resolvedNumberOfRooms);
         request.setGroupCode(groupCode);
         request.setCompany(company);
+        request.setRoomType(roomType);
         request.setRateCode(rateCode);
         request.setBlockCode(blockCode);
         request.setAdultCount(resolvedAdults);

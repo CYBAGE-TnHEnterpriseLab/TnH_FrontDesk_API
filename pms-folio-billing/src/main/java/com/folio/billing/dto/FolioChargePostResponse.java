@@ -25,7 +25,7 @@ public record FolioChargePostResponse(
 ) {
     public record Transaction(String transactionId, String referenceNumber, String transactionType, String category,
                               String description, BigDecimal amount, BigDecimal charges, BigDecimal credit,
-                              LocalDate postingDate, String userId) {}
+                              LocalDate postingDate, String userId, String utr) {}
     public record FolioSummary(BigDecimal totalCharges, BigDecimal totalCredits, BigDecimal balance) {}
     public record CheckoutSummary(BigDecimal totalBalance, boolean canCheckout) {}
 

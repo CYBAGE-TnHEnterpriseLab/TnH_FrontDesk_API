@@ -13,10 +13,13 @@ import com.pms.reservation.dto.ReservationRoomCalendarResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
+import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
+import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,8 +45,58 @@ class ReservationRoomCalendarServiceImplTest {
     @Mock
     private HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
 
+        @Mock
+        private RateManagementPort rateManagementPort;
+
     @InjectMocks
     private ReservationRoomCalendarServiceImpl reservationRoomCalendarService;
+
+    @Test
+    void getRoomCalendarShouldIncludeOccupancyPricingForRoomType() {
+        when(propertyWizardServiceProperties.isEnabled()).thenReturn(true);
+
+        PropertyRoomOutletTypeDto king = new PropertyRoomOutletTypeDto();
+        king.setId(12L);
+        king.setRoomCode("KING");
+        king.setRoomName("King");
+        when(propertyInventoryPort.fetchRoomOutletTypes("property-1")).thenReturn(List.of(king));
+
+        PropertyRoomInventoryDto room101 = new PropertyRoomInventoryDto();
+        room101.setRoomNumber("101");
+        room101.setRoomType("King");
+        when(housekeepingRoomCalendarClient.fetchRooms(
+                "property-1", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 4)))
+                .thenReturn(List.of(room101));
+        when(reservationBookingRepository.findByPropertyIdAndAssignedRoomNoIsNotNullAndArrivalDateLessThanAndDepartureDateGreaterThan(
+                "property-1", LocalDate.of(2026, 9, 5), LocalDate.of(2026, 9, 2)))
+                .thenReturn(List.of());
+        when(housekeepingRoomStatusRepository.findByPropertyIdAndBusinessDateBetweenAndRoomNoIsNotNull(
+                "property-1", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 4)))
+                .thenReturn(List.of());
+
+        RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
+        quote.setRateCode("BAR");
+        quote.setRatePlan("Best Available Rate");
+        quote.setOccupancy("2 ADULTS, 1 CHILD");
+        quote.setBaseRate(new BigDecimal("100.00"));
+        quote.setTaxAmount(new BigDecimal("12.00"));
+        quote.setFinalAmount(new BigDecimal("112.00"));
+        when(rateManagementPort.fetchRateQuotes(
+                "property-1", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 4),
+                "King", 12L, 2, 1, 6, null)).thenReturn(List.of(quote));
+
+        ReservationRoomCalendarResponseDto response = reservationRoomCalendarService.getRoomCalendar(
+                "property-1", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 4),
+                List.of("King"), 2, 1, "BAR", 6, null);
+
+        ReservationRoomCalendarResponseDto.RoomCalendarRowDto row = response.getRooms().getFirst();
+        assertThat(row.getRateCode()).isEqualTo("BAR");
+        assertThat(row.getOccupancy()).isEqualTo("3 Guests");
+        assertThat(row.getBaseRate()).isEqualByComparingTo("100.00");
+        assertThat(row.getTaxAmount()).isEqualByComparingTo("12.00");
+        assertThat(row.getFinalAmount()).isEqualByComparingTo("112.00");
+        assertThat(row.getTotalRate()).isNull();
+    }
 
     @Test
     void getRoomCalendarShouldBuildRoomWiseCalendarForAssignment() {
@@ -57,11 +110,15 @@ class ReservationRoomCalendarServiceImplTest {
         room102.setRoomNumber("102");
         room102.setRoomType("King");
 
+        PropertyRoomInventoryDto room103 = new PropertyRoomInventoryDto();
+        room103.setRoomNumber("103");
+        room103.setRoomType("King");
+
         when(housekeepingRoomCalendarClient.fetchRooms(
                 "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 3)
-        )).thenReturn(List.of(room101, room102));
+        )).thenReturn(List.of(room101, room102, room103));
 
         ReservationBookingRecord booking101 = ReservationBookingRecord.builder()
                 .id(901L)
@@ -72,6 +129,8 @@ class ReservationRoomCalendarServiceImplTest {
                 .roomType("King")
                 .arrivalDate(LocalDate.of(2026, 8, 1))
                 .departureDate(LocalDate.of(2026, 8, 3))
+                .adultCount(2)
+                .childCount(1)
                 .build();
 
         ReservationBookingRecord booking102 = ReservationBookingRecord.builder()
@@ -112,7 +171,7 @@ class ReservationRoomCalendarServiceImplTest {
                 List.of("King")
         );
 
-        assertThat(response.getRooms()).hasSize(2);
+        assertThat(response.getRooms()).hasSize(3);
 
         ReservationRoomCalendarResponseDto.RoomCalendarRowDto room101Row = response.getRooms().stream()
                 .filter(item -> "101".equals(item.getRoomNo()))
@@ -122,6 +181,13 @@ class ReservationRoomCalendarServiceImplTest {
                 .filter(item -> "102".equals(item.getRoomNo()))
                 .findFirst()
                 .orElseThrow();
+        ReservationRoomCalendarResponseDto.RoomCalendarRowDto room103Row = response.getRooms().stream()
+                .filter(item -> "103".equals(item.getRoomNo()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(room101Row.getOccupancy()).isEqualTo("3 Guests");
+        assertThat(room103Row.getOccupancy()).isNull();
 
         assertThat(room101Row.getCalendar()).extracting(ReservationRoomCalendarResponseDto.RoomCalendarCellDto::getStatus)
                 .containsExactly("BOOKED", "DIRTY", "AVAILABLE");
@@ -139,7 +205,7 @@ class ReservationRoomCalendarServiceImplTest {
                 .filter(item -> LocalDate.of(2026, 8, 3).equals(item.getDate()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(day3.getAvailableRooms()).isEqualTo(1);
+        assertThat(day3.getAvailableRooms()).isEqualTo(2);
         assertThat(day3.getOccupiedRooms()).isEqualTo(1);
     }
 

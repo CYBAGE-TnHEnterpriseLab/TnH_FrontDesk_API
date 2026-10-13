@@ -1,6 +1,7 @@
 package com.pms.reservation.dto;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import lombok.Builder;
 import lombok.Value;
@@ -22,6 +23,14 @@ public class ReservationRoomCalendarResponseDto {
         String roomNo;
         String roomType;
         Integer floor;
+        String rateCode;
+        String ratePlan;
+        String occupancy;
+        BigDecimal baseRate;
+        BigDecimal taxAmount;
+        BigDecimal finalAmount;
+        BigDecimal roomRate;
+        BigDecimal totalRate;
         List<RoomCalendarCellDto> calendar;
     }
 

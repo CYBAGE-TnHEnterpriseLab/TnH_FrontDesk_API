@@ -109,6 +109,10 @@ public class ReservationBookingRequestDto {
     @Min(value = 0, message = "childCount must be >= 0")
     private Integer childCount;
 
+        private Integer ageOfChild1;
+
+        private Integer ageOfChild2;
+
     @Pattern(regexp = "(?i)GTD|NON[\\s-]?GTD", message = "reservationType must be GTD or Non GTD")
     private String reservationType;
 
@@ -176,6 +180,11 @@ public class ReservationBookingRequestDto {
     private BigDecimal discount;
 
     private String alertsMessages;
+
+        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+        private String editPassword;
+
+        private Boolean confirmRateChange = Boolean.FALSE;
 
         @JsonIgnore
         private boolean guestNameExplicitlyProvided;

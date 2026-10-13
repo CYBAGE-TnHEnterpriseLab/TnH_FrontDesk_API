@@ -4,6 +4,7 @@ import com.pms.property.common.response.ApiResponse;
 import com.pms.property.domain.finance.dto.ChartOfAccountRequest;
 import com.pms.property.domain.finance.dto.ChartOfAccountResponse;
 import com.pms.property.domain.finance.dto.FinanceSummaryResponse;
+import com.pms.property.domain.finance.dto.RevenueMappingResponse;
 import com.pms.property.domain.finance.service.FinanceService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,15 @@ public class FinanceController {
     @GetMapping("/properties/{propertyId}/summary")
     public ResponseEntity<ApiResponse<FinanceSummaryResponse>> getSummary(@PathVariable String propertyId) {
         return ResponseEntity.ok(ApiResponse.ok(financeService.getSummaryByPropertyId(propertyId), "Published property finance summary fetched"));
+    }
+
+    @GetMapping("/properties/{propertyId}/revenue-mappings")
+    public ResponseEntity<ApiResponse<List<RevenueMappingResponse>>> listRevenueMappings(
+        @PathVariable String propertyId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            financeService.listRevenueMappingsByPropertyId(propertyId),
+            "Published property revenue mappings fetched"));
     }
 
     /** Fetches chart of accounts configured for a published property. */

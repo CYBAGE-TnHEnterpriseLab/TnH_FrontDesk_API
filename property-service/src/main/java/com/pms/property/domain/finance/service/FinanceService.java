@@ -3,11 +3,14 @@ package com.pms.property.domain.finance.service;
 import com.pms.property.domain.finance.dto.ChartOfAccountRequest;
 import com.pms.property.domain.finance.dto.ChartOfAccountResponse;
 import com.pms.property.domain.finance.dto.FinanceSummaryResponse;
+import com.pms.property.domain.finance.dto.RevenueMappingResponse;
 import java.util.List;
 
 public interface FinanceService {
 
     FinanceSummaryResponse getSummaryByPropertyId(String propertyId);
+
+    List<RevenueMappingResponse> listRevenueMappingsByPropertyId(String propertyId);
 
     List<ChartOfAccountResponse> listAccountsByPropertyId(String propertyId);
 

@@ -51,7 +51,7 @@ public class RateManagementServiceClient implements RateManagementPort {
     private final RateManagementServiceProperties properties;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final String MASTER_ROOM_PRICING_PATH = "/api/master-rooms/{id}/pricing";
+    private static final String ROOM_TYPE_PRICING_PATH = "/api/master-rooms/room-type/{roomTypeId}/pricing";
     private final AtomicBoolean availablePlansGetUnsupported = new AtomicBoolean(false);
     private final AtomicBoolean availablePlansRequireRoomTypeId = new AtomicBoolean(false);
     private final AtomicBoolean calculatedPriceEndpointUnavailable = new AtomicBoolean(false);
@@ -80,10 +80,26 @@ public class RateManagementServiceClient implements RateManagementPort {
             Integer adultCount,
             Integer childCount
     ) {
-        String occupancyType = buildOccupancyType(adultCount, childCount);
-        Integer guestCount = adultCount == null && childCount == null
+        return fetchRateQuotes(propertyId, arrivalDate, departureDate, roomType, roomTypeId,
+            adultCount, childCount, null, null);
+    }
+
+    @Override
+    public List<RatePlanPricingQuoteDto> fetchRateQuotes(
+            String propertyId,
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            String roomType,
+            Long roomTypeId,
+            Integer adultCount,
+            Integer childCount,
+            Integer ageOfChild1,
+            Integer ageOfChild2
+    ) {
+        String occupancyType = buildAdultOccupancyType(adultCount);
+        Integer guestCount = adultCount == null
             ? null
-            : (adultCount == null ? 0 : adultCount) + (childCount == null ? 0 : childCount);
+            : adultCount;
 
         // Rate Management only prices 1..4 guest occupancies; larger values are rejected, so price with the plan default.
 
@@ -141,16 +157,27 @@ public class RateManagementServiceClient implements RateManagementPort {
                     if (hasHttpStatus(ex, 401) || hasHttpStatus(ex, 403)) {
                         throw ex;
                     }
-                    // One misconfigured plan/room combo must not discard every other quote.
+                    resolvedFinalAmount = deriveFallbackFinalAmount(propertyId, plan, candidateRoomTypeId, pricingOccupancyType);
+                    if (resolvedFinalAmount.signum() <= 0) {
+                        // One misconfigured plan/room combo must not discard every other quote.
+                        log.warn(
+                            "Skipping rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
+                            propertyId,
+                            plan.getId(),
+                            resolveRateCode(plan),
+                            candidateRoomTypeId,
+                            ex.getMessage()
+                        );
+                        continue;
+                    }
                     log.warn(
-                        "Skipping rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
+                        "Using fallback rate quote propertyId={} ratePlanId={} rateCode={} roomTypeId={} reason={}",
                         propertyId,
                         plan.getId(),
                         resolveRateCode(plan),
                         candidateRoomTypeId,
                         ex.getMessage()
                     );
-                    continue;
                 }
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
@@ -160,14 +187,48 @@ public class RateManagementServiceClient implements RateManagementPort {
                 quote.setRateCode(resolveRateCode(plan));
                 quote.setOccupancy(resolveOccupancy(plan, occupancyType));
                 quote.setMealPlan(resolveMealOption(plan));
-                quote.setBaseRate(resolvedFinalAmount);
+                BigDecimal childSurcharge = resolveChildSurcharge(
+                    propertyId, plan, candidateRoomTypeId, ageOfChild1, ageOfChild2);
+                BigDecimal finalAmount = resolvedFinalAmount.add(childSurcharge);
+                quote.setBaseRate(finalAmount);
                 quote.setTaxAmount(BigDecimal.ZERO);
-                quote.setFinalAmount(resolvedFinalAmount);
+                quote.setFinalAmount(finalAmount);
                 quotes.add(quote);
             }
         }
 
         return deduplicateQuotes(quotes);
+    }
+
+    private BigDecimal resolveChildSurcharge(
+            String propertyId,
+            RateManagementPlanDto plan,
+            Long roomTypeId,
+            Integer ageOfChild1,
+            Integer ageOfChild2) {
+        int chargeableChildren = countChildrenAboveFive(ageOfChild1, ageOfChild2);
+        if (chargeableChildren == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal childRate = resolveFinalAmount(
+                propertyId,
+                plan,
+                roomTypeId,
+                "CHILD ABOVE 5",
+                1);
+        return childRate.multiply(BigDecimal.valueOf(chargeableChildren));
+    }
+
+    private int countChildrenAboveFive(Integer ageOfChild1, Integer ageOfChild2) {
+        int count = 0;
+        if (ageOfChild1 != null && ageOfChild1 > 5) {
+            count++;
+        }
+        if (ageOfChild2 != null && ageOfChild2 > 5) {
+            count++;
+        }
+        return count;
     }
 
     @Override
@@ -608,7 +669,7 @@ public class RateManagementServiceClient implements RateManagementPort {
             Integer guestCount
     ) {
         if (calculatedPriceEndpointUnavailable.get()) {
-            return deriveFallbackFinalAmount(propertyId, plan, requestedOccupancyType);
+            return deriveFallbackFinalAmount(propertyId, plan, roomTypeId, requestedOccupancyType);
         }
 
         try {
@@ -634,7 +695,7 @@ public class RateManagementServiceClient implements RateManagementPort {
                 }
             }
 
-            return deriveFallbackFinalAmount(propertyId, plan, requestedOccupancyType);
+            return deriveFallbackFinalAmount(propertyId, plan, roomTypeId, requestedOccupancyType);
         } catch (ExternalServiceException ex) {
             if (StringUtils.hasText(requestedOccupancyType)
                     && !isCalculatedPriceEndpointUnavailable(ex)
@@ -664,23 +725,24 @@ public class RateManagementServiceClient implements RateManagementPort {
                 );
             }
 
-            return deriveFallbackFinalAmount(propertyId, plan, requestedOccupancyType);
+            return deriveFallbackFinalAmount(propertyId, plan, roomTypeId, requestedOccupancyType);
         }
     }
 
     private BigDecimal deriveFallbackFinalAmount(
             String propertyId,
             RateManagementPlanDto plan,
+            Long roomTypeId,
             String requestedOccupancyType
     ) {
-        BigDecimal occupancyPrice = resolveMasterRoomOccupancyPrice(plan, requestedOccupancyType);
+        BigDecimal occupancyPrice = resolveRoomTypeOccupancyPrice(roomTypeId, plan, requestedOccupancyType);
         if (occupancyPrice != null && occupancyPrice.signum() > 0) {
             return occupancyPrice;
         }
 
         BigDecimal manualAmount = firstPositiveAmount(
+            extractManualPricingAmount(plan.getManualPricingByOccupancy(), requestedOccupancyType),
             plan.getManualAmount(),
-            extractManualPricingAmount(plan.getManualPricingByOccupancy(), plan.getOccupancyType()),
             extractManualPricingAmount(plan.getAdditionalFields(), "manualAmount")
         );
 
@@ -697,17 +759,17 @@ public class RateManagementServiceClient implements RateManagementPort {
         return manualAmount == null ? BigDecimal.ZERO : manualAmount;
     }
 
-    private BigDecimal resolveMasterRoomOccupancyPrice(
+    private BigDecimal resolveRoomTypeOccupancyPrice(
+            Long roomTypeId,
             RateManagementPlanDto plan,
             String requestedOccupancyType
     ) {
-        Long planId = plan.getId();
-        if (planId == null) {
+        if (roomTypeId == null) {
             return null;
         }
 
         List<MasterRoomPricingEntry> pricingEntries =
-            masterRoomPricingCache.get(planId, () -> loadMasterRoomPricingEntries(planId));
+            masterRoomPricingCache.get(roomTypeId, () -> loadRoomTypePricingEntries(roomTypeId));
         if (pricingEntries.isEmpty()) {
             return null;
         }
@@ -737,22 +799,22 @@ public class RateManagementServiceClient implements RateManagementPort {
         return null;
     }
 
-    private List<MasterRoomPricingEntry> loadMasterRoomPricingEntries(Long id) {
+    private List<MasterRoomPricingEntry> loadRoomTypePricingEntries(Long roomTypeId) {
         String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
-            .path(MASTER_ROOM_PRICING_PATH)
-            .buildAndExpand(id)
+            .path(ROOM_TYPE_PRICING_PATH)
+            .buildAndExpand(roomTypeId)
             .toUriString();
 
         Map<String, Object> context = new LinkedHashMap<>();
-        context.put("id", id);
+        context.put("roomTypeId", roomTypeId);
 
         try {
-            String responseBody = executeGetWithRetry("master-room-pricing", url, context);
-            return readListResponseBody(responseBody, MasterRoomPricingEntry.class, "master-room-pricing");
+            String responseBody = executeGetWithRetry("room-type-pricing", url, context);
+            return readListResponseBody(responseBody, MasterRoomPricingEntry.class, "room-type-pricing");
         } catch (ExternalServiceException ex) {
             log.info(
-                "Master-room pricing lookup unavailable for id={}; skipping occupancy fallback. reason={}",
-                id,
+                "Room-type pricing lookup unavailable for roomTypeId={}; skipping occupancy fallback. reason={}",
+                roomTypeId,
                 ex.getMessage()
             );
             return List.of();
@@ -811,15 +873,6 @@ public class RateManagementServiceClient implements RateManagementPort {
         return left.max(right);
     }
 
-    private String normalizeOccupancyKey(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-
-        String normalized = value.toLowerCase(Locale.ROOT);
-        return normalized.replaceAll("[^a-z0-9]", "");
-    }
-
     private Integer extractFirstInteger(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -855,6 +908,22 @@ public class RateManagementServiceClient implements RateManagementPort {
             if (preferredValue != null && preferredValue.signum() > 0) {
                 return preferredValue;
             }
+
+            String guestLabel = preferredKey.replace(" Adults", " Guest");
+            BigDecimal guestLabelValue = toBigDecimal(source.get(guestLabel));
+            if (guestLabelValue != null && guestLabelValue.signum() > 0) {
+                return guestLabelValue;
+            }
+
+            String normalizedPreferredKey = normalizeOccupancyKey(preferredKey);
+            for (Map.Entry<String, Object> entry : source.entrySet()) {
+                if (normalizeOccupancyKey(entry.getKey()).equals(normalizedPreferredKey)) {
+                    BigDecimal normalizedValue = toBigDecimal(entry.getValue());
+                    if (normalizedValue != null && normalizedValue.signum() > 0) {
+                        return normalizedValue;
+                    }
+                }
+            }
         }
 
         for (Object rawValue : source.values()) {
@@ -865,6 +934,18 @@ public class RateManagementServiceClient implements RateManagementPort {
         }
 
         return null;
+    }
+
+    private String normalizeOccupancyKey(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value.toLowerCase(Locale.ROOT)
+            .replace("adults", "guest")
+            .replace("adult", "guest")
+            .replace("guests", "guest")
+            .replaceAll("[^a-z0-9]", "");
     }
 
     private BigDecimal firstPositiveAmount(BigDecimal... candidates) {
@@ -1317,19 +1398,14 @@ public class RateManagementServiceClient implements RateManagementPort {
         return normalized;
     }
 
-    private String buildOccupancyType(Integer adultCount, Integer childCount) {
+    private String buildAdultOccupancyType(Integer adultCount) {
         int adults = adultCount == null ? 0 : adultCount;
-        int children = childCount == null ? 0 : childCount;
 
-        if (adults <= 0 && children <= 0) {
+        if (adults <= 0) {
             return null;
         }
 
-        if (children <= 0) {
-            return adults + " Adults";
-        }
-
-        return adults + " Adults " + children + " Children";
+        return adults + " Adults";
     }
 
     private static class MasterRoomPricingEntry {
