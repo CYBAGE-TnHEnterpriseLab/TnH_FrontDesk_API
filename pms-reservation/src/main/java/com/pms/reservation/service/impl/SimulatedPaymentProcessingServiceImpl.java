@@ -30,6 +30,7 @@ public class SimulatedPaymentProcessingServiceImpl implements PaymentProcessingS
                     .processorName("SIMULATED_GATEWAY")
                     .failureReason("amount must be greater than zero")
                     .processedAt(processedAt)
+                    .amount(amount)
                     .build();
         }
 
@@ -40,6 +41,7 @@ public class SimulatedPaymentProcessingServiceImpl implements PaymentProcessingS
                 .processorName("SIMULATED_GATEWAY")
                 .failureReason(null)
                 .processedAt(processedAt)
+                .amount(amount)
                 .build();
     }
 

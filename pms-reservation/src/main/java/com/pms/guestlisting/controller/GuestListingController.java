@@ -302,8 +302,10 @@ public class GuestListingController {
 
             if (VIEW_ARRIVALS.equals(view)) {
                 predicates.add(cb.equal(root.get("arrivalDate"), businessDate));
+                predicates.add(cb.equal(cb.upper(root.get("reservationStatus")), STATUS_CONFIRMED));
             } else if (VIEW_DEPARTURES.equals(view)) {
                 predicates.add(cb.equal(root.get("departureDate"), businessDate));
+                predicates.add(cb.equal(cb.upper(root.get("reservationStatus")), "CHECKED_IN"));
             } else {
                 predicates.add(cb.or(
                         cb.equal(root.get("arrivalDate"), businessDate),

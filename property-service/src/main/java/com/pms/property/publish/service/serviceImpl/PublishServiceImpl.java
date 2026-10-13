@@ -47,12 +47,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
 public class PublishServiceImpl implements PublishService {
+
+    private static final String PROPERTY_CODE_UNIQUE_INDEX = "uk_property_code_lower";
 
     private final DraftService draftService;
     private final PropertyRepository propertyRepository;
@@ -135,8 +138,14 @@ public class PublishServiceImpl implements PublishService {
     }
 
     private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, UUID actor) {
+        String propertyCode = normalized.property().getPropertyCode();
+        if (isPropertyCodeTakenByOtherProperty(propertyCode, null)) {
+            throw new BadRequestException("Property code already exists: " + propertyCode);
+        }
+
         normalized.property().setCreatedBy(actor);
-        PropertyEntity property = propertyRepository.save(normalized.property());
+        applyPropertyCodeKey(normalized.property(), propertyCode);
+        PropertyEntity property = savePropertyWithCodeGuard(normalized.property(), propertyCode);
         String propertyId = property.getId();
         saveNormalizedData(normalized, propertyId);
         return propertyId;
@@ -148,6 +157,11 @@ public class PublishServiceImpl implements PublishService {
             throw new BadRequestException("Draft already published, but property id missing");
         }
 
+        String propertyCode = normalized.property().getPropertyCode();
+        if (isPropertyCodeTakenByOtherProperty(propertyCode, propertyId)) {
+            throw new BadRequestException("Property code already exists: " + propertyCode);
+        }
+
         PropertyEntity existing = propertyRepository.findById(propertyId)
             .orElseThrow(() -> new NotFoundException("Property not found: " + propertyId));
 
@@ -155,12 +169,60 @@ public class PublishServiceImpl implements PublishService {
         updated.setId(existing.getId());
         updated.setCreatedAt(existing.getCreatedAt());
         updated.setCreatedBy(existing.getCreatedBy());
-        propertyRepository.save(updated);
+        applyPropertyCodeKey(updated, propertyCode);
+        savePropertyWithCodeGuard(updated, propertyCode);
 
         cleanupExistingPropertyImages(propertyId);
         clearNormalizedData(propertyId);
         saveNormalizedData(normalized, propertyId);
         return propertyId;
+    }
+
+    /**
+     * Case-insensitive uniqueness preflight shared by both publish paths and by the availability
+     * endpoint, so the preflight matches the publish contract. The database unique index remains the
+     * authority when concurrent publishes race.
+     */
+    private boolean isPropertyCodeTakenByOtherProperty(String propertyCode, String excludedPropertyId) {
+        if (propertyCode == null || propertyCode.isBlank()) {
+            return false;
+        }
+        String normalizedCode = propertyCode.trim();
+        return excludedPropertyId == null
+                ? propertyRepository.existsByPropertyCodeIgnoreCase(normalizedCode)
+                : propertyRepository.existsByPropertyCodeIgnoreCaseAndIdNot(normalizedCode, excludedPropertyId);
+    }
+
+    /**
+     * Maintains the case-insensitive key enforced by the unique index. A blank code maps to null,
+     * which unique indexes treat as distinct, so multiple properties may share a blank code.
+     */
+    private void applyPropertyCodeKey(PropertyEntity property, String propertyCode) {
+        property.setPropertyCodeLower(
+                propertyCode == null || propertyCode.isBlank()
+                        ? null
+                        : propertyCode.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Persists the property and translates a duplicate that only the case-insensitive unique index
+     * catches, because two concurrent publishes passed the preflight at the same time, into the same
+     * conflict the preflight reports.
+     */
+    private PropertyEntity savePropertyWithCodeGuard(PropertyEntity property, String propertyCode) {
+        try {
+            return propertyRepository.save(property);
+        } catch (DataIntegrityViolationException ex) {
+            if (isDuplicatePropertyCodeViolation(ex)) {
+                throw new BadRequestException("Property code already exists: " + propertyCode);
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isDuplicatePropertyCodeViolation(DataIntegrityViolationException ex) {
+        String message = String.valueOf(ex.getMessage()).toLowerCase(Locale.ROOT);
+        return message.contains(PROPERTY_CODE_UNIQUE_INDEX);
     }
 
     private void saveNormalizedData(PublishMapper.NormalizedPublishData normalized, String propertyId) {
@@ -254,6 +316,15 @@ public class PublishServiceImpl implements PublishService {
      * reservations) reference room outlet type ids, so ids must survive a republish.
      */
     private void saveRoomOutletTypes(List<RoomOutletTypeEntity> entities, String propertyId) {
+        for (RoomOutletTypeEntity entity : entities) {
+            String code = entity.getRoomCode();
+            if (code == null || code.isBlank()) {
+                throw new BadRequestException("roomCode is required for room outlet type");
+            }
+            if (!code.trim().matches("^[A-Z_]{2,20}$")) {
+                throw new BadRequestException("roomCode must match ^[A-Z_]{2,20}$");
+            }
+        }
         List<RoomOutletTypeEntity> existing = roomOutletTypeRepository.findAllByPropertyId(propertyId);
         Map<String, RoomOutletTypeEntity> existingByCode = new HashMap<>();
         Map<String, RoomOutletTypeEntity> existingByName = new HashMap<>();

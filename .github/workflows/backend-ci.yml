@@ -25,6 +25,7 @@ jobs:
           - pms-housekeeping
           - pms-inventory
           - pms-folio-billing
+          - pms-loyalty
           - property-service
           - rate-management
           - Policy

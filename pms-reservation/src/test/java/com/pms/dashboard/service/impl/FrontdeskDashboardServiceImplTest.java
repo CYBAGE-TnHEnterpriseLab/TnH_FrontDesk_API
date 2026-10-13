@@ -70,13 +70,17 @@ class FrontdeskDashboardServiceImplTest {
                                 .thenReturn(0L);
                 Mockito.when(reservationBookingRepository.countNewReservationsByPropertyIdAndBusinessDate(propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay()))
                                 .thenReturn(0L);
-                Mockito.when(reservationBookingRepository.countCheckedOutsByPropertyIdAndBusinessDate(propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay()))
+                Mockito.when(reservationBookingRepository.countCheckedOutsByPropertyIdAndBusinessDate(propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay(), businessDate))
                                 .thenReturn(0L);
                 Mockito.when(reservationBookingRepository.countEarlyDeparturesByPropertyIdAndBusinessDate(propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay()))
                                 .thenReturn(0L);
                 Mockito.when(reservationBookingRepository.countSameDayCancelsByPropertyIdAndBusinessDate(propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay()))
                                 .thenReturn(0L);
                 Mockito.when(reservationBookingRepository.countCheckInsByPropertyIdAndBusinessDate(propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay()))
+                                .thenReturn(0L);
+                Mockito.when(reservationBookingRepository.countExpectedDeparturesByPropertyIdAndBusinessDate(propertyId.toString(), businessDate))
+                                .thenReturn(0L);
+                Mockito.when(reservationBookingRepository.countExpectedArrivalsByPropertyIdAndBusinessDate(propertyId.toString(), businessDate))
                                 .thenReturn(0L);
 
                 DashboardProperties properties = new DashboardProperties();

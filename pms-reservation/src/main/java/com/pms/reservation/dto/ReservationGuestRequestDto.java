@@ -80,4 +80,7 @@ public class ReservationGuestRequestDto {
 
     @Size(max = 40)
     private String loyaltyMembershipNumber;
+
+    @Size(max = 36)
+    private String loyaltyProgramId;
 }
