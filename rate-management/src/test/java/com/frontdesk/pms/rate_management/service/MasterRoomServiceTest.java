@@ -18,6 +18,7 @@ import com.frontdesk.pms.rate_management.repository.MasterRoomRepository;
 import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import com.frontdesk.pms.rate_management.dto.MasterRoomRoomTypeMappingRequestDTO;
 import com.frontdesk.pms.rate_management.enums.DifferentialType;
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import com.frontdesk.pms.rate_management.repository.MasterRoomRoomTypeMappingRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -618,6 +619,31 @@ class MasterRoomServiceTest {
                 assertEquals("Executive Deluxe", result.getName());
                 assertEquals("11111111-1111-1111-1111-111111111111", result.getPropertyId());
                 verify(propertyWizardClient, never()).propertyExists(any(String.class));
+        }
+
+        @Test
+        void updateMasterRoom_shouldPersistSelectedMealCombination() {
+                MasterRoomRequestDTO requestDTO = new MasterRoomRequestDTO();
+                requestDTO.setMealOption(MasterRoomMealOption.BREAKFAST_AND_DINNER);
+
+                MasterRoom existing = new MasterRoom();
+                existing.setId(11L);
+                existing.setPropertyId("11111111-1111-1111-1111-111111111111");
+                existing.setMealOption(MasterRoomMealOption.NO_MEALS);
+
+                MasterRoomResponseDTO responseDTO = new MasterRoomResponseDTO();
+                responseDTO.setMealOption(MasterRoomMealOption.BREAKFAST_AND_DINNER);
+
+                when(masterRoomRepository.findById(11L)).thenReturn(Optional.of(existing));
+                when(masterRoomRepository.save(existing)).thenReturn(existing);
+                when(masterRoomMapper.toResponseDTO(existing)).thenReturn(responseDTO);
+
+                MasterRoomResponseDTO result = masterRoomService.updateMasterRoom(
+                        "11111111-1111-1111-1111-111111111111", 11L, requestDTO);
+
+                assertEquals(MasterRoomMealOption.BREAKFAST_AND_DINNER, existing.getMealOption());
+                assertEquals(MasterRoomMealOption.BREAKFAST_AND_DINNER, result.getMealOption());
+                verify(masterRoomRepository).save(existing);
         }
 
         @Test
