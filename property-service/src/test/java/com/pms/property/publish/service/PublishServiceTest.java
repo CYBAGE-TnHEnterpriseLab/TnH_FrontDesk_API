@@ -136,7 +136,7 @@ class PublishServiceTest {
         when(draftService.getById(41L)).thenReturn(draft);
         when(publishMapper.toNormalized("{}")).thenReturn(normalized);
         when(propertyRepository.findById("P-100")).thenReturn(java.util.Optional.of(existingProperty));
-        when(propertyRepository.save(any(PropertyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(propertyRepository.saveAndFlush(any(PropertyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(propertyOverviewRepository.findByPropertyId("P-100")).thenReturn(java.util.Optional.of(existingOverview));
 
         PropertyAreaEntity existingArea = new PropertyAreaEntity();
@@ -153,7 +153,7 @@ class PublishServiceTest {
         assertEquals("PUBLISHED", response.status());
 
         ArgumentCaptor<PropertyEntity> propertyCaptor = ArgumentCaptor.forClass(PropertyEntity.class);
-        verify(propertyRepository).save(propertyCaptor.capture());
+        verify(propertyRepository).saveAndFlush(propertyCaptor.capture());
         assertEquals("P-100", propertyCaptor.getValue().getId());
         assertEquals(OWNER_ID, propertyCaptor.getValue().getCreatedBy());
         assertEquals(existingProperty.getCreatedAt(), propertyCaptor.getValue().getCreatedAt());
@@ -248,7 +248,7 @@ class PublishServiceTest {
             () -> service.publish(50L, OWNER_ID, "Bearer test-token"));
 
         assertEquals("Property code already exists: abc", ex.getMessage());
-        verify(propertyRepository, never()).save(any(PropertyEntity.class));
+        verify(propertyRepository, never()).saveAndFlush(any(PropertyEntity.class));
         verify(inventorySyncService, never()).requestSyncAfterCommit(any(String.class), any(String.class));
     }
 
@@ -326,7 +326,7 @@ class PublishServiceTest {
         when(draftService.getById(51L)).thenReturn(draft);
         when(publishMapper.toNormalized("{}")).thenReturn(normalized);
         when(propertyRepository.existsByPropertyCodeIgnoreCase("ABC")).thenReturn(false);
-        when(propertyRepository.save(any(PropertyEntity.class))).thenThrow(new DataIntegrityViolationException(
+        when(propertyRepository.saveAndFlush(any(PropertyEntity.class))).thenThrow(new DataIntegrityViolationException(
             "duplicate key value violates unique constraint \"uk_property_code_lower\""));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
@@ -334,7 +334,7 @@ class PublishServiceTest {
 
         assertEquals("Property code already exists: ABC", ex.getMessage());
         ArgumentCaptor<PropertyEntity> propertyCaptor = ArgumentCaptor.forClass(PropertyEntity.class);
-        verify(propertyRepository).save(propertyCaptor.capture());
+        verify(propertyRepository).saveAndFlush(propertyCaptor.capture());
         assertEquals("abc", propertyCaptor.getValue().getPropertyCodeLower());
         verify(inventorySyncService, never()).requestSyncAfterCommit(any(String.class), any(String.class));
     }
