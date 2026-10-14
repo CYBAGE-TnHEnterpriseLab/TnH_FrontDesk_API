@@ -211,7 +211,7 @@ public class PublishServiceImpl implements PublishService {
      */
     private PropertyEntity savePropertyWithCodeGuard(PropertyEntity property, String propertyCode) {
         try {
-            return propertyRepository.save(property);
+            return propertyRepository.saveAndFlush(property);
         } catch (DataIntegrityViolationException ex) {
             if (isDuplicatePropertyCodeViolation(ex)) {
                 throw new BadRequestException("Property code already exists: " + propertyCode);
