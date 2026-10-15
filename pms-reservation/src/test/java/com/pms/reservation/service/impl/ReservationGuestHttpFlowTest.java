@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.hamcrest.Matchers.containsString;
 
+import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.config.GuestServiceProperties;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
@@ -24,6 +25,8 @@ import com.pms.reservation.entity.ReservationGuest;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.GuestServiceClient;
 import com.pms.reservation.integration.FolioServiceClient;
+import com.pms.reservation.integration.LoyaltyServiceClient;
+import com.pms.reservation.integration.dto.LoyaltyMembershipResponse;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.InventoryServiceClient;
@@ -63,6 +66,14 @@ class ReservationGuestHttpFlowTest {
     private static final String PROPERTY_ID = "7cfd4559-b6f3-4b7d-b933-e93018ac1d47";
     private static final String OTHER_PROPERTY_ID = "5bf6458d-758c-4e9a-8ce6-99fbfe793f35";
     private static final String GUEST_SERVICE_URL = "http://guest-service";
+    private static final String ENROLLABLE_GUEST_ID =
+            "GST-11111111-1111-1111-1111-111111111111";
+    private static final java.util.UUID ENROLLABLE_GUEST_UUID =
+            java.util.UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final java.util.UUID SECOND_PROGRAM_ID =
+            java.util.UUID.fromString("22345678-1234-1234-1234-123456789012");
+    private static final java.util.UUID THIRD_PROGRAM_ID =
+            java.util.UUID.fromString("32345678-1234-1234-1234-123456789012");
 
     @Mock private ReservationBookingRepository bookingRepository;
     @Mock private ReservationPaymentTransactionRepository paymentRepository;
@@ -75,6 +86,7 @@ class ReservationGuestHttpFlowTest {
     @Mock private HousekeepingRoomStatusClient housekeepingStatusClient;
     @Mock private HousekeepingRoomCalendarClient housekeepingCalendarClient;
     @Mock private FolioServiceClient folioServiceClient;
+    @Mock private LoyaltyServiceClient loyaltyServiceClient;
 
     private MockRestServiceServer guestHttp;
     private ReservationBookingServiceImpl bookingService;
@@ -86,7 +98,7 @@ class ReservationGuestHttpFlowTest {
         GuestServiceProperties guestProperties = new GuestServiceProperties();
         guestProperties.setBaseUrl(GUEST_SERVICE_URL);
         GuestServiceClient guestClient = new GuestServiceClient(restTemplate, guestProperties);
-        ReservationGuestResolver resolver = new ReservationGuestResolver(guestClient);
+        ReservationGuestResolver resolver = new ReservationGuestResolver(guestClient, loyaltyServiceClient);
         when(transactionManager.getTransaction(any(TransactionDefinition.class)))
                 .thenReturn(new SimpleTransactionStatus());
         doNothing().when(transactionManager).commit(any(TransactionStatus.class));
@@ -186,7 +198,7 @@ class ReservationGuestHttpFlowTest {
     }
 
     @Test
-    void newEnrolledGuestIsCreatedWithTemporaryMembershipWithoutFollowupUpdate() {
+    void newEnrolledGuestIsCreatedThenEnrolledWithMembershipIssuedByLoyaltyService() {
         ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
         ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
         expectNoGuestLookup("5551000", "Ava");
@@ -194,14 +206,27 @@ class ReservationGuestHttpFlowTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.loyaltyMembershipNumber").value("TEMP-GUEST"))
+                        "$.loyaltyMembershipNumber").doesNotExist())
                 .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.loyaltyTier").value("STANDARD"))
-                .andRespond(withSuccess(profileJson(711L, "GST-SERVER-711", PROPERTY_ID, null, null),
+                        "$.loyaltyTier").doesNotExist())
+                .andRespond(withSuccess(profileJson(711L, ENROLLABLE_GUEST_ID, PROPERTY_ID, null, null),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+        when(loyaltyServiceClient.ensureMembership(ENROLLABLE_GUEST_UUID))
+                .thenReturn(membership("LOY00000042", "SILVER", "Silver", 1));
+        guestHttp.expect(requestTo(
+                        GUEST_SERVICE_URL + "/api/v1/guests/711?propertyId=" + PROPERTY_ID))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                        "$.loyaltyMembershipNumber").value("LOY00000042"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                        "$.loyaltyTier").value("SILVER"))
+                .andRespond(withSuccess(profileJson(711L, ENROLLABLE_GUEST_ID, PROPERTY_ID,
+                                "LOY00000042", "SILVER"),
                         org.springframework.http.MediaType.APPLICATION_JSON));
 
-        bookingService.createBooking(request);
+        var response = bookingService.createBooking(request);
         guestHttp.verify();
+        assertThat(response.getLoyaltyNumber()).isEqualTo("LOY00000042");
         assertAssignments(List.of(711L), List.of(900L));
     }
 
@@ -243,24 +268,148 @@ class ReservationGuestHttpFlowTest {
         ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
         guestHttp.expect(requestTo(containsString(GUEST_SERVICE_URL + "/api/v1/guests/lookup?")))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(profileJson(731L, "GST-EXISTING-731", PROPERTY_ID, null, null),
+                .andRespond(withSuccess(profileJson(731L, ENROLLABLE_GUEST_ID, PROPERTY_ID, null, null),
                         org.springframework.http.MediaType.APPLICATION_JSON));
+        when(loyaltyServiceClient.ensureMembership(ENROLLABLE_GUEST_UUID))
+                .thenReturn(membership("LOY00000042", "SILVER", "Silver", 1));
         guestHttp.expect(requestTo(
                         GUEST_SERVICE_URL + "/api/v1/guests/731?propertyId=" + PROPERTY_ID))
                 .andExpect(method(HttpMethod.PUT))
                 .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.loyaltyMembershipNumber").value("TEMP-GUEST"))
+                        "$.loyaltyMembershipNumber").value("LOY00000042"))
                 .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
-                        "$.loyaltyTier").value("STANDARD"))
+                        "$.loyaltyTier").value("SILVER"))
                 .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
                         "$.firstName").value("Ava"))
-                .andRespond(withSuccess(profileJson(731L, "GST-EXISTING-731", PROPERTY_ID,
-                                "TEMP-GUEST", "STANDARD"),
+                .andRespond(withSuccess(profileJson(731L, ENROLLABLE_GUEST_ID, PROPERTY_ID,
+                                "LOY00000042", "SILVER"),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        var response = bookingService.createBooking(request);
+        guestHttp.verify();
+        assertThat(response.getLoyaltyNumber()).isEqualTo("LOY00000042");
+        assertAssignments(List.of(731L), List.of(900L));
+    }
+
+    @Test
+    void guestSelectedLoyaltyProgramIsUsedForEnrollmentInsteadOfTheDefaultProgram() {
+        ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
+        guest.setLoyaltyProgramId(SECOND_PROGRAM_ID.toString());
+        ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
+        expectNoGuestLookup("5551000", "Ava");
+        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andRespond(withSuccess(profileJson(771L, ENROLLABLE_GUEST_ID, PROPERTY_ID, null, null),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+        when(loyaltyServiceClient.ensureMembership(ENROLLABLE_GUEST_UUID, SECOND_PROGRAM_ID))
+                .thenReturn(membership("LOY00000043", "PLATINUM", "Platinum", 3));
+        guestHttp.expect(requestTo(
+                        GUEST_SERVICE_URL + "/api/v1/guests/771?propertyId=" + PROPERTY_ID))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                        "$.loyaltyMembershipNumber").value("LOY00000043"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                        "$.loyaltyTier").value("PLATINUM"))
+                .andRespond(withSuccess(profileJson(771L, ENROLLABLE_GUEST_ID, PROPERTY_ID,
+                                "LOY00000043", "PLATINUM"),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        var response = bookingService.createBooking(request);
+        guestHttp.verify();
+        assertThat(response.getLoyaltyNumber()).isEqualTo("LOY00000043");
+        assertAssignments(List.of(771L), List.of(900L));
+        org.mockito.Mockito.verify(loyaltyServiceClient)
+                .ensureMembership(ENROLLABLE_GUEST_UUID, SECOND_PROGRAM_ID);
+        org.mockito.Mockito.verify(loyaltyServiceClient, org.mockito.Mockito.never())
+                .ensureMembership(ENROLLABLE_GUEST_UUID);
+    }
+
+    @Test
+    void bookingLevelLoyaltyProgramIsAppliedToGuestsWithoutTheirOwnSelection() {
+        ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
+        ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
+        request.setLoyaltyProgramId(SECOND_PROGRAM_ID.toString());
+        expectNoGuestLookup("5551000", "Ava");
+        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andRespond(withSuccess(profileJson(781L, ENROLLABLE_GUEST_ID, PROPERTY_ID, null, null),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+        when(loyaltyServiceClient.ensureMembership(ENROLLABLE_GUEST_UUID, SECOND_PROGRAM_ID))
+                .thenReturn(membership("LOY00000044", "GOLD", "Gold", 2));
+        guestHttp.expect(requestTo(
+                        GUEST_SERVICE_URL + "/api/v1/guests/781?propertyId=" + PROPERTY_ID))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath(
+                        "$.loyaltyTier").value("GOLD"))
+                .andRespond(withSuccess(profileJson(781L, ENROLLABLE_GUEST_ID, PROPERTY_ID,
+                                "LOY00000044", "GOLD"),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        var response = bookingService.createBooking(request);
+        guestHttp.verify();
+        assertThat(guest.getLoyaltyProgramId()).isEqualTo(SECOND_PROGRAM_ID.toString());
+        assertThat(response.getLoyaltyNumber()).isEqualTo("LOY00000044");
+        assertAssignments(List.of(781L), List.of(900L));
+    }
+
+    @Test
+    void guestLoyaltyProgramSelectionWinsOverTheBookingLevelSelection() {
+        ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
+        guest.setLoyaltyProgramId(THIRD_PROGRAM_ID.toString());
+        ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
+        request.setLoyaltyProgramId(SECOND_PROGRAM_ID.toString());
+        expectNoGuestLookup("5551000", "Ava");
+        guestHttp.expect(requestTo(GUEST_SERVICE_URL + "/api/v1/guests"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andRespond(withSuccess(profileJson(791L, ENROLLABLE_GUEST_ID, PROPERTY_ID, null, null),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+        when(loyaltyServiceClient.ensureMembership(ENROLLABLE_GUEST_UUID, THIRD_PROGRAM_ID))
+                .thenReturn(membership("LOY00000045", "SILVER", "Silver", 1));
+        guestHttp.expect(requestTo(
+                        GUEST_SERVICE_URL + "/api/v1/guests/791?propertyId=" + PROPERTY_ID))
+                .andExpect(method(HttpMethod.PUT))
+                .andRespond(withSuccess(profileJson(791L, ENROLLABLE_GUEST_ID, PROPERTY_ID,
+                                "LOY00000045", "SILVER"),
                         org.springframework.http.MediaType.APPLICATION_JSON));
 
         bookingService.createBooking(request);
         guestHttp.verify();
-        assertAssignments(List.of(731L), List.of(900L));
+        assertAssignments(List.of(791L), List.of(900L));
+        org.mockito.Mockito.verify(loyaltyServiceClient, org.mockito.Mockito.never())
+                .ensureMembership(ENROLLABLE_GUEST_UUID, SECOND_PROGRAM_ID);
+    }
+
+    @Test
+    @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
+    void malformedGuestLoyaltyProgramIdIsRejectedWithClientError() {
+        ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
+        guest.setLoyaltyProgramId("not-a-uuid");
+        ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> bookingService.createBooking(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("loyaltyProgramId must be a valid UUID");
+        org.mockito.Mockito.verifyNoInteractions(loyaltyServiceClient);
+    }
+
+    @Test
+    void alreadyEnrolledGuestKeepsMembershipAndIsNeverReassigned() {
+        ReservationGuestRequestDto guest = newGuest("Ava", "5551000", true, true);
+        ReservationBookingRequestDto request = bookingRequest(1, List.of("Ava Guest"), guest);
+        guestHttp.expect(requestTo(containsString(GUEST_SERVICE_URL + "/api/v1/guests/lookup?")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(profileJson(761L, ENROLLABLE_GUEST_ID, PROPERTY_ID,
+                                "LOY00000009", "PLATINUM"),
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        var response = bookingService.createBooking(request);
+        guestHttp.verify();
+        assertThat(response.getLoyaltyNumber()).isEqualTo("LOY00000009");
+        assertAssignments(List.of(761L), List.of(900L));
+        org.mockito.Mockito.verifyNoInteractions(loyaltyServiceClient);
     }
 
     @Test
@@ -401,6 +550,24 @@ class ReservationGuestHttpFlowTest {
                 propertyId,
                 membership == null ? "null" : "\"" + membership + "\"",
                 tier == null ? "null" : "\"" + tier + "\"");
+    }
+
+    private LoyaltyMembershipResponse membership(
+            String loyaltyNumber,
+            String tierCode,
+            String tierName,
+            int tierLevel
+    ) {
+        return LoyaltyMembershipResponse.builder()
+                .membershipId(java.util.UUID.randomUUID())
+                .guestId(ENROLLABLE_GUEST_UUID)
+                .loyaltyNumber(loyaltyNumber)
+                .tierCode(tierCode)
+                .tierName(tierName)
+                .tierLevel(tierLevel)
+                .status("ACTIVE")
+                .newlyEnrolled(true)
+                .build();
     }
 
     private void assertAssignments(List<Long> guestIds, List<Long> bookingIds) {

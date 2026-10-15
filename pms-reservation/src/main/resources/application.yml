@@ -95,6 +95,10 @@ housekeeping-service:
 folio-service:
   base-url: ${FOLIO_SERVICE_BASE_URL:http://localhost:8080}
 
+loyalty-service:
+  base-url: ${LOYALTY_SERVICE_BASE_URL:http://localhost:8081}
+  default-program-id: ${LOYALTY_SERVICE_DEFAULT_PROGRAM_ID:12345678-1234-1234-1234-123456789012}
+
 pms:
   services:
     guest:
@@ -102,8 +106,9 @@ pms:
       connect-timeout-ms: 3000
       read-timeout-ms: 6000
 
+
 dashboard:
-  timeout-ms: 2500
+  timeout-ms: 3000
   housekeeping:
     base-url: http://localhost:8086
     primary-path: /api/v1/housekeeping/dashboard

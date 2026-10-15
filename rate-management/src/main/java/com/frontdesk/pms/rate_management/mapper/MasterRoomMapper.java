@@ -2,6 +2,7 @@ package com.frontdesk.pms.rate_management.mapper;
 
 import com.frontdesk.pms.rate_management.dto.*;
 import com.frontdesk.pms.rate_management.entity.*;
+import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -11,7 +12,9 @@ public class MasterRoomMapper {
     public MasterRoom toEntity(MasterRoomRequestDTO dto) {
         MasterRoom entity = new MasterRoom();
         entity.setName(dto.getName());
-        entity.setMealOption(dto.getMealOption());
+        entity.setMealOption(dto.getMealOption() == null
+                ? MasterRoomMealOption.NO_MEALS
+                : dto.getMealOption());
         entity.setInclusion(dto.getInclusion());
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
@@ -37,7 +40,9 @@ public class MasterRoomMapper {
         dto.setId(entity.getId());
         dto.setPropertyId(entity.getPropertyId());
         dto.setName(entity.getName());
-        dto.setMealOption(entity.getMealOption());
+        dto.setMealOption(entity.getMealOption() == null
+                ? MasterRoomMealOption.NO_MEALS
+                : entity.getMealOption());
         dto.setInclusion(entity.getInclusion());
         dto.setStartDate(entity.getStartDate());
         dto.setEndDate(entity.getEndDate());

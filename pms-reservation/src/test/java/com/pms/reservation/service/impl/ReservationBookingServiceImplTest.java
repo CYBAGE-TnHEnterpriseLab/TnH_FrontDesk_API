@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -15,6 +16,7 @@ import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationGuestRequestDto;
+import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
@@ -32,9 +34,11 @@ import com.pms.reservation.service.ReservationGuestResolver;
 import com.pms.reservation.service.ReservationGuestService;
 import com.pms.reservation.service.ResolvedReservationGuest;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +52,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReservationBookingServiceImplTest {
 
     private static final String PROPERTY_ID = "7cfd4559-b6f3-4b7d-b933-e93018ac1d47";
+    private static final BigDecimal PAYMENT_COLLECTED = new BigDecimal("500.00");
+    private static final BigDecimal ROOM_PAYABLE = new BigDecimal("1000.00");
 
     @Mock private ReservationBookingRepository bookingRepository;
     @Mock private ReservationPaymentTransactionRepository paymentRepository;
@@ -80,6 +86,77 @@ class ReservationBookingServiceImplTest {
     @Test
     void multipleRoomsResolveOnceAndAssignSameGuestsToEachSavedBookingId() {
         verifyCreateBooking(2, List.of("Ava Guest", "Bea Guest"), List.of(101L, 102L));
+    }
+
+    @Test
+    void paymentShareIsAllocatedAcrossRoomsWithoutDuplicatingReservationTotals() {
+        verifyCreateBooking(3, List.of("Ava Guest", "Bea Guest", "Cyd Guest"), List.of(101L, 102L, 103L));
+    }
+
+    @Test
+    void guestBalanceViewShowsZeroForFullyPrepaidBookingInsteadOfTotalRate() {
+        ReservationBookingRecord booking = viewBooking();
+        booking.setGuestBalance(BigDecimal.ZERO);
+        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
+        when(folioServiceClient.getFolioBalance("1237448178", 11L)).thenReturn(Optional.empty());
+
+        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
+
+        assertThat(view.getPricing().getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void guestBalanceViewFollowsLiveFolioOverStoredBalance() {
+        ReservationBookingRecord booking = viewBooking();
+        booking.setGuestBalance(BigDecimal.ZERO);
+        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
+        when(folioServiceClient.getFolioBalance("1237448178", 11L))
+                .thenReturn(Optional.of(new BigDecimal("900.00")));
+
+        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
+
+        assertThat(view.getPricing().getGuestBalance()).isEqualByComparingTo(new BigDecimal("900.00"));
+    }
+
+    @Test
+    void guestBalanceViewShowsStoredOutstandingWhenFolioMissing() {
+        ReservationBookingRecord booking = viewBooking();
+        booking.setGuestBalance(new BigDecimal("900.00"));
+        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
+        when(folioServiceClient.getFolioBalance("1237448178", 11L)).thenReturn(Optional.empty());
+
+        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
+
+        assertThat(view.getPricing().getGuestBalance()).isEqualByComparingTo(new BigDecimal("900.00"));
+    }
+
+    @Test
+    void sameDayStayViewReportsOneBillableNight() {
+        ReservationBookingRecord booking = viewBooking();
+        booking.setDepartureDate(booking.getArrivalDate());
+        booking.setGuestBalance(BigDecimal.ZERO);
+        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
+        when(folioServiceClient.getFolioBalance("1237448178", 11L)).thenReturn(Optional.empty());
+
+        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
+
+        assertThat(view.getStay().getNights()).isEqualTo(1);
+    }
+
+    private ReservationBookingRecord viewBooking() {
+        return ReservationBookingRecord.builder()
+                .id(11L)
+                .confirmationNumber("1237448178")
+                .propertyId(PROPERTY_ID)
+                .guestName("nikhil kinge")
+                .arrivalDate(LocalDate.of(2026, 10, 12))
+                .departureDate(LocalDate.of(2026, 10, 12))
+                .roomType("Deluxe Twin")
+                .assignedRoomNo("117")
+                .rate(new BigDecimal("900.00"))
+                .totalRate(new BigDecimal("900.00"))
+                .reservationStatus("CHECKED_IN")
+                .build();
     }
 
     @Test
@@ -191,7 +268,10 @@ class ReservationBookingServiceImplTest {
         roomType.setRoomCode("DLX");
         when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(roomType));
         when(paymentProcessingService.processPayment(same(request), any(String.class), any(BigDecimal.class)))
-                .thenReturn(PaymentProcessingResult.builder().status("SUCCESS").build());
+                .thenReturn(PaymentProcessingResult.builder()
+                        .status("SUCCESS")
+                        .amount(PAYMENT_COLLECTED)
+                        .build());
 
         AtomicLong nextId = new AtomicLong(savedIds.get(0));
         when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> {
@@ -214,6 +294,16 @@ class ReservationBookingServiceImplTest {
         assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getConfirmationNumber)
                 .containsOnly(response.getConfirmationNumber());
 
+        BigDecimal paidPerRoom = PAYMENT_COLLECTED.divide(BigDecimal.valueOf(roomCount), 2, RoundingMode.HALF_UP);
+        BigDecimal expectedRoomOutstanding = ROOM_PAYABLE.subtract(paidPerRoom).max(BigDecimal.ZERO);
+        assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getGuestBalance)
+                .allSatisfy(balance -> assertThat(balance).isEqualByComparingTo(expectedRoomOutstanding));
+        BigDecimal aggregateOutstanding = bookings.getAllValues().stream()
+                .map(ReservationBookingRecord::getGuestBalance)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(aggregateOutstanding)
+                .isEqualByComparingTo(expectedRoomOutstanding.multiply(BigDecimal.valueOf(roomCount)));
+
         InOrder order = inOrder(guestResolver, inventoryServiceClient, paymentProcessingService,
                 bookingRepository, guestService, paymentRepository);
         order.verify(guestResolver).resolveGuests(eq(PROPERTY_ID), same(request.getGuests()));
@@ -233,6 +323,37 @@ class ReservationBookingServiceImplTest {
         assertThat(response.getBookingId()).isEqualTo(savedIds.get(0));
         assertThat(response.getRoomBookings()).extracting(summary -> summary.getBookingId())
                 .containsExactlyElementsOf(savedIds);
+    }
+
+    @Test
+    void advanceBookingKeepsFullPayableAsGuestBalanceAndCollectsNothing() {
+        ReservationBookingRequestDto request = bookingRequest(2, List.of("Ava Guest", "Bea Guest"));
+        request.setPaymentType("ADVANCE");
+        List<ResolvedReservationGuest> resolvedGuests = List.of(
+                new ResolvedReservationGuest(125L, true),
+                new ResolvedReservationGuest(126L, false));
+        when(guestResolver.resolveGuests(eq(PROPERTY_ID), same(request.getGuests()))).thenReturn(resolvedGuests);
+
+        PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
+        roomType.setId(1L);
+        roomType.setRoomCode("DLX");
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(roomType));
+
+        AtomicLong nextId = new AtomicLong(101L);
+        when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> {
+            ReservationBookingRecord booking = invocation.getArgument(0);
+            booking.setId(nextId.getAndIncrement());
+            return booking;
+        });
+
+        service.createBooking(request);
+
+        verify(paymentProcessingService, never()).processPayment(any(), any(String.class), any());
+        verify(paymentRepository, never()).save(any(ReservationPaymentTransactionRecord.class));
+        ArgumentCaptor<ReservationBookingRecord> bookings = ArgumentCaptor.forClass(ReservationBookingRecord.class);
+        verify(bookingRepository, times(2)).save(bookings.capture());
+        assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getGuestBalance)
+                .containsExactly(new BigDecimal("1000.00"), new BigDecimal("1000.00"));
     }
 
     private ReservationBookingRequestDto bookingRequest(int roomCount, List<String> roomNames) {

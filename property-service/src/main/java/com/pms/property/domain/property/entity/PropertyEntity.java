@@ -31,6 +31,9 @@ public class PropertyEntity extends BaseEntity {
     @Column(name = "property_code", nullable = false)
     private String propertyCode;
 
+    @Column(name = "property_code_lower", length = 120)
+    private String propertyCodeLower;
+
     @Column(name = "property_type", nullable = false)
     private String propertyType;
 
