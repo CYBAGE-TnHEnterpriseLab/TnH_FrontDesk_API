@@ -167,7 +167,7 @@ class ReservationAvailabilityServiceImplTest {
                 new InventoryAvailabilityDto("property-1", null, arrival, 5, 0, 0, 5),
                 new InventoryAvailabilityDto("property-1", null, arrival.plusDays(1), 5, 0, 0, 5)));
         when(rateManagementPort.fetchRateQuotes(eq("property-1"), any(), any(),
-                anyString(), any(), anyInt(), eq(0)))
+                any(), any(), anyInt(), eq(0)))
             .thenAnswer(invocation -> {
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
                 quote.setRoomType(invocation.getArgument(3));
@@ -190,7 +190,9 @@ class ReservationAvailabilityServiceImplTest {
         response.getNext15DaysPricing().forEach(day ->
             assertThat(day.getAvailability()).hasSize(expectedRooms));
         for (PropertyRoomOutletTypeDto roomType : roomTypes) {
-            boolean eligible = adults <= roomType.getMaximumGuestOccupancy();
+            // Only filter out rooms where guest count exceeds maximum occupancy
+            boolean eligible = roomType.getMaximumGuestOccupancy() == null 
+                || adults <= roomType.getMaximumGuestOccupancy();
             int pricingAdults = Math.max(adults, roomType.getMinimumGuestOccupancy());
             verify(rateManagementPort, times(eligible ? 2 : 0)).fetchRateQuotes(
                 eq("property-1"), any(), any(), eq(roomType.getRoomName()), eq(roomType.getId()),

@@ -256,7 +256,13 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             })
             .toList();
 
-        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType.stream()
+        // Filter rooms by occupancy eligibility
+        Map<String, PropertyRoomOutletTypeDto> roomTypesByName = buildRoomTypesByName(roomOutletTypes);
+        List<RoomAvailabilityPricingDto> afterOccupancyFilter = joinedByRoomType.stream()
+            .filter(item -> isRoomEligibleForOccupancy(item, request.getAdultCount(), roomTypesByName))
+            .toList();
+
+        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = afterOccupancyFilter.stream()
             .filter(item -> item.getAvailableRooms() != null
                 && item.getAvailableRooms() >= request.getNumberOfRooms())
             .toList();
@@ -762,6 +768,13 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 String roomType = candidate.getRoomType();
                 Long roomTypeId = candidate.getRoomTypeId();
                 PropertyRoomOutletTypeDto roomOccupancy = findRoomOccupancy(candidate, roomOutletTypes);
+                
+                // Skip rooms where guest count exceeds maximum occupancy
+                if (roomOccupancy != null && roomOccupancy.getMaximumGuestOccupancy() != null 
+                    && request.getAdultCount() > roomOccupancy.getMaximumGuestOccupancy()) {
+                    return List.<RatePlanPricingQuoteDto>of();
+                }
+                
                 int pricingAdultCount = roomOccupancy == null || roomOccupancy.getMinimumGuestOccupancy() == null
                     ? request.getAdultCount()
                     : Math.max(request.getAdultCount(), roomOccupancy.getMinimumGuestOccupancy());
@@ -1047,6 +1060,49 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             cursor = cursor.getCause();
         }
         return false;
+    }
+
+    private Map<String, PropertyRoomOutletTypeDto> buildRoomTypesByName(List<PropertyRoomOutletTypeDto> roomOutletTypes) {
+        Map<String, PropertyRoomOutletTypeDto> roomTypesByName = new LinkedHashMap<>();
+        if (roomOutletTypes == null || roomOutletTypes.isEmpty()) {
+            return roomTypesByName;
+        }
+
+        for (PropertyRoomOutletTypeDto roomType : roomOutletTypes) {
+            if (roomType != null && StringUtils.hasText(roomType.getRoomName())) {
+                roomTypesByName.put(normalize(roomType.getRoomName()), roomType);
+            }
+        }
+        return roomTypesByName;
+    }
+
+    private boolean isRoomEligibleForOccupancy(
+        RoomAvailabilityPricingDto roomAvailability,
+        Integer adultCount,
+        Map<String, PropertyRoomOutletTypeDto> roomTypesByName
+    ) {
+        if (adultCount == null || roomAvailability == null || roomTypesByName.isEmpty()) {
+            return true;
+        }
+
+        String roomTypeName = roomAvailability.getRoomType();
+        if (!StringUtils.hasText(roomTypeName)) {
+            return true;
+        }
+
+        PropertyRoomOutletTypeDto roomType = roomTypesByName.get(normalize(roomTypeName));
+        if (roomType == null) {
+            return true;
+        }
+
+        // Only filter out rooms where the guest count exceeds the maximum occupancy.
+        // Rooms with higher minimum occupancy are still eligible, we just price them at minimum occupancy.
+        Integer maxOccupancy = roomType.getMaximumGuestOccupancy();
+        if (maxOccupancy != null && adultCount > maxOccupancy) {
+            return false;
+        }
+
+        return true;
     }
 
     private record AvailabilityRangeResult(
