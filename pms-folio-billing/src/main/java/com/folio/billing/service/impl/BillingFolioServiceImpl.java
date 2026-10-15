@@ -826,14 +826,13 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
         String paymentMethod = firstNonBlank(request.paymentMethod(), "Card");
         String paymentReference;
-if ("UPI".equalsIgnoreCase(paymentMethod)) {
+        if ("UPI".equalsIgnoreCase(paymentMethod)) {
             if (!hasText(request.utr())) {
                 throw badRequest("utr is required for UPI payments");
             }
             paymentReference = firstNonBlank(request.paymentReference(), request.utr());
-        }
         } else {
-            paymentReference = generatePaymentReference();
+            paymentReference = firstNonBlank(request.paymentReference(), generatePaymentReference());
         }
         LocalDate allocationDate = request.allocationDate() != null ? request.allocationDate() : LocalDate.now();
         LocalDateTime allocatedAt = LocalDateTime.now();
