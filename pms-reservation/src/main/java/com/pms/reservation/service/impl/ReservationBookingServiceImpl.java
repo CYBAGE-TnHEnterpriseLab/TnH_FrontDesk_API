@@ -451,6 +451,8 @@ boolean roomTypeChanged = request.getRoomType() != null
         LocalDate departure = request.getDepartureDate() != null ? request.getDepartureDate() : existing.getDepartureDate();
         Integer adults = request.getAdultCount() != null ? request.getAdultCount() : existing.getAdultCount();
         Integer children = request.getChildCount() != null ? request.getChildCount() : existing.getChildCount();
+        Integer ageOfChild1 = request.getAgeOfChild1() != null ? request.getAgeOfChild1() : existing.getAgeOfChild1();
+        Integer ageOfChild2 = request.getAgeOfChild2() != null ? request.getAgeOfChild2() : existing.getAgeOfChild2();
         Integer rooms = request.getNumberOfRooms() != null ? request.getNumberOfRooms() : existing.getNumberOfRooms();
         String inventoryRoomTypeId = resolveRoomTypeId(propertyId, roomType);
         Long roomTypeId = resolvePropertyRoomTypeId(propertyId, roomType);
@@ -459,7 +461,7 @@ boolean roomTypeChanged = request.getRoomType() != null
                 sameValue(existing.getRoomType(), roomType) ? existing.getNumberOfRooms() : 0);
 
         List<RatePlanPricingQuoteDto> quotes = rateManagementPort.fetchRateQuotes(
-            propertyId, arrival, departure, roomType, roomTypeId, adults, children);
+            propertyId, arrival, departure, roomType, roomTypeId, adults, children, ageOfChild1, ageOfChild2);
         String requestedRateCode = request.getRateCode() != null ? request.getRateCode() : existing.getRateCode();
         RatePlanPricingQuoteDto quote = quotes.stream()
                 .filter(candidate -> candidate.getRateCode() != null

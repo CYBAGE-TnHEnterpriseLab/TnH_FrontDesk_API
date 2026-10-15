@@ -457,7 +457,9 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 null,
                 null,
                 request.getAdultCount(),
-                request.getChildCount()
+                request.getChildCount(),
+                request.getAgeOfChild1(),
+                request.getAgeOfChild2()
             );
 
             List<RatePlanPricingQuoteDto> normalizedDirectFetch = directFetch == null ? List.of() : directFetch;

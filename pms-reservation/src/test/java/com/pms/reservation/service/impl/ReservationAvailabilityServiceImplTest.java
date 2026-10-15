@@ -3,6 +3,7 @@ package com.pms.reservation.service.impl;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -91,7 +92,9 @@ class ReservationAvailabilityServiceImplTest {
                 any(),
                 any(),
                 eq(2),
-                eq(0)
+                eq(0),
+                isNull(),
+                isNull()
         )).thenReturn(List.of());
         when(reservationAvailabilityMapper.toResponse(any(), any(), any(), any()))
                 .thenReturn(ReservationAvailabilityResponseDto.builder().build());
