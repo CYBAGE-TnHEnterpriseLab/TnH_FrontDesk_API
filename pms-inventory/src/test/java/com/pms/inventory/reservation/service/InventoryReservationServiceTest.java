@@ -253,6 +253,41 @@ class InventoryReservationServiceTest {
     }
 
     @Test
+    void replaceReleasesOldHoldBeforeValidatingNewHold() {
+        List<RoomTypeInventoryDaily> oldRows = List.of(new RoomTypeInventoryDaily());
+        List<RoomTypeInventoryDaily> newRows = List.of(new RoomTypeInventoryDaily());
+                int oldQuantity = reservation.getQuantity();
+        ReserveInventoryRequest replacement = new ReserveInventoryRequest(
+                reservation.getConfirmationNumber(), reservation.getPropertyId(),
+                "room-type-2", "room-type-2", reservation.getCheckInDate(),
+                reservation.getCheckOutDate().plusDays(1), 2);
+        InventoryReservationResponse expected = new InventoryReservationResponse(
+                reservation.getConfirmationNumber(), reservation.getPropertyId(),
+                replacement.bookedRoomTypeId(), replacement.assignedRoomTypeId(),
+                replacement.checkInDate(), replacement.checkOutDate(), replacement.quantity(),
+                InventoryReservationStatus.RESERVED, false);
+
+        when(reservationRepository.findByConfirmationNumber(reservation.getConfirmationNumber()))
+                .thenReturn(Optional.of(reservation));
+        when(inventoryService.lockInventoryRange(
+                reservation.getPropertyId(), reservation.getAssignedRoomTypeId(),
+                reservation.getCheckInDate(), reservation.getCheckOutDate())).thenReturn(oldRows);
+        when(inventoryService.lockInventoryRange(
+                replacement.propertyId(), replacement.assignedRoomTypeId(),
+                replacement.checkInDate(), replacement.checkOutDate())).thenReturn(newRows);
+        when(mapper.toResponse(reservation, false)).thenReturn(expected);
+
+        InventoryReservationResponse response = service.replace(reservation.getConfirmationNumber(), replacement);
+
+        assertEquals(expected, response);
+        verify(inventoryService).decreaseReserved(oldRows, oldQuantity);
+        verify(inventoryService).ensureSufficientInventory(newRows, replacement.quantity());
+        verify(inventoryService).increaseReserved(newRows, replacement.quantity());
+        assertEquals(replacement.assignedRoomTypeId(), reservation.getAssignedRoomTypeId());
+        assertEquals(replacement.checkOutDate(), reservation.getCheckOutDate());
+    }
+
+    @Test
     void checkoutDateIsExclusiveOnLockingRange() {
         List<RoomTypeInventoryDaily> rows = List.of(new RoomTypeInventoryDaily());
         when(reservationRepository.findByConfirmationNumber(reserveRequest.confirmationNumber())).thenReturn(Optional.empty());

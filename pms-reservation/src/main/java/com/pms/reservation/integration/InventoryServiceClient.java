@@ -67,6 +67,27 @@ public class InventoryServiceClient {
         }
     }
 
+    public InventoryReservationResponse replace(String confirmationNumber, InventoryReservationRequest request) {
+        try {
+            String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())
+                    .path(properties.getReservationsPath())
+                    .pathSegment(confirmationNumber)
+                    .toUriString();
+            ResponseEntity<InventoryReservationResponse> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.PUT,
+                    new HttpEntity<>(request, headers()),
+                    InventoryReservationResponse.class
+            );
+            return response.getBody();
+        } catch (HttpStatusCodeException ex) {
+            String body = ex.getResponseBodyAsString();
+            throw new ExternalServiceException("Failed to replace inventory reservation: " + body, ex);
+        } catch (RestClientException ex) {
+            throw new ExternalServiceException("Failed to replace inventory reservation", ex);
+        }
+    }
+
     public void changeAssignedRoomType(String confirmationNumber, String assignedRoomTypeId) {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(properties.getBaseUrl())

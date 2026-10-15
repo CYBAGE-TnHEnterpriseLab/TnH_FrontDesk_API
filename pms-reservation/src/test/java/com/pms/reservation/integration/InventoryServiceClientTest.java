@@ -96,4 +96,32 @@ class InventoryServiceClientTest {
 
         assertThat(result).containsExactly(row);
     }
+
+    @Test
+    void replaceUsesPutReservationContract() {
+        when(properties.getBaseUrl()).thenReturn("http://inventory");
+        when(properties.getReservationsPath()).thenReturn("/api/inventory/reservations");
+        InventoryReservationRequest request = InventoryReservationRequest.builder()
+                .confirmationNumber("CNF-100")
+                .propertyId("property-1")
+                .bookedRoomTypeId("room-type-2")
+                .assignedRoomTypeId("room-type-2")
+                .checkInDate(LocalDate.of(2026, 7, 2))
+                .checkOutDate(LocalDate.of(2026, 7, 4))
+                .quantity(2)
+                .build();
+        InventoryReservationResponse expected = new InventoryReservationResponse(
+                "CNF-100", "property-1", "room-type-2", "room-type-2",
+                request.getCheckInDate(), request.getCheckOutDate(), 2, "RESERVED", false);
+        when(restTemplate.exchange(any(String.class), eq(HttpMethod.PUT), any(HttpEntity.class),
+                eq(InventoryReservationResponse.class))).thenReturn(ResponseEntity.ok(expected));
+
+        InventoryReservationResponse response = client.replace("CNF-100", request);
+
+        assertThat(response).isEqualTo(expected);
+        ArgumentCaptor<String> url = ArgumentCaptor.forClass(String.class);
+        verify(restTemplate).exchange(url.capture(), eq(HttpMethod.PUT), any(HttpEntity.class),
+                eq(InventoryReservationResponse.class));
+        assertThat(url.getValue()).isEqualTo("http://inventory/api/inventory/reservations/CNF-100");
+    }
 }

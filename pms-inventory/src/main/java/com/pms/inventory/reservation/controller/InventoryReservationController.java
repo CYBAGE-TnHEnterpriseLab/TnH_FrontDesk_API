@@ -36,6 +36,15 @@ public class InventoryReservationController {
         return inventoryReservationService.release(confirmationNumber);
     }
 
+    @PutMapping("/{confirmationNumber}")
+    @Operation(summary = "Replace reserved room-type inventory")
+    public InventoryReservationResponse replace(
+            @PathVariable String confirmationNumber,
+            @Valid @RequestBody ReserveInventoryRequest request
+    ) {
+        return inventoryReservationService.replace(confirmationNumber, request);
+    }
+
     @PutMapping("/{confirmationNumber}/assigned-room-type")
     @Operation(summary = "Change assigned room type for inventory consumption")
     public InventoryReservationResponse changeAssignedRoomType(

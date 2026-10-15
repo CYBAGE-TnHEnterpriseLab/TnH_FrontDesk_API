@@ -492,9 +492,8 @@ private ReservationBookingRequestDto requestForRoom(
     }
 
     private void resyncInventory(ReservationBookingRecord booking) {
-        inventoryServiceClient.release(booking.getConfirmationNumber());
         String roomTypeId = resolveRoomTypeId(booking.getPropertyId(), booking.getRoomType());
-        inventoryServiceClient.reserve(InventoryReservationRequest.builder()
+        inventoryServiceClient.replace(booking.getConfirmationNumber(), InventoryReservationRequest.builder()
                 .confirmationNumber(booking.getConfirmationNumber())
                 .propertyId(booking.getPropertyId())
                 .bookedRoomTypeId(roomTypeId)
