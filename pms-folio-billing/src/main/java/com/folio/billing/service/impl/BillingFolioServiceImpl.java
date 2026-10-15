@@ -826,11 +826,12 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
         String paymentMethod = firstNonBlank(request.paymentMethod(), "Card");
         String paymentReference;
-        if ("UPI".equalsIgnoreCase(paymentMethod)) {
-            paymentReference = firstNonBlank(request.utr(), request.paymentReference());
-            if (!hasText(paymentReference)) {
+if ("UPI".equalsIgnoreCase(paymentMethod)) {
+            if (!hasText(request.utr())) {
                 throw badRequest("utr is required for UPI payments");
             }
+            paymentReference = firstNonBlank(request.paymentReference(), request.utr());
+        }
         } else {
             paymentReference = generatePaymentReference();
         }
