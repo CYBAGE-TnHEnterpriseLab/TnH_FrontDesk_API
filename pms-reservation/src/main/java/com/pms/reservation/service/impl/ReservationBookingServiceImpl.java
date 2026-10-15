@@ -413,6 +413,7 @@ boolean roomTypeChanged = request.getRoomType() != null
         if (roomTypeChanged && !Boolean.TRUE.equals(existing.getDnm())) {
             updated.setAssignedRoomNo(null);
             updated.setFloor(null);
+        }
         boolean checkedIn = existing.getCheckInCompletedAt() != null;
         boolean departureChanged = request.getDepartureDate() != null
                 && !request.getDepartureDate().equals(existing.getDepartureDate());
