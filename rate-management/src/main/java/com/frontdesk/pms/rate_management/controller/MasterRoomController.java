@@ -70,6 +70,11 @@ public class MasterRoomController {
         return masterRoomService.getPricingByMasterRoom(id);
     }
 
+    @GetMapping("/room-type/{roomTypeId}/pricing")
+    public List<MasterRoomPricingResponseDTO> getPricingByRoomType(@PathVariable Long roomTypeId) {
+        return masterRoomService.getPricingByRoomType(roomTypeId);
+    }
+
     // Map a room type to a master room and inherit pricing.
     @PostMapping("/map-room-type/property/{propertyId}/{id}")
     public ResponseEntity<MasterRoomRoomTypeMappingResponseDTO> mapRoomType(@PathVariable String propertyId,

@@ -50,6 +50,8 @@ public class ReservationBookingMapper {
                 .departureDate(request.getDepartureDate())
                 .adultCount(request.getAdultCount())
                 .childCount(request.getChildCount())
+                .ageOfChild1(request.getAgeOfChild1())
+                .ageOfChild2(request.getAgeOfChild2())
                 .reservationType(request.getReservationType())
                 .blockCode(request.getBlockCode())
                 .roomType(request.getRoomType())
@@ -118,6 +120,8 @@ public class ReservationBookingMapper {
                 .departureDate(saved.getDepartureDate())
                 .adultCount(saved.getAdultCount())
                 .childCount(saved.getChildCount())
+                .ageOfChild1(saved.getAgeOfChild1())
+                .ageOfChild2(saved.getAgeOfChild2())
                 .reservationType(saved.getReservationType())
                 .roomType(saved.getRoomType())
                 .assignedRoomNo(saved.getAssignedRoomNo())
@@ -231,8 +235,14 @@ public class ReservationBookingMapper {
         if (request.getAgent() != null) existing.setAgent(request.getAgent());
         if (request.getArrivalDate() != null) existing.setArrivalDate(request.getArrivalDate());
         if (request.getDepartureDate() != null) existing.setDepartureDate(request.getDepartureDate());
-        if (request.getAdultCount() != null) existing.setAdultCount(request.getAdultCount());
+if (request.getAdultCount() != null) existing.setAdultCount(request.getAdultCount());
         if (request.getChildCount() != null) existing.setChildCount(request.getChildCount());
+        if (request.getAgeOfChild1() != null) existing.setAgeOfChild1(request.getAgeOfChild1());
+        if (request.getAgeOfChild2() != null) existing.setAgeOfChild2(request.getAgeOfChild2());
+        if (request.getChildCount() != null) {
+            if (request.getChildCount() < 1) existing.setAgeOfChild1(null);
+            if (request.getChildCount() < 2) existing.setAgeOfChild2(null);
+        }
         if (request.getReservationType() != null) existing.setReservationType(request.getReservationType());
         if (request.getBlockCode() != null) existing.setBlockCode(request.getBlockCode());
         if (request.getRoomType() != null) existing.setRoomType(request.getRoomType());

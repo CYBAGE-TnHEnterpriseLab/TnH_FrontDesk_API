@@ -15,7 +15,8 @@ public record FolioTransactionRow(
         String userId,
         LocalDateTime postedAt,
         String originalReferenceNumber,
-        String adjustmentReason
+        String adjustmentReason,
+        String utr
 ) {
     public BigDecimal totalAmount() {
         return charges == null ? BigDecimal.ZERO : charges;

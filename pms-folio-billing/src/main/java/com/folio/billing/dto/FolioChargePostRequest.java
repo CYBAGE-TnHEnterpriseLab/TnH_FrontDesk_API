@@ -15,6 +15,7 @@ public class FolioChargePostRequest {
     @JsonAlias("confirmationNo")
     @NotBlank(message = "confirmationNumber is required")
     private String confirmationNumber;
+    private String propertyId;
     private Long bookingId;
     private String folioId;
     private String folioName;
@@ -22,6 +23,7 @@ public class FolioChargePostRequest {
     private String roomNo;
     private String transactionType;
     private String category;
+    private String utr;
     private String description;
     private BigDecimal amount;
     private BigDecimal charges;
@@ -52,6 +54,7 @@ public class FolioChargePostRequest {
     }
 
     public String confirmationNumber() { return confirmationNumber; }
+    public String propertyId() { return propertyId; }
     public Long bookingId() { return bookingId; }
     public String folioId() { return folioId; }
     public String folioName() { return folioName; }
@@ -65,6 +68,7 @@ public class FolioChargePostRequest {
     }
     public String transactionType() { return firstNonBlank(transactionType, transaction == null ? null : transaction.transactionType(), "CHARGE"); }
     public String category() { return firstNonBlank(category, transaction == null ? null : transaction.category(), ""); }
+    public String utr() { return firstNonBlank(utr, transaction == null ? null : transaction.utr(), ""); }
     public String description() { return firstNonBlank(description, transaction == null ? null : transaction.description(), ""); }
     public BigDecimal amount() { return amount != null ? amount : transaction == null ? null : transaction.amount(); }
     public BigDecimal charges() { return charges != null ? charges : transaction == null ? amount() : transaction.charges(); }
@@ -74,6 +78,7 @@ public class FolioChargePostRequest {
 
     @JsonAlias("confirmationNo")
     public void setConfirmationNumber(String confirmationNumber) { this.confirmationNumber = confirmationNumber; }
+    public void setPropertyId(String propertyId) { this.propertyId = propertyId; }
     public void setBookingId(Long bookingId) { this.bookingId = bookingId; }
     public void setFolioId(String folioId) { this.folioId = folioId; }
     public void setFolioName(String folioName) { this.folioName = folioName; }
@@ -81,6 +86,7 @@ public class FolioChargePostRequest {
     public void setRoomNo(String roomNo) { this.roomNo = roomNo; }
     public void setTransactionType(String transactionType) { this.transactionType = transactionType; }
     public void setCategory(String category) { this.category = category; }
+    public void setUtr(String utr) { this.utr = utr; }
     public void setDescription(String description) { this.description = description; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
     public void setCharges(BigDecimal charges) { this.charges = charges; }
@@ -102,6 +108,7 @@ public class FolioChargePostRequest {
     public static class Transaction {
         private String transactionType;
         private String category;
+        private String utr;
         private String description;
         private BigDecimal amount;
         private BigDecimal charges;
@@ -127,6 +134,7 @@ public class FolioChargePostRequest {
 
         public String transactionType() { return transactionType; }
         public String category() { return category; }
+        public String utr() { return utr; }
         public String description() { return description; }
         public BigDecimal amount() { return amount; }
         public BigDecimal charges() { return charges; }
@@ -136,6 +144,7 @@ public class FolioChargePostRequest {
 
         public void setTransactionType(String transactionType) { this.transactionType = transactionType; }
         public void setCategory(String category) { this.category = category; }
+        public void setUtr(String utr) { this.utr = utr; }
         public void setDescription(String description) { this.description = description; }
         public void setAmount(BigDecimal amount) { this.amount = amount; }
         public void setCharges(BigDecimal charges) { this.charges = charges; }

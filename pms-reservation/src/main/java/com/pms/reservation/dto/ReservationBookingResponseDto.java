@@ -41,6 +41,8 @@ public class ReservationBookingResponseDto {
     LocalDate departureDate;
     Integer adultCount;
     Integer childCount;
+    Integer ageOfChild1;
+    Integer ageOfChild2;
     String reservationType;
     String roomType;
     String assignedRoomNo;

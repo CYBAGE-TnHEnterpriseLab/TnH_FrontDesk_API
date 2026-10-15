@@ -8,6 +8,8 @@ import com.pms.reservation.dto.ReservationRoomCalendarResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
+import com.pms.reservation.integration.RateManagementPort;
+import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.repository.ReservationBookingRepository;
@@ -26,6 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +49,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
     private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final ReservationBookingRepository reservationBookingRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
+    private final RateManagementPort rateManagementPort;
 
     @Override
     @Transactional(readOnly = true)
@@ -55,6 +59,36 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             LocalDate departureDate,
             List<String> roomTypes
     ) {
+        return getRoomCalendar(propertyId, arrivalDate, departureDate, roomTypes, null, null, null, null, null);
+            }
+
+        @Override
+        public ReservationRoomCalendarResponseDto getRoomCalendar(
+            String propertyId,
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            List<String> roomTypes,
+            Integer adults,
+            Integer children,
+            String rateCode
+        ) {
+        return getRoomCalendar(propertyId, arrivalDate, departureDate, roomTypes,
+            adults, children, rateCode, null, null);
+        }
+
+            @Override
+            @Transactional(readOnly = true)
+            public ReservationRoomCalendarResponseDto getRoomCalendar(
+                String propertyId,
+                LocalDate arrivalDate,
+                LocalDate departureDate,
+                List<String> roomTypes,
+                Integer adults,
+                Integer children,
+                String rateCode,
+                Integer ageOfChild1,
+                Integer ageOfChild2
+            ) {
         if (!StringUtils.hasText(propertyId)) {
             throw new BadRequestException("propertyId is required");
         }
@@ -121,7 +155,12 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             requestedRoomTypes,
             roomMetaByNo);
 
-        List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> roomRows = buildRoomRows(roomMetaByNo, grid, dates);
+        Map<String, RoomPricing> pricingByRoom = loadRoomPricing(
+            propertyId, arrivalDate, departureDate, roomMetaByNo, overlappingBookings,
+            adults, children, rateCode,
+            ageOfChild1, ageOfChild2);
+        List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> roomRows = buildRoomRows(
+            roomMetaByNo, grid, dates, pricingByRoom, overlappingBookings, adults, children);
         List<ReservationRoomCalendarResponseDto.RoomCalendarDaySummaryDto> summary = buildDaySummary(dates, roomRows);
 
         return ReservationRoomCalendarResponseDto.builder()
@@ -133,6 +172,90 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                 .rooms(roomRows)
                 .summary(summary)
                 .build();
+    }
+
+        private Map<String, RoomPricing> loadRoomPricing(
+            String propertyId,
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            Map<String, RoomMeta> roomMetaByNo,
+            List<ReservationBookingRecord> overlappingBookings,
+            Integer adults,
+            Integer children,
+            String requestedRateCode,
+            Integer ageOfChild1,
+            Integer ageOfChild2) {
+        if (rateManagementPort == null) {
+            return Map.of();
+        }
+
+        int nights = Math.max(1, (int) java.time.temporal.ChronoUnit.DAYS.between(arrivalDate, departureDate));
+        Map<String, RoomPricing> result = new LinkedHashMap<>();
+        List<PropertyRoomOutletTypeDto> propertyRoomTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+        if (propertyRoomTypes == null) {
+            return result;
+        }
+        roomMetaByNo.values().stream()
+            .filter(room -> StringUtils.hasText(room.roomType))
+            .forEach(room -> {
+                String roomType = room.roomType;
+                ReservationBookingRecord roomBooking = adults == null && children == null
+                    ? findActiveBookingForRoom(room.roomNo, overlappingBookings)
+                    : null;
+                int effectiveAdults = adults != null
+                    ? adults
+                    : roomBooking == null || roomBooking.getAdultCount() == null
+                        ? 1 : roomBooking.getAdultCount();
+                int effectiveChildren = children != null
+                    ? children
+                    : roomBooking == null || roomBooking.getChildCount() == null
+                        ? 0 : roomBooking.getChildCount();
+                Integer effectiveAgeOfChild1 = ageOfChild1 != null
+                    ? ageOfChild1
+                    : roomBooking == null ? null : roomBooking.getAgeOfChild1();
+                Integer effectiveAgeOfChild2 = ageOfChild2 != null
+                    ? ageOfChild2
+                    : roomBooking == null ? null : roomBooking.getAgeOfChild2();
+                int providedChildAges = (effectiveAgeOfChild1 == null ? 0 : 1)
+                    + (effectiveAgeOfChild2 == null ? 0 : 1);
+                if (effectiveChildren > 2
+                    || (adults != null && children != null && providedChildAges < effectiveChildren)) {
+                    throw new BadRequestException("An age is required for every child in calendar pricing");
+                }
+                String requestedOccupancy = formatRequestedOccupancy(effectiveAdults, effectiveChildren);
+                    PropertyRoomOutletTypeDto propertyRoomType = propertyRoomTypes.stream()
+                    .filter(item -> item != null && (roomType.equalsIgnoreCase(item.getRoomName())
+                        || roomType.equalsIgnoreCase(item.getRoomCode())))
+                    .findFirst()
+                    .orElse(null);
+                if (propertyRoomType == null || propertyRoomType.getId() == null) {
+                return;
+                }
+                List<RatePlanPricingQuoteDto> quotes = effectiveAgeOfChild1 == null && effectiveAgeOfChild2 == null
+                    ? rateManagementPort.fetchRateQuotes(
+                        propertyId, arrivalDate, departureDate, roomType, propertyRoomType.getId(),
+                        effectiveAdults, 0)
+                    : rateManagementPort.fetchRateQuotes(
+                        propertyId, arrivalDate, departureDate, roomType, propertyRoomType.getId(),
+                        effectiveAdults, effectiveChildren, effectiveAgeOfChild1, effectiveAgeOfChild2);
+                RatePlanPricingQuoteDto quote = quotes == null ? null : quotes.stream()
+                    .filter(item -> !StringUtils.hasText(requestedRateCode)
+                        || requestedRateCode.equalsIgnoreCase(item.getRateCode()))
+                    .findFirst()
+                    .orElse(null);
+                if (quote != null && quote.getFinalAmount() != null) {
+                result.put(normalize(room.roomNo), new RoomPricing(
+                                quote.getRateCode(), quote.getRatePlan(), requestedOccupancy,
+                                quote.getBaseRate(), quote.getTaxAmount(), quote.getFinalAmount(),
+                                quote.getFinalAmount().multiply(BigDecimal.valueOf(nights))));
+                }
+            });
+        return result;
+        }
+
+    private String formatRequestedOccupancy(int adults, int children) {
+        int guests = adults + children;
+        return guests + (guests == 1 ? " Guest" : " Guests");
     }
 
     private Set<String> resolveRequestedRoomTypes(String propertyId, List<String> roomTypes) {
@@ -464,7 +587,11 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
     private List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> buildRoomRows(
             Map<String, RoomMeta> roomMetaByNo,
             Map<String, Map<LocalDate, MutableCell>> grid,
-            List<LocalDate> dates
+            List<LocalDate> dates,
+            Map<String, RoomPricing> pricingByRoom,
+            List<ReservationBookingRecord> overlappingBookings,
+            Integer requestedAdults,
+            Integer requestedChildren
     ) {
         return roomMetaByNo.values().stream()
                 .sorted(Comparator
@@ -472,6 +599,9 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                         .thenComparing(item -> item.roomNo, String.CASE_INSENSITIVE_ORDER))
                 .map(roomMeta -> {
                     Map<LocalDate, MutableCell> roomCells = grid.get(roomMeta.roomNo);
+                    RoomPricing roomPricing = pricingFor(roomMeta, pricingByRoom);
+                    ReservationBookingRecord roomBooking = findActiveBookingForRoom(
+                            roomMeta.roomNo, overlappingBookings);
                     List<ReservationRoomCalendarResponseDto.RoomCalendarCellDto> calendarCells = dates.stream()
                             .map(date -> {
                                 MutableCell cell = roomCells.get(date);
@@ -490,10 +620,86 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                             .roomNo(roomMeta.roomNo)
                             .roomType(roomMeta.roomType)
                             .floor(roomMeta.floor)
+                                .rateCode(roomPricing.rateCode)
+                                .ratePlan(roomPricing.ratePlan)
+                                .occupancy(resolveRoomOccupancy(
+                                    roomMeta.roomNo,
+                                    overlappingBookings,
+                                    requestedAdults,
+                                    requestedChildren,
+                                    roomPricing.occupancy))
+                                .baseRate(roomPricing.baseRate)
+                                .taxAmount(roomPricing.taxAmount)
+                                .finalAmount(roomPricing.finalAmount)
+                                .roomRate(roomPricing.finalAmount)
+                                .totalRate(resolveRoomTotalRate(roomPricing, roomBooking))
                             .calendar(calendarCells)
                             .build();
                 })
                 .toList();
+    }
+
+    private BigDecimal resolveRoomTotalRate(RoomPricing pricing, ReservationBookingRecord booking) {
+        if (pricing.finalAmount == null || booking == null
+                || booking.getArrivalDate() == null || booking.getDepartureDate() == null) {
+            return null;
+        }
+        int bookingNights = Math.max(1, (int) java.time.temporal.ChronoUnit.DAYS.between(
+                booking.getArrivalDate(), booking.getDepartureDate()));
+        return pricing.finalAmount.multiply(BigDecimal.valueOf(bookingNights));
+    }
+
+    private ReservationBookingRecord findActiveBookingForRoom(
+            String roomNo, List<ReservationBookingRecord> overlappingBookings) {
+        if (overlappingBookings == null) {
+            return null;
+        }
+        return overlappingBookings.stream()
+                .filter(candidate -> candidate != null
+                        && roomNo.equalsIgnoreCase(safeRoomNumber(candidate.getAssignedRoomNo()))
+                        && isActiveReservation(candidate.getReservationStatus()))
+                .findFirst()
+                .orElse(null);
+    }
+
+            private String resolveRoomOccupancy(
+                String roomNo,
+                List<ReservationBookingRecord> overlappingBookings,
+                Integer requestedAdults,
+                Integer requestedChildren,
+                String requestedOccupancy
+            ) {
+            ReservationBookingRecord booking = overlappingBookings == null ? null : overlappingBookings.stream()
+                .filter(candidate -> candidate != null
+                    && roomNo.equalsIgnoreCase(safeRoomNumber(candidate.getAssignedRoomNo()))
+                    && isActiveReservation(candidate.getReservationStatus()))
+                .findFirst()
+                .orElse(null);
+            if (booking != null && (booking.getAdultCount() != null || booking.getChildCount() != null)) {
+                return formatRequestedOccupancy(
+                    booking.getAdultCount() == null ? 0 : booking.getAdultCount(),
+                    booking.getChildCount() == null ? 0 : booking.getChildCount());
+            }
+            if (requestedAdults != null || requestedChildren != null) {
+                return requestedOccupancy;
+            }
+            return null;
+            }
+
+    private RoomPricing pricingFor(RoomMeta roomMeta, Map<String, RoomPricing> pricingByRoom) {
+        return pricingByRoom.getOrDefault(normalize(roomMeta.roomNo), RoomPricing.EMPTY);
+    }
+
+    private record RoomPricing(
+            String rateCode,
+            String ratePlan,
+            String occupancy,
+            BigDecimal baseRate,
+            BigDecimal taxAmount,
+            BigDecimal finalAmount,
+            BigDecimal totalRate
+    ) {
+        private static final RoomPricing EMPTY = new RoomPricing(null, null, null, null, null, null, null);
     }
 
     private List<ReservationRoomCalendarResponseDto.RoomCalendarDaySummaryDto> buildDaySummary(

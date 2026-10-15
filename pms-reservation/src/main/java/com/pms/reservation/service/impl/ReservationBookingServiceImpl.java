@@ -22,7 +22,11 @@ import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.FolioServiceClient;
+import com.pms.reservation.integration.AuthServiceClient;
+import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.InventoryReservationRequest;
+import com.pms.reservation.integration.dto.InventoryAvailabilityDto;
+import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
@@ -88,6 +92,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
     private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final FolioServiceClient folioServiceClient;
+    private final AuthServiceClient authServiceClient;
+    private final RateManagementPort rateManagementPort;
 
 
     @Override
@@ -393,8 +399,21 @@ private ReservationBookingRequestDto requestForRoom(
         BigDecimal originalTotalRate = existing.getTotalRate() != null ? existing.getTotalRate() : BigDecimal.ZERO;
         BigDecimal originalGuestBalance = existing.getGuestBalance() != null ? existing.getGuestBalance() : BigDecimal.ZERO;
 
+        boolean pricingContextChanged = pricingContextChanged(existing, request);
+        if (pricingContextChanged) {
+            verifyPricingEdit(request);
+            applyCurrentRateQuote(existing, request);
+        }
+
         ReservationBookingRecord updated = reservationBookingMapper.mergeEntity(existing, request);
 
+boolean roomTypeChanged = request.getRoomType() != null
+                && !sameValue(previousRoomTypeId,
+                    resolveRoomTypeId(existing.getPropertyId(), updated.getRoomType()));
+        if (roomTypeChanged && !Boolean.TRUE.equals(existing.getDnm())) {
+            updated.setAssignedRoomNo(null);
+            updated.setFloor(null);
+        }
         boolean checkedIn = existing.getCheckInCompletedAt() != null;
         boolean departureChanged = request.getDepartureDate() != null
                 && !request.getDepartureDate().equals(existing.getDepartureDate());
@@ -416,7 +435,7 @@ private ReservationBookingRequestDto requestForRoom(
         validateDnmRoomLock(existing, request);
 
         boolean roomNumberChanged = roomNumberChanged(previousRoomNumber, updated.getAssignedRoomNo());
-        if (roomNumberChanged) {
+        if (roomNumberChanged && StringUtils.hasText(updated.getAssignedRoomNo())) {
             String assignedRoomTypeId = resolveAssignedRoomTypeId(
                 existing.getPropertyId(), updated.getAssignedRoomNo(), updated.getArrivalDate(), updated.getDepartureDate());
             if (assignedRoomTypeId == null) {
@@ -447,7 +466,13 @@ private ReservationBookingRequestDto requestForRoom(
             updateStandaloneHousekeeping(saved);
         }
 
-        if (departureShortened) {
+        boolean fullInventoryResync = pricingContextChanged
+            && (roomTypeChanged
+            || !sameValue(previousArrivalDate, saved.getArrivalDate())
+            || !sameValue(existing.getNumberOfRooms(), saved.getNumberOfRooms()));
+        if (fullInventoryResync) {
+            resyncInventory(saved);
+        } else if (departureShortened) {
             handleShortenedDeparture(
                     existing.getPropertyId(),
                     existing.getConfirmationNumber(),
@@ -487,6 +512,101 @@ private ReservationBookingRequestDto requestForRoom(
         Optional<ReservationPaymentTransactionRecord> latestTransaction =
             reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(existing.getId());
         return buildReservationViewResponse(saved, latestTransaction.orElse(null));
+    }
+
+    private boolean pricingContextChanged(ReservationBookingRecord existing, ReservationBookingRequestDto request) {
+        return (request.getRoomType() != null && !sameValue(existing.getRoomType(), request.getRoomType()))
+                || (request.getArrivalDate() != null && !sameValue(existing.getArrivalDate(), request.getArrivalDate()))
+                || (request.getDepartureDate() != null && !sameValue(existing.getDepartureDate(), request.getDepartureDate()))
+                || (request.getRateCode() != null && !sameValue(existing.getRateCode(), request.getRateCode()))
+                || (request.getRate() != null && existing.getRate() != null && existing.getRate().compareTo(request.getRate()) != 0)
+|| (request.getNumberOfRooms() != null && !sameValue(existing.getNumberOfRooms(), request.getNumberOfRooms()))
+                || (request.getAdultCount() != null && !sameValue(existing.getAdultCount(), request.getAdultCount()))
+                || (request.getChildCount() != null && !sameValue(existing.getChildCount(), request.getChildCount()))
+                || (request.getAgeOfChild1() != null && !sameValue(existing.getAgeOfChild1(), request.getAgeOfChild1()))
+                || (request.getAgeOfChild2() != null && !sameValue(existing.getAgeOfChild2(), request.getAgeOfChild2()));
+    }
+
+    private void verifyPricingEdit(ReservationBookingRequestDto request) {
+        if (!Boolean.TRUE.equals(request.getConfirmRateChange())) {
+            throw new BadRequestException("Rate change confirmation is required");
+        }
+        if (!StringUtils.hasText(request.getEditPassword())) {
+            throw new BadRequestException("Password verification is required for pricing changes");
+        }
+        authServiceClient.verifyPassword(request.getEditPassword());
+    }
+
+    private void applyCurrentRateQuote(
+            ReservationBookingRecord existing,
+            ReservationBookingRequestDto request) {
+        String propertyId = existing.getPropertyId();
+        String roomType = request.getRoomType() != null ? request.getRoomType() : existing.getRoomType();
+        LocalDate arrival = request.getArrivalDate() != null ? request.getArrivalDate() : existing.getArrivalDate();
+        LocalDate departure = request.getDepartureDate() != null ? request.getDepartureDate() : existing.getDepartureDate();
+        Integer adults = request.getAdultCount() != null ? request.getAdultCount() : existing.getAdultCount();
+        Integer children = request.getChildCount() != null ? request.getChildCount() : existing.getChildCount();
+        Integer ageOfChild1 = request.getAgeOfChild1() != null ? request.getAgeOfChild1() : existing.getAgeOfChild1();
+        Integer ageOfChild2 = request.getAgeOfChild2() != null ? request.getAgeOfChild2() : existing.getAgeOfChild2();
+        Integer rooms = request.getNumberOfRooms() != null ? request.getNumberOfRooms() : existing.getNumberOfRooms();
+        String inventoryRoomTypeId = resolveRoomTypeId(propertyId, roomType);
+        Long roomTypeId = resolvePropertyRoomTypeId(propertyId, roomType);
+
+        validateRoomTypeAvailability(propertyId, inventoryRoomTypeId, arrival, departure, rooms,
+                sameValue(existing.getRoomType(), roomType) ? existing.getNumberOfRooms() : 0);
+
+        List<RatePlanPricingQuoteDto> quotes = rateManagementPort.fetchRateQuotes(
+            propertyId, arrival, departure, roomType, roomTypeId, adults, children, ageOfChild1, ageOfChild2);
+        String requestedRateCode = request.getRateCode() != null ? request.getRateCode() : existing.getRateCode();
+        RatePlanPricingQuoteDto quote = quotes.stream()
+                .filter(candidate -> candidate.getRateCode() != null
+                        && candidate.getRateCode().equalsIgnoreCase(requestedRateCode))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("No rate is available for the selected room type and dates"));
+        if (quote.getFinalAmount() == null || quote.getFinalAmount().signum() <= 0) {
+            throw new BadRequestException("The selected room type has no valid rate");
+        }
+        request.setRate(quote.getFinalAmount());
+        request.setRateCode(quote.getRateCode());
+    }
+
+    private void validateRoomTypeAvailability(
+            String propertyId,
+            String roomTypeId,
+            LocalDate arrival,
+            LocalDate departure,
+            int requestedRooms,
+            int roomsHeldByCurrentBooking) {
+        List<InventoryAvailabilityDto> availability = inventoryServiceClient.availability(
+                propertyId, roomTypeId, arrival, departure);
+        for (LocalDate date = arrival; date.isBefore(departure); date = date.plusDays(1)) {
+            LocalDate businessDate = date;
+            InventoryAvailabilityDto row = availability.stream()
+                    .filter(item -> businessDate.equals(item.getBusinessDate()))
+                    .findFirst()
+                    .orElseThrow(() -> new BadRequestException("Room availability is unavailable for " + businessDate));
+            int available = row.getAvailableCount() == null ? 0 : row.getAvailableCount();
+            if (available + roomsHeldByCurrentBooking < requestedRooms) {
+                throw new BadRequestException("Selected room type is not available for the full stay");
+            }
+        }
+    }
+
+    private void resyncInventory(ReservationBookingRecord booking) {
+        String roomTypeId = resolveRoomTypeId(booking.getPropertyId(), booking.getRoomType());
+        inventoryServiceClient.replace(booking.getConfirmationNumber(), InventoryReservationRequest.builder()
+                .confirmationNumber(booking.getConfirmationNumber())
+                .propertyId(booking.getPropertyId())
+                .bookedRoomTypeId(roomTypeId)
+                .assignedRoomTypeId(roomTypeId)
+                .checkInDate(booking.getArrivalDate())
+                .checkOutDate(booking.getDepartureDate())
+                .quantity(booking.getNumberOfRooms())
+                .build());
+    }
+
+    private boolean sameValue(Object left, Object right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     private boolean roomNumberChanged(String previousRoomNumber, String newRoomNumber) {
@@ -919,10 +1039,21 @@ private ReservationBookingRequestDto requestForRoom(
                 .rooms(booking.getNumberOfRooms())
                 .adults(booking.getAdultCount())
                 .children(booking.getChildCount())
-                .childAges(List.of())
+                .childAges(resolveChildAges(booking))
                 .checkInTime(formatTime(booking.getEta()))
                 .checkOutTime(formatTime(booking.getCheckOutTime()))
                 .build();
+    }
+
+    private List<Integer> resolveChildAges(ReservationBookingRecord booking) {
+        List<Integer> childAges = new ArrayList<>();
+        if (booking.getAgeOfChild1() != null) {
+            childAges.add(booking.getAgeOfChild1());
+        }
+        if (booking.getAgeOfChild2() != null) {
+            childAges.add(booking.getAgeOfChild2());
+        }
+        return childAges;
     }
 
     private ReservationViewResponseDto.RoomDto buildRoom(ReservationBookingRecord booking) {
@@ -1429,6 +1560,18 @@ private ReservationBookingRequestDto requestForRoom(
                 || normalizedRoomType.equalsIgnoreCase(item.getRoomCode()))
             .findFirst()
             .map(item -> inventoryRoomTypeId(propertyId, item.getRoomCode(), item.getRoomName()))
+            .orElseThrow(() -> new BadRequestException(
+                "roomType is not configured for selected property"));
+        }
+
+        private Long resolvePropertyRoomTypeId(String propertyId, String roomType) {
+        String normalizedRoomType = roomType == null ? "" : roomType.trim();
+        return propertyInventoryPort.fetchRoomOutletTypes(propertyId).stream()
+            .filter(item -> item.getId() != null)
+            .filter(item -> normalizedRoomType.equalsIgnoreCase(item.getRoomName())
+                || normalizedRoomType.equalsIgnoreCase(item.getRoomCode()))
+            .findFirst()
+            .map(com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto::getId)
             .orElseThrow(() -> new BadRequestException(
                 "roomType is not configured for selected property"));
         }

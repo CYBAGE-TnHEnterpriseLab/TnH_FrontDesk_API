@@ -2,11 +2,13 @@ package com.pms.auth.controller;
 
 import com.pms.auth.dto.AuthResponse;
 import com.pms.auth.dto.LoginRequest;
+import com.pms.auth.dto.PasswordVerificationRequest;
 import com.pms.auth.dto.LogoutRequest;
 import com.pms.auth.dto.RefreshTokenRequest;
 import com.pms.auth.dto.RegisterRequest;
 import com.pms.auth.service.AuthService;
 import com.pms.auth.common.response.ApiResponse;
+import com.pms.common.security.RequestUserContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,13 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @PostMapping("/verify-password")
+    public ResponseEntity<ApiResponse<Void>> verifyPassword(
+            @Valid @RequestBody PasswordVerificationRequest request) {
+        authService.verifyPassword(RequestUserContext.getUsername(), request);
+        return ResponseEntity.ok(ApiResponse.success("Password verified successfully", null));
     }
 
     @PostMapping("/refresh")

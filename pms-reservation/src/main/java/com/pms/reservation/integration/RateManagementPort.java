@@ -20,6 +20,20 @@ public interface RateManagementPort {
             Integer childAbove5Count
     );
 
+    default List<RatePlanPricingQuoteDto> fetchRateQuotes(
+            String propertyId,
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            String roomType,
+            Long roomTypeId,
+            Integer adultCount,
+            Integer childCount,
+            Integer ageOfChild1,
+            Integer ageOfChild2
+    ) {
+        return fetchRateQuotes(propertyId, arrivalDate, departureDate, roomType, roomTypeId, adultCount, childCount);
+    }
+
     List<RateManagementPlanDto> listRatePlans(String propertyId);
 
     List<RateManagementPlanDto> getAvailableRatePlans(

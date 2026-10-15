@@ -9,6 +9,7 @@ import com.folio.billing.dto.FolioCreateRequest;
 import com.folio.billing.dto.FolioCreateResponse;
 import com.folio.billing.dto.FolioChargePostRequest;
 import com.folio.billing.dto.FolioChargePostResponse;
+import com.folio.billing.dto.FolioChargeOptionsResponse;
 import com.folio.billing.dto.FolioTransactionAmountUpdateRequest;
 import com.folio.billing.dto.FolioTransactionAmountUpdateResponse;
 import com.folio.billing.dto.FolioDocumentAuditEntry;
@@ -38,6 +39,8 @@ public interface BillingFolioService {
     FolioDetailsResponse getFolioDetails(String confirmationNumber, Long bookingId);
 
     FolioChargePostResponse addCharge(FolioChargePostRequest request);
+
+    FolioChargeOptionsResponse getChargeOptions(String propertyId);
 
     FolioChargeAdjustmentResponse adjustCharge(FolioChargeAdjustmentRequest request);
 

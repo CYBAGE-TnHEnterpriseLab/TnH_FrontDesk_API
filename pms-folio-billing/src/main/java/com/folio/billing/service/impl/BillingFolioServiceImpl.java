@@ -1,6 +1,7 @@
 package com.folio.billing.service.impl;
 
 import com.folio.billing.client.ReservationServiceClient;
+import com.folio.billing.client.PropertyServiceClient;
 import com.folio.billing.dto.BillingComments;
 import com.folio.billing.dto.BillingDetailsResponse;
 import com.folio.billing.dto.BillingTotals;
@@ -13,6 +14,7 @@ import com.folio.billing.dto.FolioChargeAdjustmentRequest;
 import com.folio.billing.dto.FolioChargeAdjustmentResponse;
 import com.folio.billing.dto.FolioChargePostRequest;
 import com.folio.billing.dto.FolioChargePostResponse;
+import com.folio.billing.dto.FolioChargeOptionsResponse;
 import com.folio.billing.dto.FolioDocumentAuditEntry;
 import com.folio.billing.dto.FolioDocumentContent;
 import com.folio.billing.dto.FolioDocumentGenerateRequest;
@@ -74,6 +76,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     private static final String DOCUMENT_CONTENT_TYPE = "text/html;charset=UTF-8";
 
     private final ReservationServiceClient reservationServiceClient;
+    private final PropertyServiceClient propertyServiceClient;
     private final ObjectMapper objectMapper;
     private final FolioRepository folioRepository;
     private final ConcurrentMap<String, FolioState> foliosByKey = new ConcurrentHashMap<>();
@@ -88,14 +91,23 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     private final AtomicLong paymentReferenceSequence = new AtomicLong(400000L);
     private final AtomicLong documentSequence = new AtomicLong(500000L);
 
-    @Autowired
     public BillingFolioServiceImpl(
             ReservationServiceClient reservationServiceClient,
             ObjectMapper objectMapper, FolioRepository folioRepository
     ) {
+        this(reservationServiceClient, objectMapper, folioRepository, null);
+        }
+
+        @Autowired
+        public BillingFolioServiceImpl(
+            ReservationServiceClient reservationServiceClient,
+            ObjectMapper objectMapper, FolioRepository folioRepository,
+            PropertyServiceClient propertyServiceClient
+        ) {
         this.reservationServiceClient = reservationServiceClient;
         this.objectMapper = objectMapper;
         this.folioRepository = folioRepository;
+        this.propertyServiceClient = propertyServiceClient;
         if (folioRepository != null) initializePersistedFolios(folioRepository.findAll());
     }
 
@@ -136,8 +148,22 @@ public class BillingFolioServiceImpl implements BillingFolioService {
 
     public BillingFolioServiceImpl(ReservationServiceClient reservationServiceClient,
             ObjectMapper objectMapper) {
-        this(reservationServiceClient, objectMapper, null);
+        this(reservationServiceClient, objectMapper, null, null);
     }
+
+        @Override
+        public FolioChargeOptionsResponse getChargeOptions(String propertyId) {
+        List<String> configuredChargeTypes = loadConfiguredChargeTypes(propertyId, null);
+        Map<String, List<String>> categoriesByTransactionType = new LinkedHashMap<>();
+        categoriesByTransactionType.put("Charges", configuredChargeTypes.isEmpty()
+            ? List.of("Accomodation", "Housekeeping", "Wellness", "F&B", "Transport", "Miscellaneous")
+            : configuredChargeTypes);
+        categoriesByTransactionType.put("Payment", List.of("UPI", "Cash", "Credit Card", "Debit Card", "Net Banking"));
+        categoriesByTransactionType.put("Adjustment", List.of("Discount"));
+        categoriesByTransactionType.put("Refund", List.of("Refund"));
+        return new FolioChargeOptionsResponse(
+            List.of("Charges", "Payment", "Adjustment", "Refund"), categoriesByTransactionType);
+        }
 
     @Override
     public FolioCreateResponse addFolio(FolioCreateRequest request) {
@@ -370,7 +396,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                             t.description(),
                             safeAmount(t.charges()),
                             safeAmount(t.credit()),
-                            t.userId()
+                            t.userId(),
+                            t.utr()
                         ))
                         .toList()
                 ))
@@ -463,7 +490,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                         transaction.description(),
                         safeAmount(transaction.charges()),
                         safeAmount(transaction.credit()),
-                        transaction.userId()
+                        transaction.userId(),
+                        transaction.utr()
                     ))
                     .toList();
 
@@ -519,9 +547,18 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         BigDecimal amount = scaleMoney(safeAmount(request.amount()));
         validateChargeAmounts(amount);
 
-        String category = normalizeCategoryForTransactionType(transactionType, request.category());
-        validateTransactionCategory(transactionType, category);
-        String description = firstNonBlank(request.description(), category + " charge");
+        String propertyId = firstNonBlank(request.propertyId(),
+            reservationServiceClient.resolvePropertyId(confirmationNumber).orElse(""));
+        List<String> configuredChargeTypes = loadConfiguredChargeTypes(propertyId, confirmationNumber);
+        String category = "CHARGE".equals(transactionType) && !configuredChargeTypes.isEmpty()
+            ? configuredCategory(request.category(), configuredChargeTypes)
+            : normalizeCategoryForTransactionType(transactionType, request.category());
+        validateTransactionCategory(transactionType, category, configuredChargeTypes);
+        boolean upiPayment = "PAYMENT".equals(transactionType) && "UPI".equalsIgnoreCase(category);
+        if (upiPayment && !hasText(request.utr())) {
+            throw badRequest("utr is required for UPI payments");
+        }
+        String description = defaultString(request.description());
         LocalDate postingDate = request.postingDate() != null ? request.postingDate() : LocalDate.now();
         LocalDateTime postedAt = LocalDateTime.now();
         String userId = firstNonBlank(request.userId(), "frontdesk-agent");
@@ -548,7 +585,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 userId,
                 postedAt,
                 null,
-                null
+                null,
+                upiPayment ? request.utr().trim() : null
         );
 
         appendPostedTransaction(confirmationNumber, folioCode, chargeTransaction, request.bookingId());
@@ -580,14 +618,14 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 .map(t -> new FolioChargePostResponse.Transaction(
                         t.referenceNumber(), t.referenceNumber(), t.transactionType(), t.category(),
                         t.description(), safeAmount(t.charges()).add(safeAmount(t.credit())),
-                        safeAmount(t.charges()), safeAmount(t.credit()), t.date(), t.userId()))
+                        safeAmount(t.charges()), safeAmount(t.credit()), t.date(), t.userId(), t.utr()))
                 .toList();
         return new FolioChargePostResponse(
                 confirmationNumber,
                 folioId,
                 "FOLIO " + displayFolioCode(folioCode),
                 new FolioChargePostResponse.Transaction(referenceNumber, referenceNumber, transactionType, category, description,
-                        amount, charges, credit, postingDate, userId),
+                    amount, charges, credit, postingDate, userId, upiPayment ? request.utr().trim() : null),
                 new FolioChargePostResponse.FolioSummary(balanceSnapshot.totalCharges(), balanceSnapshot.totalPayment(), balanceSnapshot.balance()),
                 new FolioChargePostResponse.CheckoutSummary(balanceSnapshot.balance(), balanceSnapshot.balance().compareTo(BigDecimal.ZERO) == 0),
                 referenceNumber,
@@ -675,7 +713,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 userId,
                 postedAt,
                 originalReferenceNumber,
-                request.reason().trim()
+                request.reason().trim(),
+                null
         );
 
         appendPostedTransaction(confirmationNumber, folioCode, adjustmentTransaction, request.bookingId());
@@ -787,8 +826,16 @@ public class BillingFolioServiceImpl implements BillingFolioService {
             balancesBeforeAllocation.put(targetKey, outstandingBalance);
         }
 
-        String paymentReference = firstNonBlank(request.paymentReference(), generatePaymentReference());
         String paymentMethod = firstNonBlank(request.paymentMethod(), "Card");
+        String paymentReference;
+        if ("UPI".equalsIgnoreCase(paymentMethod)) {
+            if (!hasText(request.utr())) {
+                throw badRequest("utr is required for UPI payments");
+            }
+            paymentReference = firstNonBlank(request.paymentReference(), request.utr());
+        } else {
+            paymentReference = firstNonBlank(request.paymentReference(), generatePaymentReference());
+        }
         LocalDate allocationDate = request.allocationDate() != null ? request.allocationDate() : LocalDate.now();
         LocalDateTime allocatedAt = LocalDateTime.now();
         String userId = firstNonBlank(request.userId(), "cashier-agent");
@@ -817,7 +864,8 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                     userId,
                     allocatedAt,
                     paymentReference,
-                    note
+                    note,
+                    null
             );
 
             appendPostedTransaction(confirmationNumber, folioCode, paymentTransaction, bookingId);
@@ -1090,15 +1138,38 @@ public class BillingFolioServiceImpl implements BillingFolioService {
     }
 
     private void validateTransactionCategory(String type, String category) {
+        validateTransactionCategory(type, category, List.of());
+    }
+
+    private void validateTransactionCategory(String type, String category, List<String> configuredChargeTypes) {
         String value = firstNonBlank(category, "").toUpperCase().replace('-', '_').replace(' ', '_');
         boolean valid = switch (type) {
-            case "CHARGE", "CHARGES" -> List.of("F&B", "ACCOMMODATION", "ACCOMODATION", "WELLNESS", "HOUSEKEEPING", "TRANSPORT", "MISCELLANEOUS").contains(value);
+            case "CHARGE", "CHARGES" -> configuredChargeTypes.isEmpty()
+                    ? List.of("F&B", "ACCOMMODATION", "ACCOMODATION", "WELLNESS", "HOUSEKEEPING", "TRANSPORT", "MISCELLANEOUS").contains(value)
+                    : configuredChargeTypes.stream().anyMatch(item -> item.toUpperCase().replace('-', '_').replace(' ', '_').equals(value));
             case "PAYMENT" -> List.of("UPI", "CREDIT_CARD", "CASH", "DEBIT_CARD", "NET_BANKING").contains(value);
             case "ADJUSTMENT" -> "DISCOUNT".equals(value);
             case "REFUND" -> "REFUND".equals(value);
             default -> false;
         };
         if (!valid) throw badRequest("Invalid category for transactionType: " + type);
+    }
+
+    private String configuredCategory(String category, List<String> configuredChargeTypes) {
+        String requested = defaultString(category).trim();
+        return configuredChargeTypes.stream()
+                .filter(item -> item.equalsIgnoreCase(requested))
+                .findFirst()
+                .orElseThrow(() -> badRequest("Invalid category for transactionType: CHARGE"));
+    }
+
+    private List<String> loadConfiguredChargeTypes(String propertyId, String confirmationNumber) {
+        String resolvedPropertyId = firstNonBlank(propertyId,
+                confirmationNumber == null ? "" : reservationServiceClient.resolvePropertyId(confirmationNumber).orElse(""));
+        if (propertyServiceClient == null || !hasText(resolvedPropertyId)) {
+            return List.of();
+        }
+        return propertyServiceClient.getChargeTypes(resolvedPropertyId);
     }
 
     private BalanceSnapshot syncFolioWithLatestBalances(
@@ -1317,7 +1388,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 creditTransaction ? BigDecimal.ZERO : amount,
                 creditTransaction ? amount : BigDecimal.ZERO,
                 firstNonBlank(request.userId(), old.userId()), old.postedAt(), old.originalReferenceNumber(),
-                old.adjustmentReason());
+                old.adjustmentReason(), old.utr());
         existing.set(index, updated);
         postedTransactionsByKey.put(folioKey(confirmationNumber, folioCode, request.bookingId()), List.copyOf(existing));
 
@@ -1327,7 +1398,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
                 confirmationNumber,
                 "FOLIO-" + displayFolioCode(folioCode) + "-001",
                 new FolioChargePostResponse.Transaction(updated.referenceNumber(), updated.referenceNumber(), updated.transactionType(),
-                        updated.category(), updated.description(), amount, updated.charges(), updated.credit(), updated.date(), updated.userId()),
+                    updated.category(), updated.description(), amount, updated.charges(), updated.credit(), updated.date(), updated.userId(), updated.utr()),
                 totals.totalCharges(), totals.totalPayment(), totals.totalCharges().subtract(totals.totalPayment()));
     }
 
@@ -1639,7 +1710,7 @@ public class BillingFolioServiceImpl implements BillingFolioService {
         appendPostedTransaction(confirmationNumber, folioCode, new FolioTransactionRow(
                 LocalDate.now(), reference, "CHARGE", "ACCOMMODATION",
                 "Reservation amount", amount, BigDecimal.ZERO, "reservation-service",
-                LocalDateTime.now(), null, null), bookingId);
+                LocalDateTime.now(), null, null, null), bookingId);
     }
 
     private String resolveActiveFolioCode(String confirmationNumber) {

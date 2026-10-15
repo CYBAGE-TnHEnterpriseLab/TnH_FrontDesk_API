@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 public class IntegrationProperties {
 
     private ServiceConfig reservationService = new ServiceConfig();
+    private ServiceConfig propertyService = new ServiceConfig();
 
     public ServiceConfig getReservationService() {
         return reservationService;
@@ -15,6 +16,14 @@ public class IntegrationProperties {
 
     public void setReservationService(ServiceConfig reservationService) {
         this.reservationService = reservationService;
+    }
+
+    public ServiceConfig getPropertyService() {
+        return propertyService;
+    }
+
+    public void setPropertyService(ServiceConfig propertyService) {
+        this.propertyService = propertyService;
     }
 
     public static class ServiceConfig {

@@ -58,6 +58,9 @@ security:
       - /api/v1/billingFolio/getFolioDetails
 
 integration:
+  property-service:
+    enabled: true
+    base-url: ${PROPERTY_SERVICE_BASE_URL:http://localhost:8082}
   reservation-service:
     enabled: true
     base-url: http://localhost:8090

@@ -53,6 +53,7 @@ public class ReservationAvailabilityController {
             @RequestParam(required = false) Integer ageOfChild2,
             @RequestParam(required = false) List<Integer> childAges,
             @RequestParam(required = false) String company,
+            @RequestParam(required = false) String roomType,
             @RequestParam(required = false) String rateCode,
             @RequestParam(required = false) String blockCode
     ) {
@@ -91,6 +92,7 @@ public class ReservationAvailabilityController {
         request.setNumberOfRooms(resolvedNumberOfRooms);
         request.setGroupCode(groupCode);
         request.setCompany(company);
+        request.setRoomType(roomType);
         request.setRateCode(rateCode);
         request.setBlockCode(blockCode);
         request.setAdultCount(resolvedAdults);

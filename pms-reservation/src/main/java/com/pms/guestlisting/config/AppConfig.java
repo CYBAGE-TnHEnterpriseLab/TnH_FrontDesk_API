@@ -24,10 +24,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
+import com.pms.reservation.config.AuthServiceProperties;
 
 @Configuration
 @EnableConfigurationProperties({
     ReservationServiceProperties.class,
+        AuthServiceProperties.class,
     PropertyWizardServiceProperties.class,
     InventoryServiceProperties.class,
     GuestServiceProperties.class,

@@ -124,6 +124,45 @@ public class InventoryReservationService {
         return reservationMapper.toResponse(reservation, false);
     }
 
+        @Transactional
+        public InventoryReservationResponse replace(
+            String confirmationNumber,
+            ReserveInventoryRequest request
+        ) {
+        InventoryReservation reservation = reservationRepository.findByConfirmationNumber(confirmationNumber)
+            .orElseThrow(() -> new InventoryNotFoundException("Inventory reservation not found"));
+
+        if (reservation.getStatus() != InventoryReservationStatus.RESERVED) {
+            throw new InventoryException("Only active reservations can be replaced");
+        }
+
+        List<RoomTypeInventoryDaily> oldRows = inventoryService.lockInventoryRange(
+            reservation.getPropertyId(),
+            reservation.getAssignedRoomTypeId(),
+            reservation.getCheckInDate(),
+            reservation.getCheckOutDate()
+        );
+        inventoryService.decreaseReserved(oldRows, reservation.getQuantity());
+
+        List<RoomTypeInventoryDaily> newRows = inventoryService.lockInventoryRange(
+            request.propertyId(),
+            request.assignedRoomTypeId(),
+            request.checkInDate(),
+            request.checkOutDate()
+        );
+        inventoryService.ensureSufficientInventory(newRows, request.quantity());
+        inventoryService.increaseReserved(newRows, request.quantity());
+
+        reservation.setPropertyId(request.propertyId());
+        reservation.setBookedRoomTypeId(request.bookedRoomTypeId());
+        reservation.setAssignedRoomTypeId(request.assignedRoomTypeId());
+        reservation.setCheckInDate(request.checkInDate());
+        reservation.setCheckOutDate(request.checkOutDate());
+        reservation.setQuantity(request.quantity());
+
+        return reservationMapper.toResponse(reservation, false);
+        }
+
     @Transactional
     public InventoryReservationResponse changeAssignedRoomType(
             String confirmationNumber,

@@ -127,29 +127,10 @@ public class BillingFolioController {
     }
 
     @GetMapping("/chargeOptions")
-    public ResponseEntity<FolioChargeOptionsResponse> getChargeOptions() {
-        List<String> transactionTypes = List.of("Charges", "Payment", "Adjustment", "Refund");
-
-        Map<String, List<String>> categoriesByTransactionType = new LinkedHashMap<>();
-        categoriesByTransactionType.put("Charges", List.of(
-                "Accomodation",
-                "Housekeeping",
-                "Wellness",
-                "F&B",
-                "Transport",
-                "Miscellaneous"
-        ));
-        categoriesByTransactionType.put("Payment", List.of(
-                "UPI",
-                "Cash",
-                "Credit Card",
-                "Debit Card",
-                "Net Banking"
-        ));
-        categoriesByTransactionType.put("Adjustment", List.of("Discount"));
-        categoriesByTransactionType.put("Refund", List.of("Refund"));
-
-        return ResponseEntity.ok(new FolioChargeOptionsResponse(transactionTypes, categoriesByTransactionType));
+    public ResponseEntity<FolioChargeOptionsResponse> getChargeOptions(
+            @RequestParam(required = false) String propertyId
+    ) {
+        return ResponseEntity.ok(billingFolioService.getChargeOptions(propertyId));
     }
 
     @PostMapping("/adjustCharge")
