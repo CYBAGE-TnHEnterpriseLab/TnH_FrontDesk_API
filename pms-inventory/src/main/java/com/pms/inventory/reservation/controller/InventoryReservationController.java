@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/inventory/reservations")
@@ -31,19 +30,19 @@ public class InventoryReservationController {
         return inventoryReservationService.reserve(request);
     }
 
-    @PostMapping("/{reservationId}/release")
+    @PostMapping("/{confirmationNumber}/release")
     @Operation(summary = "Release reserved room-type inventory")
-    public InventoryReservationResponse release(@PathVariable UUID reservationId) {
-        return inventoryReservationService.release(reservationId);
+    public InventoryReservationResponse release(@PathVariable String confirmationNumber) {
+        return inventoryReservationService.release(confirmationNumber);
     }
 
-    @PutMapping("/{reservationId}/assigned-room-type")
+    @PutMapping("/{confirmationNumber}/assigned-room-type")
     @Operation(summary = "Change assigned room type for inventory consumption")
     public InventoryReservationResponse changeAssignedRoomType(
-            @PathVariable UUID reservationId,
+            @PathVariable String confirmationNumber,
             @Valid @RequestBody ChangeAssignedRoomTypeRequest request
     ) {
-        return inventoryReservationService.changeAssignedRoomType(reservationId, request);
+        return inventoryReservationService.changeAssignedRoomType(confirmationNumber, request);
     }
 }
 

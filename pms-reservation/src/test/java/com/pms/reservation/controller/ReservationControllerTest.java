@@ -15,6 +15,7 @@ import com.pms.guestlisting.exception.BadRequestException;
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
+import com.pms.reservation.dto.ReservationGuestRequestDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.service.ReservationBookingService;
 import java.math.BigDecimal;
@@ -31,10 +32,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = ReservationController.class, properties = "security.jwt.enabled=false")
+@WebMvcTest(controllers = ReservationController.class, properties = {"security.jwt.enabled=false", "spring.data.jpa.repositories.enabled=false"})
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class ReservationControllerTest {
@@ -47,6 +49,9 @@ class ReservationControllerTest {
 
     @MockBean
     private ReservationBookingService reservationBookingService;
+
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Test
     void getPaymentModesShouldReturnSupportedModes() throws Exception {
@@ -71,13 +76,25 @@ class ReservationControllerTest {
             .andExpect(jsonPath("$.data[1]").value("FULL_PAYMENT"));
     }
 
+            @Test
+            void getIdTypesShouldReturnSupportedIdentityProofTypes() throws Exception {
+            mockMvc.perform(get("/api/v1/reservations/id-types"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Identity types fetched successfully"))
+                .andExpect(jsonPath("$.data[0]").value("AADHAAR"))
+                .andExpect(jsonPath("$.data[1]").value("PAN"))
+                .andExpect(jsonPath("$.data[2]").value("DRIVING_LICENSE"))
+                .andExpect(jsonPath("$.data[3]").value("PASSPORT"));
+            }
+
     @Test
     void createBookingShouldReturnCreatedResponse() throws Exception {
         ReservationBookingRequestDto request = validRequest();
 
         ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
                 .bookingId(1001L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .guestName("Alex Johnson")
                 .reservationStatus("CONFIRMED")
             .confirmationNumber("1234567890")
@@ -97,6 +114,20 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.data.reservationStatus").value("CONFIRMED"));
 
         verify(reservationBookingService).createBooking(any());
+    }
+
+    @Test
+    void createBookingRejectsMissingGuestsBeforeCallingService() throws Exception {
+        ReservationBookingRequestDto request = validRequest();
+        request.setGuests(null);
+
+        mockMvc.perform(post("/api/v1/reservations/bookings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.guests").value("guests is required"));
+
+        org.mockito.Mockito.verifyNoInteractions(reservationBookingService);
     }
 
     @Test
@@ -134,7 +165,7 @@ class ReservationControllerTest {
             .confirmationNumber("10256CNF569")
             .status("CONFIRMED")
             .createdAt(OffsetDateTime.parse("2026-06-12T10:45:00Z"))
-            .propertyId("demo-property")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .businessDate(LocalDate.of(2026, 6, 12))
             .guest(ReservationViewResponseDto.GuestDto.builder()
                 .salutation("Mr")
@@ -211,6 +242,30 @@ class ReservationControllerTest {
         verify(reservationBookingService).getBookingDetails("10256CNF569");
         }
 
+        @Test
+        void getRoomBookingDetailsShouldUseBookingIdWithinConfirmation() throws Exception {
+        ReservationViewResponseDto response = ReservationViewResponseDto.builder()
+            .reservationId("10256CNF569")
+            .confirmationNumber("10256CNF569")
+            .room(ReservationViewResponseDto.RoomDto.builder()
+                .roomNo("102")
+                .roomType("King")
+                .build())
+            .build();
+
+        when(reservationBookingService.getBookingDetails("10256CNF569", 1002L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/reservations/bookings/{confirmationNumber}/rooms/{bookingId}",
+                "10256CNF569", 1002L))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.message").value("Room booking fetched successfully"))
+            .andExpect(jsonPath("$.data.confirmationNumber").value("10256CNF569"))
+            .andExpect(jsonPath("$.data.room.roomNo").value("102"));
+
+        verify(reservationBookingService).getBookingDetails("10256CNF569", 1002L);
+        }
+
     @Test
     void updateBookingShouldReturnUpdatedReservation() throws Exception {
         ReservationBookingRequestDto request = validRequest();
@@ -220,7 +275,7 @@ class ReservationControllerTest {
             .reservationId("1234567890")
             .confirmationNumber("1234567890")
             .status("CONFIRMED")
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .guest(ReservationViewResponseDto.GuestDto.builder()
                 .firstName("Alex")
                 .lastName("Johnson")
@@ -245,7 +300,7 @@ class ReservationControllerTest {
         void createBookingShouldAcceptUiObjectTimePayload() throws Exception {
         ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
             .bookingId(1002L)
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .guestName("Alex Johnson")
             .reservationStatus("CONFIRMED")
             .confirmationNumber("1234567891")
@@ -255,11 +310,12 @@ class ReservationControllerTest {
         when(reservationBookingService.createBooking(any())).thenReturn(response);
 
         Map<String, Object> payloadMap = new LinkedHashMap<>();
-        payloadMap.put("propertyId", "PROP001");
+        payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         payloadMap.put("salutation", "Mr");
         payloadMap.put("vipTag", false);
         payloadMap.put("guestName", "Alex Johnson");
         payloadMap.put("guestNames", List.of("Alex Johnson"));
+        payloadMap.put("guests", List.of(Map.of("guestProfileId", 125, "isPrimary", true)));
         payloadMap.put("personalEmail", "alex.personal@example.com");
         payloadMap.put("officialEmail", "alex.official@example.com");
         payloadMap.put("city", "Pune");
@@ -356,7 +412,7 @@ class ReservationControllerTest {
             .reservationId("1234567890")
             .confirmationNumber("1234567890")
             .status("CONFIRMED")
-            .propertyId("PROP001")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
             .build();
 
         when(reservationBookingService.updateBooking(anyString(), any())).thenReturn(response);
@@ -376,7 +432,7 @@ class ReservationControllerTest {
             void createBookingShouldAcceptUiAliasFieldsAndPlaceholderPaymentType() throws Exception {
             ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
                 .bookingId(1003L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .guestName("pk kp")
                 .reservationStatus("CONFIRMED")
                 .confirmationNumber("1234567892")
@@ -386,9 +442,10 @@ class ReservationControllerTest {
             when(reservationBookingService.createBooking(any())).thenReturn(response);
 
             Map<String, Object> payloadMap = new LinkedHashMap<>();
-            payloadMap.put("propertyId", "PROP001");
+            payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
             payloadMap.put("firstName", "pk");
             payloadMap.put("lastName", "kp");
+            payloadMap.put("guests", List.of(Map.of("guestProfileId", 125, "isPrimary", true)));
             payloadMap.put("officialEmail", "kumar@mail.com");
             payloadMap.put("phone", "9090912345");
             payloadMap.put("arrivalDate", "2026-07-15");
@@ -424,7 +481,7 @@ class ReservationControllerTest {
         void createBookingShouldAcceptEmailAliasField() throws Exception {
             ReservationBookingResponseDto response = ReservationBookingResponseDto.builder()
                     .bookingId(1004L)
-                    .propertyId("PROP001")
+                    .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                     .guestName("pk kp")
                     .reservationStatus("CONFIRMED")
                     .confirmationNumber("1234567893")
@@ -434,9 +491,10 @@ class ReservationControllerTest {
             when(reservationBookingService.createBooking(any())).thenReturn(response);
 
             Map<String, Object> payloadMap = new LinkedHashMap<>();
-            payloadMap.put("propertyId", "PROP001");
+            payloadMap.put("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
             payloadMap.put("firstName", "pk");
             payloadMap.put("lastName", "kp");
+            payloadMap.put("guests", List.of(Map.of("guestProfileId", 125, "isPrimary", true)));
             payloadMap.put("email", "kumar@mail.com");
             payloadMap.put("phone", "9090912345");
             payloadMap.put("arrivalDate", "2026-07-15");
@@ -469,11 +527,15 @@ class ReservationControllerTest {
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");
         request.setGuestNames(List.of("Alex Johnson"));
+        ReservationGuestRequestDto guest = new ReservationGuestRequestDto();
+        guest.setGuestProfileId(125L);
+        guest.setIsPrimary(true);
+        request.setGuests(List.of(guest));
         request.setPersonalEmail("alex.personal@example.com");
         request.setOfficialEmail("alex.official@example.com");
         request.setCity("Pune");

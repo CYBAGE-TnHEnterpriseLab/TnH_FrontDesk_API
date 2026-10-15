@@ -20,15 +20,15 @@ public class ReservationDashboardClient extends DashboardWebClientSupport {
         this.config = properties.getReservation();
     }
 
-    public Mono<DashboardModels.ReservationFlowData> fetchFlow(UUID propertyId, LocalDate businessDate) {
+    public Mono<DashboardModels.ReservationFlowData> fetchFlow(UUID propertyId, LocalDate businessDate, String authorization) {
         String listPath = config.getPrimaryPath();
-        Mono<Long> arrivals = fetchCount(listPath, propertyId, businessDate, "arrivals", "reservation.arrivals");
-        Mono<Long> departures = fetchCount(listPath, propertyId, businessDate, "departures", "reservation.departures");
+        Mono<Long> arrivals = fetchCount(listPath, propertyId, businessDate, "arrivals", "reservation.arrivals", authorization);
+        Mono<Long> departures = fetchCount(listPath, propertyId, businessDate, "departures", "reservation.departures", authorization);
         return Mono.zip(arrivals, departures)
                 .map(tuple -> new DashboardModels.ReservationFlowData(tuple.getT1(), tuple.getT2()));
     }
 
-    private Mono<Long> fetchCount(String path, UUID propertyId, LocalDate businessDate, String view, String sourceName) {
+    private Mono<Long> fetchCount(String path, UUID propertyId, LocalDate businessDate, String view, String sourceName, String authorization) {
         return getJson(
                 webClient.get(),
                 uri -> uri.path(path)
@@ -38,7 +38,8 @@ public class ReservationDashboardClient extends DashboardWebClientSupport {
                         .queryParam("page", 0)
                         .queryParam("includeOptions", false)
                         .build(),
-                sourceName
+                sourceName,
+                authorization
         ).map(this::countElements);
     }
 

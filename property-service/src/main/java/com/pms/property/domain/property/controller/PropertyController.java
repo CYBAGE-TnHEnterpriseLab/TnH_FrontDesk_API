@@ -3,13 +3,17 @@ package com.pms.property.domain.property.controller;
 import com.pms.property.common.response.ApiResponse;
 import com.pms.property.domain.property.dto.PropertyResponse;
 import com.pms.property.domain.property.service.PropertyService;
-import com.pms.property.security.CurrentUserProvider;
+import com.pms.common.utils.CurrentUser;
+import com.pms.common.security.CurrentUserProvider;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -33,16 +37,26 @@ public class PropertyController {
     /** Fetches published properties created by the current user. */
     @GetMapping("/getAllPublishedProperties")
     public ResponseEntity<ApiResponse<List<PropertyResponse>>> listMine() {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         return ResponseEntity.ok(ApiResponse.ok(propertyService.listByCreator(actor), "Published properties fetched"));
     }
 
     /** Deletes a published property owned by the current user. */
     @DeleteMapping("/deletePublishedProperty/{propertyId}")
     public ResponseEntity<ApiResponse<Void>> deleteById(@PathVariable String propertyId) {
-        String actor = currentUserProvider.getCurrentUsername();
+        UUID actor = CurrentUser.userId();
         propertyService.deleteOwnedProperty(propertyId, actor);
         return ResponseEntity.ok(ApiResponse.ok(null, "Published property deleted"));
+    }
+
+    /** Checks whether a property code is available for use. */
+    @GetMapping("/checkPropertyCode")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkPropertyCode(
+            @RequestParam String propertyCode,
+            @RequestParam(name = "excludePropertyId", required = false) String excludePropertyId
+    ) {
+        boolean available = propertyService.isPropertyCodeAvailable(propertyCode, excludePropertyId);
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("available", available), "Property code availability checked"));
     }
 }
 

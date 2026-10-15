@@ -29,21 +29,26 @@ public class ReservationAvailabilityMapper {
             RatePlanPricingQuoteDto quote,
             PropertyRoomInventoryDto inventory
     ) {
-        String roomType = StringUtils.hasText(quote.getRoomType())
+        String roomType = inventory != null && StringUtils.hasText(inventory.getRoomType())
+                ? inventory.getRoomType()
+                : StringUtils.hasText(quote.getRoomType())
                 ? quote.getRoomType()
-                : inventory.getRoomType();
+                : inventory == null ? null : inventory.getRoomCode();
 
         String occupancy = StringUtils.hasText(quote.getOccupancy())
                 ? quote.getOccupancy()
-                : inventory.getOccupancy();
+                : inventory == null ? null : inventory.getOccupancy();
 
         return RoomAvailabilityPricingDto.builder()
                 .roomType(roomType)
+                .roomCode(inventory == null ? null : inventory.getRoomCode())
                 .ratePlan(quote.getRatePlan())
                 .rateCode(quote.getRateCode())
                                 .occupancy(normalizeOccupancyLabel(occupancy))
                 .mealPlan(quote.getMealPlan())
-                .availableRooms(inventory.getAvailableRooms())
+                .availableRooms(inventory == null || inventory.getAvailableRooms() == null
+                        ? 0
+                        : inventory.getAvailableRooms())
                 .baseRate(quote.getBaseRate())
                 .taxAmount(quote.getTaxAmount())
                 .finalAmount(quote.getFinalAmount())
@@ -118,6 +123,7 @@ public class ReservationAvailabilityMapper {
                                 .children(request.getChildCount())
                                 .ageOfChild1(request.getAgeOfChild1())
                                 .ageOfChild2(request.getAgeOfChild2())
+                                .childAges(request.getChildAges())
                                 .groupCode(request.getGroupCode())
                                 .company(request.getCompany())
                                 .rateCode(request.getRateCode())

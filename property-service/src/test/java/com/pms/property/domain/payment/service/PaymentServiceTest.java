@@ -10,6 +10,8 @@ import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.payment.dto.PaymentMethodRequest;
 import com.pms.property.domain.payment.entity.PaymentMethodEntity;
 import com.pms.property.domain.payment.repository.PaymentMethodRepository;
+import com.pms.property.domain.payment.service.serviceImpl.PaymentServiceImpl;
+
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 

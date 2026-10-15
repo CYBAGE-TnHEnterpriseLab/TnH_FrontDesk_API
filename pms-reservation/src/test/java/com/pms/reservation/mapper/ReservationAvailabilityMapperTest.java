@@ -30,6 +30,18 @@ class ReservationAvailabilityMapperTest {
     }
 
     @Test
+    void toRoomAvailabilityShouldDisplayRoomTypeNameInsteadOfCode() {
+        PropertyRoomInventoryDto inventory = baseInventory();
+        inventory.setRoomCode("DLX");
+        inventory.setRoomType("Deluxe");
+
+        RoomAvailabilityPricingDto response = mapper.toRoomAvailability(baseQuote(), inventory);
+
+        assertThat(response.getRoomType()).isEqualTo("Deluxe");
+        assertThat(response.getRoomCode()).isEqualTo("DLX");
+    }
+
+    @Test
     void toRoomAvailabilityShouldNormalizeSimpleNumericOccupancy() {
         RatePlanPricingQuoteDto quote = baseQuote();
         quote.setOccupancy("1 Adults");
@@ -54,9 +66,18 @@ class ReservationAvailabilityMapperTest {
     }
 
     @Test
+    void toRoomAvailabilityShouldKeepRateWhenInventoryIsMissing() {
+        RoomAvailabilityPricingDto response = mapper.toRoomAvailability(baseQuote(), null);
+
+        assertThat(response.getRateCode()).isEqualTo("BAR001");
+        assertThat(response.getBaseRate()).isEqualByComparingTo("5000.00");
+        assertThat(response.getAvailableRooms()).isZero();
+    }
+
+    @Test
     void toResponseShouldGroupAvailabilityByRatePlanWithNestedRoomTypes() {
         ReservationAvailabilityRequestDto request = new ReservationAvailabilityRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setArrivalDate(LocalDate.of(2026, 7, 1));
         request.setDepartureDate(LocalDate.of(2026, 7, 3));
         request.setNight(2);

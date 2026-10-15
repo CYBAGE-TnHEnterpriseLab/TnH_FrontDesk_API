@@ -18,7 +18,7 @@ class SimulatedPaymentProcessingServiceImplTest {
 
         PaymentProcessingResult result = service.processPayment(
                 request,
-                "PROP001-20260708120000000-123",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47-20260708120000000-123",
                 new BigDecimal("5000.00")
         );
 
@@ -27,6 +27,7 @@ class SimulatedPaymentProcessingServiceImplTest {
         assertThat(result.getProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(result.getFailureReason()).isNull();
         assertThat(result.getProcessedAt()).isNotNull();
+        assertThat(result.getAmount()).isEqualTo(new BigDecimal("5000.00"));
     }
 
     @Test
@@ -36,7 +37,7 @@ class SimulatedPaymentProcessingServiceImplTest {
 
         PaymentProcessingResult result = service.processPayment(
                 request,
-                "PROP001-20260708120000000-124",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47-20260708120000000-124",
                 new BigDecimal("2500.00")
         );
 
@@ -45,6 +46,7 @@ class SimulatedPaymentProcessingServiceImplTest {
         assertThat(result.getProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(result.getFailureReason()).isNull();
         assertThat(result.getProcessedAt()).isNotNull();
+        assertThat(result.getAmount()).isEqualTo(new BigDecimal("2500.00"));
     }
 
     @Test
@@ -54,7 +56,7 @@ class SimulatedPaymentProcessingServiceImplTest {
 
         PaymentProcessingResult result = service.processPayment(
                 request,
-                "PROP001-20260708120000000-125",
+                "7cfd4559-b6f3-4b7d-b933-e93018ac1d47-20260708120000000-125",
                 BigDecimal.ZERO
         );
 
@@ -63,5 +65,6 @@ class SimulatedPaymentProcessingServiceImplTest {
         assertThat(result.getProcessorName()).isEqualTo("SIMULATED_GATEWAY");
         assertThat(result.getFailureReason()).isEqualTo("amount must be greater than zero");
         assertThat(result.getProcessedAt()).isNotNull();
+        assertThat(result.getAmount()).isEqualTo(BigDecimal.ZERO);
     }
 }

@@ -1,14 +1,16 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.pms.common.entity.BaseEntity;
 import com.frontdesk.pms.rate_management.enums.MasterRoomMealOption;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.util.List;
 
 @Entity
 @Table(
     uniqueConstraints = @UniqueConstraint(name = "uk_master_room_property_name", columnNames = {"property_id", "name"})
 )
-public class MasterRoom {
+public class MasterRoom extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,10 +23,16 @@ public class MasterRoom {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "meal_option")
-    private MasterRoomMealOption mealOption;
+    private MasterRoomMealOption mealOption = MasterRoomMealOption.NO_MEALS;
 
     @Column(name = "inclusion")
     private String inclusion;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @OneToMany(mappedBy = "masterRoom", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<MasterRoomPricing> pricingList;
@@ -80,11 +88,36 @@ public class MasterRoom {
         this.inclusion = inclusion;
     }
 
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
+    }
+
     public List<MasterRoomRoomTypeMapping> getRoomTypeMappings() {
         return roomTypeMappings;
     }
 
     public void setRoomTypeMappings(List<MasterRoomRoomTypeMapping> roomTypeMappings) {
         this.roomTypeMappings = roomTypeMappings;
+    }
+
+    @PostLoad
+    @PrePersist
+    @PreUpdate
+    private void defaultMealOption() {
+        if (mealOption == null) {
+            mealOption = MasterRoomMealOption.NO_MEALS;
+        }
     }
 }

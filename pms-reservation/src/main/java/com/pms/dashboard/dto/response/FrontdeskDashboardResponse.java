@@ -1,5 +1,7 @@
 package com.pms.dashboard.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -15,7 +17,7 @@ public record FrontdeskDashboardResponse(
         RoomInventoryMetrics roomInventory,
         HousekeepingRoomStatus housekeeping,
         List<RoomTypeOverview> roomStatusOverview,
-        TomorrowStatus tomorrowStatus,
+        TurndownStatus turndownStatus,
         DailyGuestActivity dailyGuestActivity,
         Map<String, String> sources
 ) {
@@ -50,16 +52,16 @@ public record FrontdeskDashboardResponse(
     public record RoomTypeOverview(String type, long total, long booked, long available) {
     }
 
-    public record TomorrowStatus(long required, long notRequired, long completed) {
+    public record TurndownStatus(long required, long notRequired, long completed) {
     }
 
-    public record DailyGuestActivity(Today today, Arrivals arrivals, OtherActivity otherActivity) {
+    public record DailyGuestActivity(Arrivals arrivals, Departures departures, OtherActivity otherActivity) {
     }
 
-    public record Today(long expected, long checkedIn, long walkIns, long newReservations) {
+    public record Arrivals(long expected, long checkedIn, long walkIns, long newReservations) {
     }
 
-    public record Arrivals(long expected, long checkedOut, long earlyDepartures) {
+    public record Departures(long expected, long checkedOut, long earlyDepartures) {
     }
 
     public record OtherActivity(long stayovers, long extendedStays, long dayUseRooms, long sameDayCancels) {

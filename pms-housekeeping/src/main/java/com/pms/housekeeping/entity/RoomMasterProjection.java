@@ -14,9 +14,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -32,21 +34,21 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class RoomMasterProjection {
+@SuperBuilder
+public class RoomMasterProjection extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    @Column(name = "property_id", nullable = false, length = 36)
+    private String propertyId;
 
     @Column(name = "room_number", nullable = false, length = 32)
     private String roomNumber;
 
     @Column(name = "room_type_id", nullable = false)
-    private UUID roomTypeId;
+        private String roomTypeId;
 
     @Column(name = "room_type_name", nullable = false, length = 120)
     private String roomTypeName;
@@ -72,12 +74,6 @@ public class RoomMasterProjection {
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }
 
 

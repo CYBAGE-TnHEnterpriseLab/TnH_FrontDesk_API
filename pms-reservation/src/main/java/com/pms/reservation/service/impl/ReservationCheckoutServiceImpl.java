@@ -1,16 +1,23 @@
 package com.pms.reservation.service.impl;
 
 import com.pms.guestlisting.exception.BadRequestException;
-import com.pms.housekeeping.dto.HousekeepingRoomStatusRequestDto;
-import com.pms.housekeeping.service.HousekeepingRoomStatusService;
 import com.pms.reservation.dto.CheckoutCompletionResponseDto;
 import com.pms.reservation.dto.CheckoutRequestDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationCheckInAuditRecord;
+import com.pms.reservation.integration.FolioServiceClient;
+import com.pms.reservation.integration.HousekeepingRoomStatusClient;
+import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationCheckInAuditRepository;
 import com.pms.reservation.service.ReservationCheckoutService;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,19 +30,71 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
     private static final String STATUS_CHECKED_IN = "CHECKED_IN";
     private static final String STATUS_CHECKED_OUT = "CHECKED_OUT";
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ReservationCheckoutServiceImpl.class);
+
     private final ReservationBookingRepository reservationBookingRepository;
     private final ReservationCheckInAuditRepository auditRepository;
-    private final HousekeepingRoomStatusService housekeepingRoomStatusService;
+    private final FolioServiceClient folioServiceClient;
+    private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
+    private final InventoryServiceClient inventoryServiceClient;
 
     @Override
     @Transactional
     public CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, CheckoutRequestDto request) {
         ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        return completeCheckoutForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutCompletionResponseDto completeCheckout(String confirmationNumber, Long bookingId,
+                                                          CheckoutRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber, bookingId);
+        return completeCheckoutForBooking(booking, request);
+    }
+
+    private CheckoutCompletionResponseDto completeCheckoutForBooking(ReservationBookingRecord booking,
+                                                                      CheckoutRequestDto request) {
 
         if (!STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
             throw new BadRequestException("Check-out can only be initiated for a checked-in reservation");
         }
-        if (!request.getBusinessDate().equals(booking.getDepartureDate())) {
+
+        BigDecimal bookingBalance = booking.getGuestBalance() != null
+                ? booking.getGuestBalance().max(BigDecimal.ZERO)
+                : BigDecimal.ZERO;
+
+        Optional<BigDecimal> folioBalance = folioServiceClient.getFolioBalance(
+            booking.getConfirmationNumber(), booking.getId());
+
+        // A folio reported by the folio service is authoritative, including one that reports a zero
+        // balance because the guest has already settled it. Only a missing folio falls back to the
+        // stored booking balance, which can be stale once the folio has been paid off.
+        folioBalance.ifPresent(balance -> booking.setGuestBalance(balance.max(BigDecimal.ZERO)));
+
+        BigDecimal outstandingBalance = folioBalance.orElse(bookingBalance).max(BigDecimal.ZERO);
+        log.info("Checkout balance evaluation for confirmationNumber={} bookingId={}: folioPresent={}, folioBalance={}, bookingBalance={}, outstanding={}",
+                booking.getConfirmationNumber(),
+                booking.getId(),
+                folioBalance.isPresent(),
+                folioBalance.map(balance -> balance.setScale(2, RoundingMode.HALF_UP).toPlainString()).orElse("absent"),
+                bookingBalance.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                outstandingBalance.setScale(2, RoundingMode.HALF_UP).toPlainString());
+        if (outstandingBalance.signum() > 0) {
+            throw new BadRequestException(
+                    "Check-out denied: guest has outstanding balance of "
+                            + outstandingBalance.setScale(2, RoundingMode.HALF_UP)
+                            + ". Please resolve the balance before checkout.");
+        }
+
+        LocalDate originalDepartureDate = booking.getOriginalDepartureDate() != null ? booking.getOriginalDepartureDate() : booking.getDepartureDate();
+        LocalDate businessDate = request.getBusinessDate();
+
+        if (businessDate.isAfter(originalDepartureDate)) {
+            throw new BadRequestException("Check-out cannot be processed after the reservation departure date");
+        }
+
+        if (!businessDate.equals(booking.getDepartureDate())) {
             throw new BadRequestException("Check-out businessDate must match the reservation departureDate");
         }
 
@@ -47,14 +106,30 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
         reservationBookingRepository.save(booking);
 
         updateRoomStatus(booking, request, false);
-        appendAudit(booking, "CHECKOUT_COMPLETED", "Guest checked out and room marked dirty", request.getActor());
-        return toResponse(booking);
+        inventoryServiceClient.release(booking.getConfirmationNumber());
+        appendAudit(booking,
+                "CHECKOUT_COMPLETED",
+                "Guest checked out and room marked dirty",
+                request.getActor());
+        return toResponse(booking, outstandingBalance);
     }
-
     @Override
     @Transactional
     public CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, CheckoutRequestDto request) {
         ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber);
+        return cancelCheckoutForBooking(booking, request);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutCompletionResponseDto cancelCheckout(String confirmationNumber, Long bookingId,
+                                                        CheckoutRequestDto request) {
+        ReservationBookingRecord booking = getBookingOrThrow(confirmationNumber, bookingId);
+        return cancelCheckoutForBooking(booking, request);
+    }
+
+    private CheckoutCompletionResponseDto cancelCheckoutForBooking(ReservationBookingRecord booking,
+                                                                    CheckoutRequestDto request) {
 
         if (!STATUS_CHECKED_OUT.equalsIgnoreCase(booking.getReservationStatus())) {
             throw new BadRequestException("Only a checked-out reservation can have its check-out cancelled");
@@ -71,24 +146,52 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
 
         updateRoomStatus(booking, request, true);
         appendAudit(booking, "CHECKOUT_CANCELLED", "Check-out cancelled; guest re-checked in and room marked occupied", request.getActor());
-        return toResponse(booking);
+        return toResponse(booking, booking.getGuestBalance());
     }
 
     private ReservationBookingRecord getBookingOrThrow(String confirmationNumber) {
-        return reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        List<ReservationBookingRecord> bookings = reservationBookingRepository
+            .findByConfirmationNumber(confirmationNumber);
+        if (bookings.size() > 1) {
+            throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+        }
+        return bookings.stream().findFirst()
+            .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+    }
+
+    private ReservationBookingRecord getBookingOrThrow(String confirmationNumber, Long bookingId) {
+        return reservationBookingRepository.findByIdAndConfirmationNumber(bookingId, confirmationNumber)
+                .orElseThrow(() -> new BadRequestException("Reservation room booking not found"));
     }
 
     private void updateRoomStatus(ReservationBookingRecord booking, CheckoutRequestDto request, boolean occupied) {
-        HousekeepingRoomStatusRequestDto housekeepingRequest = new HousekeepingRoomStatusRequestDto();
-        housekeepingRequest.setPropertyId(booking.getPropertyId());
-        housekeepingRequest.setBusinessDate(request.getBusinessDate());
-        housekeepingRequest.setConfirmationNumber(booking.getConfirmationNumber());
-        housekeepingRequest.setRoomNo(booking.getAssignedRoomNo());
-        if (occupied) {
-            housekeepingRoomStatusService.markOccupied(housekeepingRequest);
-        } else {
-            housekeepingRoomStatusService.markDirty(housekeepingRequest);
+        if (booking.getAssignedRoomNo() == null) {
+            return;
+        }
+        try {
+            UUID propertyId = UUID.fromString(booking.getPropertyId());
+            if (occupied) {
+                housekeepingRoomStatusClient.updateCheckedInStatus(
+                        propertyId,
+                        request.getBusinessDate(),
+                        booking.getArrivalDate(),
+                        booking.getDepartureDate(),
+                        booking.getAssignedRoomNo(),
+                        booking.getGuestName(),
+                        booking.getConfirmationNumber()
+                );
+            } else {
+                housekeepingRoomStatusClient.markRoomDirty(
+                        propertyId,
+                        request.getBusinessDate(),
+                        booking.getArrivalDate(),
+                        booking.getDepartureDate(),
+                        booking.getAssignedRoomNo()
+                );
+            }
+        } catch (IllegalArgumentException ex) {
+            log.warn("Skipping housekeeping room status update for confirmation {} because propertyId is not a UUID: {}",
+                    booking.getConfirmationNumber(), booking.getPropertyId());
         }
     }
 
@@ -99,13 +202,12 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 .propertyId(booking.getPropertyId())
                 .eventType(eventType)
                 .eventMessage(message)
-                .changedFields("reservationStatus, roomOccupancy")
+                .changedFields("reservationStatus, roomOccupancy, departureDate, totalRate")
                 .actor(StringUtils.hasText(actor) ? actor.trim() : "system")
-                .createdAt(LocalDateTime.now())
                 .build());
     }
 
-    private CheckoutCompletionResponseDto toResponse(ReservationBookingRecord booking) {
+    private CheckoutCompletionResponseDto toResponse(ReservationBookingRecord booking, BigDecimal outstandingBalance) {
         return CheckoutCompletionResponseDto.builder()
                 .bookingId(booking.getId())
                 .confirmationNumber(booking.getConfirmationNumber())
@@ -113,6 +215,7 @@ public class ReservationCheckoutServiceImpl implements ReservationCheckoutServic
                 .businessDate(booking.getCheckOutBusinessDate())
                 .checkOutCompletedAt(booking.getCheckOutCompletedAt())
                 .checkOutCompletedBy(booking.getCheckOutCompletedBy())
+                .updatedGuestBalance(outstandingBalance)
                 .build();
     }
 }

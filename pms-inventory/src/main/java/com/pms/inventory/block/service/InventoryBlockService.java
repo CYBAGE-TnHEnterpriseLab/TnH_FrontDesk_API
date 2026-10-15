@@ -12,7 +12,6 @@ import com.pms.inventory.inventory.service.InventoryService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -42,7 +41,6 @@ public class InventoryBlockService {
         );
         inventoryService.increaseBlocked(rows, request.quantity());
 
-        LocalDateTime now = LocalDateTime.now();
         InventoryBlock block = InventoryBlock.builder()
                 .propertyId(request.propertyId())
                 .roomTypeId(request.roomTypeId())
@@ -51,8 +49,6 @@ public class InventoryBlockService {
                 .quantity(request.quantity())
                 .reason(request.reason())
                 .status(InventoryBlockStatus.ACTIVE)
-                .createdAt(now)
-                .updatedAt(now)
                 .build();
 
         return blockMapper.toResponse(blockRepository.save(block), false);
@@ -76,7 +72,6 @@ public class InventoryBlockService {
         inventoryService.decreaseBlocked(rows, activeBlock.getQuantity());
 
         activeBlock.setStatus(InventoryBlockStatus.RELEASED);
-        activeBlock.setUpdatedAt(LocalDateTime.now());
 
         return blockMapper.toResponse(activeBlock, false);
     }

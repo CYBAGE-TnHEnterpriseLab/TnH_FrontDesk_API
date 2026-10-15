@@ -1,4 +1,4 @@
-package com.pms.property.domain.content.service;
+package com.pms.property.domain.content.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
@@ -9,6 +9,8 @@ import com.pms.property.domain.content.entity.PropertyOverviewEntity;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
 import com.pms.property.domain.content.repository.PropertyOverviewRepository;
+import com.pms.property.domain.content.service.ContentService;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;

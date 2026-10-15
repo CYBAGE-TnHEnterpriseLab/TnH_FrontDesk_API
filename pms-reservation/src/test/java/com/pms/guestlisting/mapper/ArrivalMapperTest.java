@@ -24,7 +24,7 @@ class ArrivalMapperTest {
         source.setRoomNights(7);
         source.setBalance(new BigDecimal("123.45"));
 
-        ArrivalRecord record = mapper.toEntity(source, "PROP001", LocalDate.of(2026, 6, 3));
+        ArrivalRecord record = mapper.toEntity(source, "7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3));
 
         assertThat(record.getStatus()).isEqualTo("DNM");
         assertThat(record.getRoomNights()).isEqualTo(7);
@@ -40,7 +40,7 @@ class ArrivalMapperTest {
         source.setCheckInDate(LocalDate.of(2026, 6, 3));
         source.setCheckOutDate(LocalDate.of(2026, 6, 6));
 
-        ArrivalRecord record = mapper.toEntity(source, "PROP001", LocalDate.of(2026, 6, 3));
+        ArrivalRecord record = mapper.toEntity(source, "7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3));
 
         assertThat(record.getRoomNights()).isEqualTo(3);
     }
@@ -52,7 +52,7 @@ class ArrivalMapperTest {
         source.setLastName("Smith");
         source.setConfirmationNumber("CNF-1001");
 
-        ArrivalRecord record = mapper.toEntity(source, "PROP001", LocalDate.of(2026, 6, 3));
+        ArrivalRecord record = mapper.toEntity(source, "7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3));
 
         assertThat(record.getRoomNights()).isEqualTo(1);
     }
@@ -66,7 +66,7 @@ class ArrivalMapperTest {
         source.setCheckInDate(LocalDate.of(2026, 6, 6));
         source.setCheckOutDate(LocalDate.of(2026, 6, 5));
 
-        ArrivalRecord record = mapper.toEntity(source, "PROP001", LocalDate.of(2026, 6, 6));
+        ArrivalRecord record = mapper.toEntity(source, "7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 6));
 
         assertThat(record.getRoomNights()).isEqualTo(1);
     }
@@ -123,7 +123,7 @@ class ArrivalMapperTest {
     void toResponseShouldMapAllFields() {
         ArrivalRecord source = ArrivalRecord.builder()
                 .id(1L)
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .status("DNM")
                 .salutation("Mr.")
                 .firstName("John")
@@ -149,7 +149,7 @@ class ArrivalMapperTest {
         var response = mapper.toResponse(source);
 
         assertThat(response.getId()).isEqualTo(1L);
-        assertThat(response.getPropertyId()).isEqualTo("PROP001");
+        assertThat(response.getPropertyId()).isEqualTo("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         assertThat(response.getStatus()).isEqualTo("DNM");
         assertThat(response.getSalutation()).isEqualTo("Mr.");
         assertThat(response.getFirstName()).isEqualTo("John");

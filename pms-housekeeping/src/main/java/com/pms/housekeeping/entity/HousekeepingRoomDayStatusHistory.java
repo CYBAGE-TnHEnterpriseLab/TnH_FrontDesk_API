@@ -14,10 +14,12 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
+
+import com.pms.common.entity.BaseEntity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -30,15 +32,15 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class HousekeepingRoomDayStatusHistory {
+@SuperBuilder
+public class HousekeepingRoomDayStatusHistory extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    @Column(name = "property_id", nullable = false, length = 36)
+    private String propertyId;
 
     @Column(name = "business_date", nullable = false)
     private LocalDate businessDate;

@@ -17,7 +17,7 @@ public interface RateManagementPort {
             String roomType,
             Long roomTypeId,
             Integer adultCount,
-            Integer childCount
+            Integer childAbove5Count
     );
 
     List<RateManagementPlanDto> listRatePlans(String propertyId);

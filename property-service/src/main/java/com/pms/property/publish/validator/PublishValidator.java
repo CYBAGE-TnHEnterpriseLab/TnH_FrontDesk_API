@@ -339,6 +339,10 @@ public class PublishValidator {
                 throw new BadRequestException("accountCode is required in chartOfAccounts");
             }
 
+            if (!accountCodes.add(accountCode)) {
+                throw new BadRequestException("Duplicate accountCode in chartOfAccounts: " + accountCode);
+            }
+
             String accountName = account.path("accountName").asText().trim();
             if (accountName.isBlank()) {
                 throw new BadRequestException("accountName is required in chartOfAccounts");
@@ -357,8 +361,6 @@ public class PublishValidator {
             if (account.path("active").isMissingNode() || account.path("active").isNull()) {
                 throw new BadRequestException("active is required in chartOfAccounts");
             }
-
-            accountCodes.add(accountCode);
         }
 
         for (JsonNode mapping : revenueMappings) {

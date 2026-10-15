@@ -1,4 +1,4 @@
-package com.pms.property.domain.payment.service;
+package com.pms.property.domain.payment.service.serviceImpl;
 
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.payment.dto.PaymentMethodRequest;
@@ -6,6 +6,8 @@ import com.pms.property.domain.payment.dto.PaymentMethodResponse;
 import com.pms.property.domain.payment.dto.PaymentSummaryResponse;
 import com.pms.property.domain.payment.entity.PaymentMethodEntity;
 import com.pms.property.domain.payment.repository.PaymentMethodRepository;
+import com.pms.property.domain.payment.service.PaymentService;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;

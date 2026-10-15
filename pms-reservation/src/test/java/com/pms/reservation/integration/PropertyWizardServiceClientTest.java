@@ -9,12 +9,9 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
-import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
-import com.pms.reservation.integration.dto.PropertyRoomInventoryDto;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,120 +50,6 @@ class PropertyWizardServiceClientTest {
     }
 
     @Test
-        void validateInventoryShouldForwardAuthorizationHeaderAndParseWrappedData() {
-        withAuthorizationHeader("Bearer validate-token");
-        when(properties.getBaseUrl()).thenReturn("http://localhost:8082");
-        when(properties.getInventoryValidationPath()).thenReturn("/api/v1/property-wizard/inventory/validate");
-
-        when(restTemplate.exchange(
-            anyString(),
-            eq(HttpMethod.GET),
-            any(HttpEntity.class),
-            eq(String.class)
-        )).thenReturn(ResponseEntity.ok(
-            "{\"success\":true,\"data\":{\"propertyExists\":true,\"roomTypeAvailable\":true,\"availableRooms\":5},\"message\":\"ok\"}"
-        ));
-
-        PropertyInventoryValidationResponse validation = client.validateInventory("PROP001", "Deluxe King", 2);
-
-        assertThat(validation.getPropertyExists()).isTrue();
-        assertThat(validation.getRoomTypeAvailable()).isTrue();
-        assertThat(validation.getAvailableRooms()).isEqualTo(5);
-
-        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).exchange(
-            anyString(),
-            eq(HttpMethod.GET),
-            entityCaptor.capture(),
-            eq(String.class)
-        );
-
-        String authorization = entityCaptor.getValue().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        assertThat(authorization).isEqualTo("Bearer validate-token");
-        }
-
-        @Test
-        void fetchLiveInventoryShouldForwardAuthorizationHeaderAndParseWrappedData() {
-        withAuthorizationHeader("Bearer test-token");
-        when(properties.getBaseUrl()).thenReturn("http://localhost:8082");
-        when(properties.getInventoryAvailabilityPath()).thenReturn("/api/rooms/properties/{propertyId}/inventory-rooms");
-
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.GET),
-                any(HttpEntity.class),
-            eq(String.class)
-        )).thenReturn(ResponseEntity.ok(
-            "{\"success\":true,\"data\":[{\"roomType\":\"Deluxe King\",\"occupancy\":\"2 Adults\",\"availableRooms\":4}],\"message\":\"ok\"}"
-        ));
-
-        var inventory = client.fetchLiveInventory(
-                "PROP001",
-                LocalDate.of(2026, 7, 14),
-                LocalDate.of(2026, 7, 16),
-                null
-        );
-
-        assertThat(inventory).hasSize(1);
-        assertThat(inventory.get(0).getRoomType()).isEqualTo("Deluxe King");
-        assertThat(inventory.get(0).getAvailableRooms()).isEqualTo(4);
-
-        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).exchange(
-                anyString(),
-                eq(HttpMethod.GET),
-                entityCaptor.capture(),
-            eq(String.class)
-        );
-
-        String authorization = entityCaptor.getValue().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        assertThat(authorization).isEqualTo("Bearer test-token");
-    }
-
-    @Test
-    void fetchLiveInventoryShouldAggregateRoomLevelPayloadByRoomType() {
-        when(properties.getBaseUrl()).thenReturn("http://localhost:8082");
-        when(properties.getInventoryAvailabilityPath()).thenReturn("/api/rooms/properties/{propertyId}/inventory-rooms");
-
-        when(restTemplate.exchange(
-                anyString(),
-                eq(HttpMethod.GET),
-                any(HttpEntity.class),
-                eq(String.class)
-        )).thenReturn(ResponseEntity.ok(
-            "{\"success\":true,\"data\":["
-                + "{\"id\":141,\"roomTypeName\":\"DLX\",\"roomNumber\":\"101\"},"
-                + "{\"id\":142,\"roomTypeName\":\"DLX\",\"roomNumber\":\"102\"},"
-                + "{\"id\":151,\"roomTypeName\":\"KNG\",\"roomNumber\":\"111\"}"
-                + "],\"message\":\"ok\"}"
-        ));
-
-        var inventory = client.fetchLiveInventory(
-                "PROP001",
-                LocalDate.of(2026, 7, 14),
-                LocalDate.of(2026, 7, 16),
-                null
-        );
-
-        assertThat(inventory).hasSize(2);
-        assertThat(inventory)
-            .extracting(PropertyRoomInventoryDto::getRoomType)
-            .containsExactlyInAnyOrder("DLX", "KNG");
-
-        PropertyRoomInventoryDto dlxInventory = inventory.stream()
-            .filter(item -> "DLX".equals(item.getRoomType()))
-            .findFirst()
-            .orElseThrow();
-        PropertyRoomInventoryDto kngInventory = inventory.stream()
-            .filter(item -> "KNG".equals(item.getRoomType()))
-            .findFirst()
-            .orElseThrow();
-
-        assertThat(dlxInventory.getAvailableRooms()).isEqualTo(2);
-        assertThat(kngInventory.getAvailableRooms()).isEqualTo(1);
-    }
-
-    @Test
         void fetchTaxRulesShouldForwardAuthorizationHeaderAndParseWrappedData() {
         withAuthorizationHeader("Bearer tax-token");
         when(properties.getBaseUrl()).thenReturn("http://localhost:8082");
@@ -181,7 +64,7 @@ class PropertyWizardServiceClientTest {
             "{\"success\":true,\"data\":[{\"roomType\":\"Deluxe King\",\"taxPercentage\":18,\"active\":true}],\"message\":\"ok\"}"
         ));
 
-        var taxRules = client.fetchTaxRules("PROP001");
+        var taxRules = client.fetchTaxRules("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
 
         assertThat(taxRules).hasSize(1);
         assertThat(taxRules.get(0).getRoomType()).isEqualTo("Deluxe King");
@@ -215,7 +98,7 @@ class PropertyWizardServiceClientTest {
             "{\"success\":true,\"data\":[{\"id\":28,\"roomCode\":\"KNG\",\"roomName\":\"King\"}],\"message\":\"ok\"}"
         ));
 
-        var outletTypes = client.fetchRoomOutletTypes("PROP001");
+        var outletTypes = client.fetchRoomOutletTypes("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
 
         assertThat(outletTypes).hasSize(1);
         PropertyRoomOutletTypeDto item = outletTypes.get(0);

@@ -7,22 +7,33 @@ import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.constant.PaymentModes;
 import com.pms.reservation.constant.PaymentTypes;
+import com.pms.reservation.constant.IdTypes;
 import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
+import com.pms.reservation.dto.ReservationGuestRequestDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
+import com.pms.reservation.dto.HousekeepingSyncResponse;
+import com.pms.reservation.dto.ReservationRoomBookingSummaryDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.PropertyInventoryPort;
-import com.pms.reservation.integration.dto.InventoryDeductionRequest;
-import com.pms.reservation.integration.dto.InventorySyncRequest;
-import com.pms.reservation.integration.dto.PropertyInventoryValidationResponse;
+import com.pms.reservation.integration.InventoryServiceClient;
+import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
+import com.pms.reservation.integration.HousekeepingRoomStatusClient;
+import com.pms.reservation.integration.FolioServiceClient;
+import com.pms.reservation.integration.dto.InventoryReservationRequest;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
 import com.pms.reservation.service.PaymentProcessingService;
 import com.pms.reservation.service.ReservationBookingService;
+import com.pms.reservation.util.BillableNights;
+import com.pms.reservation.service.ReservationGuestResolver;
+import com.pms.reservation.service.ReservationGuestService;
+import com.pms.reservation.service.ResolvedReservationGuest;
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -32,20 +43,24 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReservationBookingServiceImpl implements ReservationBookingService {
 
     private static final String RESERVATION_STATUS_CONFIRMED = "CONFIRMED";
@@ -64,9 +79,16 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final ReservationPaymentTransactionRepository reservationPaymentTransactionRepository;
     private final HousekeepingRoomStatusRepository housekeepingRoomStatusRepository;
     private final PropertyInventoryPort propertyInventoryPort;
+    private final InventoryServiceClient inventoryServiceClient;
     private final PropertyWizardServiceProperties propertyWizardServiceProperties;
     private final ReservationBookingMapper reservationBookingMapper;
+    private final ReservationGuestResolver reservationGuestResolver;
+    private final ReservationGuestService reservationGuestService;
     private final PaymentProcessingService paymentProcessingService;
+    private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
+    private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
+    private final FolioServiceClient folioServiceClient;
+
 
     @Override
     @Transactional
@@ -76,92 +98,663 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         validateDates(request.getArrivalDate(), request.getDepartureDate());
         validateRequiredContactFields(request);
         validateRoomSelectionAndGuestNames(request);
+        List<ResolvedReservationGuest> resolvedGuests = reservationGuestResolver.resolveGuests(
+                request.getPropertyId(),
+                request.getGuests()
+        );
         validateAndNormalizePaymentMode(request);
         validateAndNormalizePaymentType(request);
-        String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
-        LocalDateTime inventoryDeductedAt = null;
-        LocalDateTime inventorySyncedAt = null;
-
-        if (propertyWizardServiceProperties.isEnabled()) {
-            validatePropertyAndInventory(request);
-        }
-
-        BigDecimal payableAmount = calculatePayableAmount(request);
-        PaymentProcessingResult paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
-        if (!PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(paymentResult.getStatus())) {
-            String failureReason = paymentResult.getFailureReason() == null
-                    ? "payment processing failed"
-                    : paymentResult.getFailureReason();
-            throw new BadRequestException("payment processing failed: " + failureReason);
-        }
-
-        if (propertyWizardServiceProperties.isEnabled()) {
-            try {
-                propertyInventoryPort.deductInventory(buildInventoryDeductionRequest(request, confirmationNumber));
-                inventoryDeductedAt = LocalDateTime.now();
-
-                propertyInventoryPort.syncInventory(buildInventorySyncRequest(request, confirmationNumber));
-                inventorySyncedAt = LocalDateTime.now();
-            } catch (ExternalServiceException ex) {
-                if (!propertyWizardServiceProperties.isFailOpenOnWriteError()) {
-                    throw ex;
-                }
+        if (StringUtils.hasText(request.getAssignedRoomNo())
+                && StringUtils.hasText(request.getGuestName())
+                && request.getArrivalDate() != null
+                && request.getDepartureDate() != null) {
+            boolean duplicate = reservationBookingRepository.existsActiveBookingForGuestRoomAndDates(
+                    request.getPropertyId(),
+                    request.getGuestName().trim(),
+                    request.getAssignedRoomNo().trim(),
+                    request.getArrivalDate(),
+                    request.getDepartureDate()
+            );
+            if (duplicate) {
+                throw new BadRequestException(
+                        "An active booking already exists for this guest in room "
+                                + request.getAssignedRoomNo().trim()
+                                + " from " + request.getArrivalDate()
+                                + " to " + request.getDepartureDate()
+                                + ". Use the edit option to update the existing booking.");
             }
         }
 
-        ReservationBookingRecord entity = reservationBookingMapper.toEntity(request);
-        applyPropertyTaxOnBooking(entity);
-        entity.setConfirmationNumber(confirmationNumber);
-        entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
-        entity.setInventoryDeductedAt(inventoryDeductedAt);
-        entity.setInventorySyncedAt(inventorySyncedAt);
+        int roomCount = request.getNumberOfRooms();
+        String confirmationNumber = generateConfirmationNumber(request.getPropertyId());
 
-        ReservationBookingRecord saved = reservationBookingRepository.save(entity);
-        ReservationPaymentTransactionRecord savedPaymentTransaction = reservationPaymentTransactionRepository
-            .save(buildPaymentTransaction(saved, request, payableAmount, paymentResult));
-        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction);
+        String roomTypeId = resolveRoomTypeId(request.getPropertyId(), request.getRoomType());
+        InventoryReservationRequest inventoryRequest = InventoryReservationRequest.builder()
+            .confirmationNumber(confirmationNumber)
+            .propertyId(request.getPropertyId())
+            .bookedRoomTypeId(roomTypeId)
+            .assignedRoomTypeId(roomTypeId)
+            .checkInDate(request.getArrivalDate())
+            .checkOutDate(request.getDepartureDate())
+            .quantity(request.getNumberOfRooms())
+            .build();
+        inventoryServiceClient.reserve(inventoryRequest);
+
+        BigDecimal payableAmount = calculatePayableAmount(request);
+
+        // A FULL_PAYMENT booking collects the whole stay up front and leaves no outstanding balance.
+        // Every other booking is pay-at-hotel: nothing is collected at booking time, so the full
+        // payable amount stays as the guest balance until a folio payment settles it.
+        boolean collectAtBooking = PaymentTypes.FULL_PAYMENT.equalsIgnoreCase(request.getPaymentType());
+        PaymentProcessingResult paymentResult = null;
+        BigDecimal amountPaid = BigDecimal.ZERO;
+        if (collectAtBooking) {
+            paymentResult = paymentProcessingService.processPayment(request, confirmationNumber, payableAmount);
+            if (paymentResult == null || !PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(paymentResult.getStatus())) {
+                String failureReason = paymentResult == null || paymentResult.getFailureReason() == null
+                        ? "payment processing failed"
+                        : paymentResult.getFailureReason();
+                inventoryServiceClient.release(confirmationNumber);
+                throw new BadRequestException("payment processing failed: " + failureReason);
+            }
+            amountPaid = paymentResult.getAmount() == null ? payableAmount : paymentResult.getAmount();
+        }
+
+        List<String> roomGuestNames = request.getGuestNames();
+        String assignedLoyaltyNumber = primaryGuestLoyaltyNumber(resolvedGuests);
+        List<ReservationBookingRecord> savedBookings = new ArrayList<>();
+        for (int roomIndex = 0; roomIndex < roomCount; roomIndex++) {
+            ReservationBookingRequestDto roomRequest = requestForRoom(
+                    request, roomGuestNames.get(roomIndex), roomCount > 1);
+            ReservationBookingRecord entity = reservationBookingMapper.toEntity(roomRequest);
+            if (StringUtils.hasText(assignedLoyaltyNumber)) {
+                entity.setLoyaltyNumber(assignedLoyaltyNumber);
+            }
+            populateRoomFloor(entity);
+            applyPropertyTaxOnBooking(entity);
+            entity.setConfirmationNumber(confirmationNumber);
+            entity.setReservationStatus(RESERVATION_STATUS_CONFIRMED);
+            entity.setOriginalDepartureDate(request.getDepartureDate());
+            entity.setInventoryDeductedAt(LocalDateTime.now());
+            entity.setInventorySyncedAt(LocalDateTime.now());
+            entity.setGuestBalance(roomOutstandingBalance(roomRequest, roomCount, amountPaid));
+            savedBookings.add(reservationBookingRepository.save(entity));
+        }
+
+        try {
+            for (ReservationBookingRecord savedBooking : savedBookings) {
+                reservationGuestService.assignResolvedGuests(savedBooking.getId(), resolvedGuests);
+            }
+        } catch (RuntimeException assignmentFailure) {
+            compensateFailedBooking(
+                    request,
+                    confirmationNumber,
+                    payableAmount,
+                    paymentResult,
+                    assignmentFailure
+            );
+            throw assignmentFailure;
+        }
+
+        ReservationBookingRecord saved = savedBookings.get(0);
+        ReservationPaymentTransactionRecord savedPaymentTransaction = paymentResult == null
+                ? null
+                : reservationPaymentTransactionRepository.save(
+                        buildPaymentTransaction(saved, request, payableAmount, paymentResult));
+        savedBookings.forEach(this::updateStandaloneHousekeeping);
+
+        return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
+                .roomBookings(toRoomBookingSummaries(savedBookings))
+                .build();
+    }
+
+    /**
+     * The loyalty number carried by the primary guest after resolution, so a guest enrolled during this
+     * booking reports the membership number assigned to them. Returns null when the primary guest is not
+     * a member, leaving the caller-supplied loyalty number untouched.
+     */
+    private String primaryGuestLoyaltyNumber(List<ResolvedReservationGuest> resolvedGuests) {
+        return resolvedGuests.stream()
+                .filter(guest -> Boolean.TRUE.equals(guest.isPrimary()))
+                .map(ResolvedReservationGuest::loyaltyNumber)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void compensateFailedBooking(
+            ReservationBookingRequestDto request,
+            String confirmationNumber,
+            BigDecimal payableAmount,
+            PaymentProcessingResult paymentResult,
+            RuntimeException assignmentFailure
+    ) {
+        try {
+            inventoryServiceClient.release(confirmationNumber);
+        } catch (RuntimeException compensationFailure) {
+            assignmentFailure.addSuppressed(compensationFailure);
+            log.error("Failed to release inventory after guest assignment failure for confirmation {}",
+                    confirmationNumber, compensationFailure);
+        }
+
+        try {
+            paymentProcessingService.compensatePayment(
+                    request,
+                    confirmationNumber,
+                    payableAmount,
+                    paymentResult
+            );
+        } catch (RuntimeException compensationFailure) {
+            assignmentFailure.addSuppressed(compensationFailure);
+            log.error("Failed to compensate payment after guest assignment failure for confirmation {}",
+                    confirmationNumber, compensationFailure);
+        }
+    }
+
+private ReservationBookingRequestDto requestForRoom(
+        ReservationBookingRequestDto source,
+        String guestName,
+        boolean clearAssignedRoom
+) {
+    ReservationBookingRequestDto copy = new ReservationBookingRequestDto();
+    org.springframework.beans.BeanUtils.copyProperties(source, copy);
+
+    copy.setGuestName(guestName);
+    copy.setGuestNames(List.of(guestName));
+    copy.setNumberOfRooms(1);
+    if (clearAssignedRoom) {
+        copy.setAssignedRoomNo(null);
+        copy.setFloor(null);
+    }
+    return copy;
+}
+
+    @Override
+    public HousekeepingSyncResponse syncHousekeepingStatuses() {
+        int processed = 0;
+        int updated = 0;
+        int skipped = 0;
+        int failed = 0;
+        for (ReservationBookingRecord booking : reservationBookingRepository.findAll()) {
+            boolean confirmed = RESERVATION_STATUS_CONFIRMED.equalsIgnoreCase(booking.getReservationStatus());
+            boolean checkedIn = STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus());
+            if ((!confirmed && !checkedIn)
+                    || !StringUtils.hasText(booking.getAssignedRoomNo())) {
+                skipped++;
+                continue;
+            }
+            processed++;
+            try {
+                String propertyId = booking.getPropertyId();
+                if (checkedIn) {
+                    housekeepingRoomStatusClient.updateCheckedInStay(UUID.fromString(propertyId), booking.getArrivalDate(),
+                            booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                            booking.getConfirmationNumber());
+                } else {
+                    housekeepingRoomStatusClient.updateReservationStay(UUID.fromString(propertyId), booking.getArrivalDate(),
+                            booking.getDepartureDate(), booking.getAssignedRoomNo(), booking.getGuestName(),
+                            booking.getConfirmationNumber());
+                }
+                updated++;
+            } catch (ExternalServiceException ex) {
+                failed++;
+                log.warn("Housekeeping sync failed for confirmation {}", booking.getConfirmationNumber(), ex);
+            }
+        }
+        return new HousekeepingSyncResponse(processed, updated, skipped, failed);
+    }
+
+    private void updateStandaloneHousekeeping(ReservationBookingRecord booking) {
+        if (!StringUtils.hasText(booking.getAssignedRoomNo())) {
+            return;
+        }
+        try {
+            String propertyId = booking.getPropertyId();
+            if (STATUS_CHECKED_IN.equalsIgnoreCase(booking.getReservationStatus())) {
+                housekeepingRoomStatusClient.updateCheckedInStay(
+                        UUID.fromString(propertyId), booking.getArrivalDate(), booking.getDepartureDate(),
+                        booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
+            } else {
+                housekeepingRoomStatusClient.updateReservationStay(
+                        UUID.fromString(propertyId), booking.getArrivalDate(), booking.getDepartureDate(),
+                        booking.getAssignedRoomNo(), booking.getGuestName(), booking.getConfirmationNumber());
+            }
+
+        } catch (IllegalArgumentException ex) {
+            throw new ExternalServiceException(
+                    "Cannot synchronize the assigned room with Housekeeping because propertyId is not a UUID: "
+                            + booking.getPropertyId(), ex);
+
+        } catch (ExternalServiceException ex) {
+            throw ex;
+        }
+    }
+
+    private void populateRoomFloor(ReservationBookingRecord booking) {
+        if (!StringUtils.hasText(booking.getAssignedRoomNo())) {
+            booking.setFloor(null);
+            return;
+        }
+        booking.setFloor(housekeepingRoomCalendarClient.findRoomFloor(
+            booking.getPropertyId(),
+            booking.getAssignedRoomNo(),
+            booking.getArrivalDate(),
+            booking.getDepartureDate()));
     }
 
     @Override
     @Transactional
     public ReservationViewResponseDto updateBooking(String confirmationNumber, ReservationBookingRequestDto request) {
-        normalizeCreateRequest(request);
-        validatePhoneNumberFormat(request.getPhoneNumber());
-        validateDates(request.getArrivalDate(), request.getDepartureDate());
-        validateRequiredContactFields(request);
-        validateRoomSelectionAndGuestNames(request);
+        return updateBooking(confirmationNumber, null, request);
+    }
 
-        ReservationBookingRecord existing = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
-            .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+    private ReservationBookingRecord fetchExistingBooking(String confirmationNumber, Long bookingId) {
+        if (bookingId == null) {
+            List<ReservationBookingRecord> matches = reservationBookingRepository
+                .findByConfirmationNumber(confirmationNumber);
+            if (matches.size() > 1) {
+                throw new BadRequestException("bookingId is required when a confirmation has multiple rooms");
+            }
+            return matches.stream().findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        }
+        return reservationBookingRepository.findByIdAndConfirmationNumber(bookingId, confirmationNumber)
+            .orElseThrow(() -> new BadRequestException("Reservation room booking not found"));
+    }
 
-        if (STATUS_CHECKED_OUT.equalsIgnoreCase(existing.getReservationStatus())) {
+    @Override
+    @Transactional
+    public ReservationViewResponseDto updateBooking(
+            String confirmationNumber,
+            Long bookingId,
+            ReservationBookingRequestDto request
+    ) {
+        ReservationBookingRecord existing = fetchExistingBooking(confirmationNumber, bookingId);
+
+        if (request.getPhoneNumber() != null) {
+            validatePhoneNumberFormat(request.getPhoneNumber());
+        }
+
+        if (request.getArrivalDate() != null || request.getDepartureDate() != null) {
+            LocalDate arrival = request.getArrivalDate() != null ? request.getArrivalDate() : existing.getArrivalDate();
+            LocalDate departure = request.getDepartureDate() != null ? request.getDepartureDate() : existing.getDepartureDate();
+            validateDates(arrival, departure);
+        }
+
+        if (request.getGuestNames() != null) {
+            validateRoomSelectionAndGuestNames(request);
+        }
+
+        String previousRoomNumber = existing.getAssignedRoomNo();
+        LocalDate previousArrivalDate = existing.getArrivalDate();
+        LocalDate previousDepartureDate = existing.getDepartureDate();
+        String previousRoomTypeId = resolveRoomTypeId(existing.getPropertyId(), existing.getRoomType());
+        BigDecimal originalTotalRate = existing.getTotalRate() != null ? existing.getTotalRate() : BigDecimal.ZERO;
+        BigDecimal originalGuestBalance = existing.getGuestBalance() != null ? existing.getGuestBalance() : BigDecimal.ZERO;
+
+        ReservationBookingRecord updated = reservationBookingMapper.mergeEntity(existing, request);
+
+        boolean checkedIn = existing.getCheckInCompletedAt() != null;
+        boolean departureChanged = request.getDepartureDate() != null
+                && !request.getDepartureDate().equals(existing.getDepartureDate());
+        if (!checkedIn && departureChanged) {
+            updated.setOriginalDepartureDate(request.getDepartureDate());
+        }
+
+        if (request.getAssignedRoomNo() != null && !Boolean.TRUE.equals(existing.getDnm())) {
+            updated.setAssignedRoomNo(request.getAssignedRoomNo().trim());
+            populateRoomFloor(updated);
+        }
+
+        applyPropertyTaxOnBooking(updated);
+
+        if (STATUS_CHECKED_OUT.equalsIgnoreCase(updated.getReservationStatus())) {
             throw new BadRequestException("Checked-out reservations cannot be changed. Cancel the same-day check-out to re-check in the guest first");
         }
 
-        request.setPayment(existing.getPayment());
-        request.setPaymentType(existing.getPaymentType());
+        validateDnmRoomLock(existing, request);
 
-        if (propertyWizardServiceProperties.isEnabled()) {
-            validatePropertyAndInventory(request);
+        boolean roomNumberChanged = roomNumberChanged(previousRoomNumber, updated.getAssignedRoomNo());
+        if (roomNumberChanged) {
+            String assignedRoomTypeId = resolveAssignedRoomTypeId(
+                existing.getPropertyId(), updated.getAssignedRoomNo(), updated.getArrivalDate(), updated.getDepartureDate());
+            if (assignedRoomTypeId == null) {
+                throw new BadRequestException(
+                        "The newly assigned room is not available in Housekeeping for the selected stay dates");
+            }
+            if (!assignedRoomTypeId.equals(previousRoomTypeId)) {
+                inventoryServiceClient.changeAssignedRoomType(existing.getConfirmationNumber(), assignedRoomTypeId);
+            }
         }
 
-        ReservationBookingRecord updated = reservationBookingMapper.toEntity(request);
-        preserveSystemFields(existing, updated);
-        applyPropertyTaxOnBooking(updated);
-
         ReservationBookingRecord saved = reservationBookingRepository.save(updated);
+        boolean departureShortened = departureDateShortened(previousDepartureDate, saved.getDepartureDate());
+        boolean departureExtended = previousDepartureDate != null && saved.getDepartureDate() != null
+                && saved.getDepartureDate().isAfter(previousDepartureDate);
+
+        if (roomNumberChanged) {
+            clearPreviousHousekeepingStay(
+                    existing.getPropertyId(),
+                    existing.getConfirmationNumber(),
+                    previousRoomNumber,
+                    previousArrivalDate,
+                    previousDepartureDate);
+        }
+
+        boolean needHousekeepingUpdate = roomNumberChanged || (!departureShortened && departureExtended);
+        if (needHousekeepingUpdate && StringUtils.hasText(saved.getAssignedRoomNo())) {
+            updateStandaloneHousekeeping(saved);
+        }
+
+        if (departureShortened) {
+            handleShortenedDeparture(
+                    existing.getPropertyId(),
+                    existing.getConfirmationNumber(),
+                    saved.getAssignedRoomNo(),
+                    previousArrivalDate,
+                    previousDepartureDate,
+                    saved.getDepartureDate(),
+                    saved.getRoomType(),
+                    saved.getNumberOfRooms());
+        } else if (departureExtended) {
+            handleExtendedDeparture(
+                    existing.getPropertyId(), existing.getConfirmationNumber(), saved,
+                    previousDepartureDate);
+        }
+
+        if (departureShortened || departureExtended) {
+            boolean folioAdjusted = false;
+            try {
+                folioServiceClient.adjustReservationCharge(
+                        saved.getConfirmationNumber(),
+                        saved.getId(),
+                        originalTotalRate,
+                        saved.getTotalRate(),
+                        "reservation-service"
+                );
+                folioAdjusted = true;
+            } catch (Exception ex) {
+                log.warn("Folio adjustment failed for confirmationNumber={} bookingId={}",
+                        saved.getConfirmationNumber(), saved.getId(), ex);
+            }
+
+            saved.setGuestBalance(resolveGuestBalanceAfterRateChange(
+                    saved, originalTotalRate, originalGuestBalance, folioAdjusted));
+            reservationBookingRepository.save(saved);
+        }
+
         Optional<ReservationPaymentTransactionRecord> latestTransaction =
             reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(existing.getId());
         return buildReservationViewResponse(saved, latestTransaction.orElse(null));
     }
 
+    private boolean roomNumberChanged(String previousRoomNumber, String newRoomNumber) {
+        String previous = previousRoomNumber == null ? "" : previousRoomNumber.trim();
+        String current = newRoomNumber == null ? "" : newRoomNumber.trim();
+        return !previous.equalsIgnoreCase(current);
+    }
+
+    /**
+     * After a stay-length change the guest balance must follow the folio for this specific room.
+     * For multi-room bookings each room has its own folio, so the balance is resolved by bookingId
+     * and only falls back to the locally derived value when the folio could not be reached.
+     *
+     * The locally derived value is authoritative when the folio is unavailable: extending the stay
+     * adds the extra nights' cost to the outstanding balance, shortening it removes that cost.
+     * The folio client reports "no folio" as absent rather than as a zero balance, so a folio that
+     * does exist is trusted even when it reports zero because the guest has settled it, and only a
+     * missing folio keeps the locally derived value.
+     */
+
+    /**
+     * Amount already collected for this booking. The booking's own successful payment transaction
+     * is the ground truth; the total-rate-minus-balance inference is only a fallback for rows that
+     * predate transaction recording, because such a row recorded the full stay price as its
+     * balance and the inference would then report nothing as collected.
+     */
+    private BigDecimal resolveCollectedAmount(
+            ReservationBookingRecord booking,
+            BigDecimal originalTotalRate,
+            BigDecimal originalGuestBalance
+    ) {
+        BigDecimal recorded = booking.getId() == null
+                ? null
+                : reservationPaymentTransactionRepository
+                        .findTopByBookingIdOrderByCreatedAtDesc(booking.getId())
+                        .filter(transaction -> "SUCCESS".equalsIgnoreCase(transaction.getTransactionStatus()))
+                        .map(ReservationPaymentTransactionRecord::getAmount)
+                        .orElse(null);
+        if (recorded != null) {
+            return recorded.max(BigDecimal.ZERO);
+        }
+        BigDecimal inferred = originalTotalRate.subtract(originalGuestBalance != null ? originalGuestBalance : BigDecimal.ZERO);
+        return inferred.max(BigDecimal.ZERO);
+    }
+    private BigDecimal resolveGuestBalanceAfterRateChange(
+            ReservationBookingRecord booking,
+            BigDecimal originalTotalRate,
+            BigDecimal originalGuestBalance,
+            boolean folioAdjusted
+    ) {
+        BigDecimal newTotalRate = booking.getTotalRate() != null ? booking.getTotalRate() : BigDecimal.ZERO;
+        BigDecimal amountPaid = resolveCollectedAmount(booking, originalTotalRate, originalGuestBalance);
+        BigDecimal derivedBalance = newTotalRate.subtract(amountPaid).max(BigDecimal.ZERO);
+
+        if (!folioAdjusted) {
+            return derivedBalance;
+        }
+
+        try {
+            // A reported folio, including a fully settled zero balance, is authoritative; only a
+            // missing folio keeps the balance derived from the rate change.
+            return folioServiceClient.getFolioBalance(booking.getConfirmationNumber(), booking.getId())
+                    .map(balance -> balance.max(BigDecimal.ZERO))
+                    .orElse(derivedBalance);
+        } catch (Exception ex) {
+            log.warn("Folio balance refresh failed for confirmationNumber={} bookingId={}",
+                    booking.getConfirmationNumber(), booking.getId(), ex);
+            return derivedBalance;
+        }
+    }
+
+    private boolean departureDateShortened(LocalDate previousDepartureDate, LocalDate newDepartureDate) {        if (previousDepartureDate == null || newDepartureDate == null) {
+            return false;
+        }
+        return newDepartureDate.isBefore(previousDepartureDate);
+    }
+
+    private void handleShortenedDeparture(
+            String propertyIdValue,
+            String confirmationNumber,
+            String roomNumber,
+            LocalDate arrivalDate,
+            LocalDate previousDepartureDate,
+            LocalDate newDepartureDate, String roomType, Integer numberOfRooms) {
+        try {
+            UUID propertyId = UUID.fromString(propertyIdValue);
+            if (StringUtils.hasText(roomNumber)) {
+                housekeepingRoomStatusClient.clearReservationStay(
+                        propertyId,
+                        newDepartureDate.plusDays(1),
+                        previousDepartureDate,
+                        roomNumber);
+                housekeepingRoomStatusClient.updateDepartureStatus(
+                        propertyId,
+                        newDepartureDate,
+                        arrivalDate,
+                        newDepartureDate,
+                        roomNumber,
+                        confirmationNumber);
+            }
+            String roomTypeId = resolveRoomTypeId(propertyIdValue, roomType);
+            inventoryServiceClient.release(confirmationNumber);
+            if (!newDepartureDate.isBefore(arrivalDate)) {
+                int quantity = numberOfRooms != null && numberOfRooms > 0 ? numberOfRooms : 1;
+                InventoryReservationRequest inventoryRequest = InventoryReservationRequest.builder()
+                        .confirmationNumber(confirmationNumber)
+                        .propertyId(propertyIdValue)
+                        .bookedRoomTypeId(roomTypeId)
+                        .assignedRoomTypeId(roomTypeId)
+                        .checkInDate(arrivalDate)
+                        .checkOutDate(newDepartureDate)
+                        .quantity(quantity)
+                        .build();
+                inventoryServiceClient.reserve(inventoryRequest);
+            }
+        } catch (IllegalArgumentException ex) {
+            log.warn("Cannot release shortened departure because propertyId is not a UUID: {}", propertyIdValue, ex);
+        } catch (Exception ex) {
+            log.warn("Failed to sync shortened departure for confirmationNumber={}", confirmationNumber, ex);
+        }
+    }
+
+    private void handleExtendedDeparture(
+            String propertyIdValue,
+            String confirmationNumber,
+            ReservationBookingRecord saved,
+            LocalDate previousDepartureDate) {
+        try {
+            if (StringUtils.hasText(saved.getAssignedRoomNo())) {
+                updateStandaloneHousekeeping(saved);
+            }
+            String roomTypeId = resolveRoomTypeId(propertyIdValue, saved.getRoomType());
+            inventoryServiceClient.release(confirmationNumber);
+            int quantity = saved.getNumberOfRooms() != null && saved.getNumberOfRooms() > 0 ? saved.getNumberOfRooms() : 1;
+            InventoryReservationRequest inventoryRequest = InventoryReservationRequest.builder()
+                    .confirmationNumber(confirmationNumber)
+                    .propertyId(propertyIdValue)
+                    .bookedRoomTypeId(roomTypeId)
+                    .assignedRoomTypeId(roomTypeId)
+                    .checkInDate(saved.getArrivalDate())
+                    .checkOutDate(saved.getDepartureDate())
+                    .quantity(quantity)
+                    .build();
+            inventoryServiceClient.reserve(inventoryRequest);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Cannot extend departure because propertyId is not a UUID: {}", propertyIdValue, ex);
+        } catch (Exception ex) {
+            log.warn("Failed to sync extended departure for confirmationNumber={}", confirmationNumber, ex);
+        }
+    }
+
+    private String resolveAssignedRoomTypeId(String propertyId, String roomNumber,
+                                             LocalDate arrivalDate, LocalDate departureDate) {
+        if (!StringUtils.hasText(roomNumber)) {
+            return null;
+        }
+        String roomTypeName = housekeepingRoomCalendarClient.fetchRooms(propertyId, arrivalDate, departureDate).stream()
+                .filter(room -> roomNumber.trim().equalsIgnoreCase(room.getRoomNumber()))
+                .map(room -> room.getRoomType())
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+        return StringUtils.hasText(roomTypeName)
+                ? resolveRoomTypeId(propertyId, roomTypeName)
+                : null;
+    }
+
+
+    private void clearPreviousHousekeepingStay(
+            String propertyIdValue,
+            String confirmationNumber,
+            String previousRoomNumber,
+            LocalDate arrivalDate,
+            LocalDate departureDate) {
+        try {
+            UUID propertyId = UUID.fromString(propertyIdValue);
+            if (StringUtils.hasText(previousRoomNumber)) {
+                housekeepingRoomStatusClient.clearReservationAssignment(
+                    propertyId,
+                    confirmationNumber,
+                    previousRoomNumber,
+                    arrivalDate,
+                    departureDate);
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new ExternalServiceException(
+                    "Cannot release the previous housekeeping room because propertyId is not a UUID: "
+                            + propertyIdValue, ex);
+        } catch (ExternalServiceException ex) {
+            throw ex;
+        }
+    }
+
+    /* private void clearHousekeepingAssignments(ReservationBookingRecord booking) {
+        housekeepingRoomStatusClient.clearReservationAssignments(
+                booking.getPropertyId(), booking.getConfirmationNumber());
+    } */
+
         @Override
         @Transactional(readOnly = true)
         public ReservationViewResponseDto getBookingDetails(String confirmationNumber) {
-        ReservationBookingRecord booking = reservationBookingRepository.findByConfirmationNumber(confirmationNumber)
+        ReservationBookingRecord booking = reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(confirmationNumber)
+            .stream()
+            .findFirst()
             .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
 
+        return buildReservationViewForBooking(booking);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public ReservationViewResponseDto searchBooking(
+            String confirmationNumber,
+            Long bookingId,
+            String propertyId,
+            String phoneNumber,
+            String email) {
+        if (!StringUtils.hasText(confirmationNumber)
+            && bookingId == null
+            && !StringUtils.hasText(phoneNumber)
+            && !StringUtils.hasText(email)) {
+            throw new BadRequestException(
+                "At least one of confirmationNumber, bookingId, phoneNumber, or email is required");
+        }
+
+        ReservationBookingRecord booking;
+        if (StringUtils.hasText(confirmationNumber)) {
+            booking = reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(confirmationNumber.trim())
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else if (bookingId != null) {
+                booking = reservationBookingRepository.findById(bookingId)
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else if (StringUtils.hasText(phoneNumber)) {
+            requirePropertyIdForContactSearch(propertyId);
+            String normalizedPhoneNumber = phoneNumber.trim();
+            booking = reservationBookingRepository.findFirstByPropertyIdAndPhoneNumberOrMobileNumber(
+                propertyId.trim(), normalizedPhoneNumber, normalizedPhoneNumber)
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        } else {
+            requirePropertyIdForContactSearch(propertyId);
+            String normalizedEmail = email.trim();
+            booking = reservationBookingRepository.findFirstByPropertyIdAndPersonalEmailOrOfficialEmail(
+                propertyId.trim(), normalizedEmail, normalizedEmail)
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"));
+        }
+
+        return buildReservationViewForBooking(booking);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public ReservationViewResponseDto getBookingDetails(String confirmationNumber, Long bookingId) {
+        ReservationBookingRecord booking = reservationBookingRepository.findById(bookingId)
+            .filter(item -> confirmationNumber.equals(item.getConfirmationNumber()))
+            .orElseThrow(() -> new BadRequestException("Room booking not found for confirmation number"));
+
+        return buildReservationViewForBooking(booking);
+        }
+
+        private void requirePropertyIdForContactSearch(String propertyId) {
+            if (!StringUtils.hasText(propertyId)) {
+                throw new BadRequestException("propertyId is required when searching by phone number or email");
+            }
+        }
+
+        private ReservationViewResponseDto buildReservationViewForBooking(ReservationBookingRecord booking) {
         Optional<ReservationPaymentTransactionRecord> latestTransaction = booking.getId() == null
             ? Optional.empty()
             : reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(booking.getId());
@@ -175,6 +768,20 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         ReservationBookingResponseDto baseResponse = reservationBookingMapper.toResponse(booking, paymentTransaction);
         LocalDate businessDate = resolveBusinessDate(booking);
         TaxSummary taxSummary = calculateTaxSummary(booking);
+        Optional<BigDecimal> folioBalance = folioServiceClient.getFolioBalance(
+                booking.getConfirmationNumber(), booking.getId());
+
+        BigDecimal bookingBalance = booking.getGuestBalance() != null
+                ? booking.getGuestBalance().max(BigDecimal.ZERO)
+                : BigDecimal.ZERO;
+        BigDecimal fallbackTotal = booking.getTotalRate() != null ? booking.getTotalRate().max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        // A reported folio, including a settled zero balance, is authoritative. An explicitly stored
+        // booking balance is the record of what that booking owes, including an explicit zero for a
+        // fully prepaid stay; the total rate is only shown when neither carries a value, exactly
+        // matching what check-out enforces.
+        BigDecimal effectiveBalance = folioBalance
+                .map(balance -> balance.max(BigDecimal.ZERO))
+                .orElseGet(() -> booking.getGuestBalance() != null ? bookingBalance : fallbackTotal);
 
         return ReservationViewResponseDto.builder()
                 .reservationId(booking.getConfirmationNumber())
@@ -183,6 +790,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .createdAt(booking.getCreatedAt() == null ? null : booking.getCreatedAt().atOffset(ZoneOffset.UTC))
                 .propertyId(booking.getPropertyId())
                 .businessDate(businessDate)
+                .vipTag(booking.getVipTag())
+                .dnm(booking.getDnm())
                 .guest(buildPrimaryGuest(booking))
                 .additionalGuests(buildAdditionalGuests(
                         baseResponse.getGuestNames(),
@@ -193,11 +802,28 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .stay(buildStay(booking))
                 .room(buildRoom(booking))
                 .booking(buildBookingDetails(booking))
-                .pricing(buildPricing(booking, taxSummary))
+                .pricing(buildPricing(booking, taxSummary, effectiveBalance))
                 .comments(buildComments(booking))
                 .actions(buildActions(booking))
+                .roomBookings(toRoomBookingSummaries(
+                    reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(
+                        booking.getConfirmationNumber())))
                 .build();
     }
+
+            private List<ReservationRoomBookingSummaryDto> toRoomBookingSummaries(
+                List<ReservationBookingRecord> bookings
+            ) {
+            return bookings.stream()
+                .map(booking -> ReservationRoomBookingSummaryDto.builder()
+                    .bookingId(booking.getId())
+                    .confirmationNumber(booking.getConfirmationNumber())
+                    .guestName(booking.getGuestName())
+                    .assignedRoomNo(booking.getAssignedRoomNo())
+                    .floor(booking.getFloor())
+                    .build())
+                .toList();
+            }
 
     @Override
     @Transactional(readOnly = true)
@@ -233,6 +859,15 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .lastName(nameParts[1])
                 .phoneNumber(booking.getPhoneNumber())
                 .email(preferredEmail(booking))
+                .address(booking.getAddress())
+                .city(booking.getCity())
+                .state(booking.getState())
+                .country(booking.getCountry())
+                .zipCode(booking.getZipCode())
+                .dateOfBirth(booking.getDateOfBirth())
+                .idType(booking.getIdType())
+                .idNumber(booking.getIdNumber())
+                .enrollGuest(booking.getEnrollGuest())
                 .loyaltyNumber(booking.getLoyaltyNumber())
                 .build();
     }
@@ -275,10 +910,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     }
 
     private ReservationViewResponseDto.StayDto buildStay(ReservationBookingRecord booking) {
-        int nights = 0;
-        if (booking.getArrivalDate() != null && booking.getDepartureDate() != null) {
-            nights = Math.max(0, (int) ChronoUnit.DAYS.between(booking.getArrivalDate(), booking.getDepartureDate()));
-        }
+        int nights = BillableNights.betweenAsInt(booking.getArrivalDate(), booking.getDepartureDate());
 
         return ReservationViewResponseDto.StayDto.builder()
                 .checkInDate(booking.getArrivalDate())
@@ -306,23 +938,41 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         return ReservationViewResponseDto.BookingDto.builder()
                 .groupCode(booking.getGuestGroup())
                 .company(booking.getCompany())
-                .blockCode(null)
+                .blockCode(booking.getBlockCode())
                 .source(booking.getSource())
                 .reservationType(booking.getReservationType())
                 .rateCode(booking.getRateCode())
                 .build();
     }
 
-    private ReservationViewResponseDto.PricingDto buildPricing(ReservationBookingRecord booking, TaxSummary taxSummary) {
+    private ReservationViewResponseDto.PricingDto buildPricing(
+            ReservationBookingRecord booking,
+            TaxSummary taxSummary,
+            BigDecimal guestBalance
+    ) {
         return ReservationViewResponseDto.PricingDto.builder()
                 .currency(DEFAULT_CURRENCY)
                 .roomRate(booking.getRate())
-                .taxPercent(taxSummary.taxPercent)
+                .taxPercent(booking.getTaxPercent() == null ? taxSummary.taxPercent : booking.getTaxPercent())
                 .taxAmount(taxSummary.taxAmount)
                 .totalRate(booking.getTotalRate())
-                .guestBalance(booking.getGuestBalance())
+                .guestBalance(guestBalance)
                 .discount(booking.getDiscount())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void updateGuestBalance(String confirmationNumber, Long bookingId, BigDecimal guestBalance) {
+        ReservationBookingRecord booking = bookingId == null
+                ? reservationBookingRepository.findByConfirmationNumberOrderByIdAsc(confirmationNumber)
+                .stream().findFirst()
+                .orElseThrow(() -> new BadRequestException("Reservation booking not found"))
+                : reservationBookingRepository.findById(bookingId)
+                .filter(item -> confirmationNumber.equals(item.getConfirmationNumber()))
+                .orElseThrow(() -> new BadRequestException("Room booking not found for confirmation number"));
+        booking.setGuestBalance(guestBalance == null ? BigDecimal.ZERO : guestBalance.max(BigDecimal.ZERO));
+        reservationBookingRepository.save(booking);
     }
 
     private ReservationViewResponseDto.CommentsDto buildComments(ReservationBookingRecord booking) {
@@ -429,8 +1079,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return BigDecimal.ZERO;
         }
 
-        long nights = ChronoUnit.DAYS.between(booking.getArrivalDate(), booking.getDepartureDate());
-        if (nights <= 0) {
+        long nights = BillableNights.between(booking.getArrivalDate(), booking.getDepartureDate());
+        if (nights < 0) {
             return BigDecimal.ZERO;
         }
 
@@ -462,12 +1112,24 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return null;
         }
 
-        return housekeepingRoomStatusRepository
-                .findByPropertyIdAndBusinessDateAndConfirmationNumber(
-                        booking.getPropertyId(),
-                        housekeepingBusinessDate,
-                        booking.getConfirmationNumber()
-                )
+        // A multi-room booking has one housekeeping row per room, so resolve by booking id first
+        // and fall back to the latest row for the confirmation number.
+        Optional<HousekeepingRoomStatusRecord> record = booking.getId() == null
+                ? Optional.empty()
+                : housekeepingRoomStatusRepository
+                        .findFirstByPropertyIdAndBusinessDateAndBookingIdOrderByIdDesc(
+                                booking.getPropertyId(),
+                                housekeepingBusinessDate,
+                                booking.getId()
+                        );
+
+        return record
+                .or(() -> housekeepingRoomStatusRepository
+                        .findFirstByPropertyIdAndBusinessDateAndConfirmationNumberOrderByIdDesc(
+                                booking.getPropertyId(),
+                                housekeepingBusinessDate,
+                                booking.getConfirmationNumber()
+                        ))
                 .map(HousekeepingRoomStatusRecord::getRoomStatus)
                 .orElse(null);
     }
@@ -558,6 +1220,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return;
         }
 
+        request.setPropertyId(normalizePropertyId(request.getPropertyId()));
+
+        validateIdentityProof(request);
+
         request.setSalutation(defaultIfBlank(request.getSalutation(), "Mr"));
         request.setReservationType(defaultIfBlank(request.getReservationType(), "GTD"));
         request.setCity(defaultIfBlank(request.getCity(), "UNKNOWN"));
@@ -582,12 +1248,13 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             request.setGuestNames(List.of(request.getGuestName().trim()));
         }
 
-        if (request.getGuestNames() != null && request.getNumberOfRooms() != null && request.getNumberOfRooms() > 1) {
-            List<String> normalizedGuestNames = new ArrayList<>(request.getGuestNames());
-            while (normalizedGuestNames.size() < request.getNumberOfRooms()) {
-                normalizedGuestNames.add(request.getGuestName());
-            }
-            request.setGuestNames(normalizedGuestNames);
+        if (request.getNumberOfRooms() != null
+                && request.getNumberOfRooms() > 1
+                && request.getGuestNames() != null
+                && request.getGuestNames().size() == 1
+                && StringUtils.hasText(request.getGuestNames().get(0))) {
+            request.setGuestNames(new ArrayList<>(Collections.nCopies(
+                    request.getNumberOfRooms(), request.getGuestNames().get(0).trim())));
         }
 
         if (request.getNoPost() == null) {
@@ -602,6 +1269,12 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             request.setDnm(Boolean.FALSE);
         }
 
+        if (request.getEnrollGuest() == null) {
+            request.setEnrollGuest(Boolean.FALSE);
+        }
+
+        propagateLoyaltyProgramSelection(request);
+
         if (request.getDiscount() == null) {
             request.setDiscount(BigDecimal.ZERO);
         }
@@ -611,7 +1284,64 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         if (!StringUtils.hasText(request.getPaymentType())) {
-            request.setPaymentType(PaymentTypes.FULL_PAYMENT);
+            // Bookings default to pay-at-hotel so the guest balance keeps the full payable amount
+            // until the stay is settled; only an explicit FULL_PAYMENT collects up front.
+            request.setPaymentType(PaymentTypes.ADVANCE);
+        }
+    }
+
+    /**
+     * Applies the loyalty program chosen for the booking to any guest that did not carry its own
+     * selection, so a multi-program chain can pick one program for the whole reservation while still
+     * overriding it per guest. Guests already carrying a program keep theirs.
+     */
+    private void propagateLoyaltyProgramSelection(ReservationBookingRequestDto request) {
+        if (!StringUtils.hasText(request.getLoyaltyProgramId())
+                || request.getGuests() == null
+                || request.getGuests().isEmpty()) {
+            return;
+        }
+
+        String loyaltyProgramId = request.getLoyaltyProgramId().trim();
+        for (ReservationGuestRequestDto guest : request.getGuests()) {
+            if (guest != null && !StringUtils.hasText(guest.getLoyaltyProgramId())) {
+                guest.setLoyaltyProgramId(loyaltyProgramId);
+            }
+        }
+    }
+
+    /**
+     * Reservation tables currently keep propertyId as VARCHAR, but the
+     * property-service contract is a UUID. Store the canonical UUID string so
+     * downstream services (especially housekeeping) can safely parse it.
+     */
+    private String normalizePropertyId(String propertyId) {
+        if (!StringUtils.hasText(propertyId)) {
+            return propertyId;
+        }
+        try {
+            return UUID.fromString(propertyId.trim()).toString();
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("propertyId must be a valid UUID");
+        }
+    }
+
+    private void validateIdentityProof(ReservationBookingRequestDto request) {
+        boolean hasIdType = StringUtils.hasText(request.getIdType());
+        boolean hasIdNumber = StringUtils.hasText(request.getIdNumber());
+        if (hasIdType && !hasIdNumber) {
+            throw new BadRequestException("idNumber is required when idType is provided");
+        }
+        if (hasIdNumber && !hasIdType) {
+            throw new BadRequestException("idType is required when idNumber is provided");
+        }
+        if (hasIdType) {
+            String normalizedIdType = request.getIdType().trim().toUpperCase(Locale.ROOT);
+            if (!IdTypes.supportedTypes().contains(normalizedIdType)) {
+                throw new BadRequestException("idType must be AADHAAR, PAN, DRIVING_LICENSE, or PASSPORT");
+            }
+            request.setIdType(normalizedIdType);
+            request.setIdNumber(request.getIdNumber().trim());
         }
     }
 
@@ -639,8 +1369,26 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .processorName(paymentResult.getProcessorName())
                 .failureReason(paymentResult.getFailureReason())
                 .processedAt(paymentResult.getProcessedAt() == null ? LocalDateTime.now() : paymentResult.getProcessedAt())
-                .createdAt(LocalDateTime.now())
                 .build();
+    }
+
+    /**
+     * Outstanding balance stored on a single room row of a reservation: that room's own share of the
+     * payable amount, less the share of the booking payment that has already been collected. The
+     * reservation-wide payable amount must never be copied onto every room row, as that would
+     * multiply the aggregate outstanding balance by the room count and ignore the payment that has
+     * already succeeded.
+     */
+    private BigDecimal roomOutstandingBalance(
+            ReservationBookingRequestDto roomRequest,
+            int roomCount,
+            BigDecimal amountPaid
+    ) {
+        int rooms = Math.max(roomCount, 1);
+        BigDecimal paidPerRoom = amountPaid == null
+                ? BigDecimal.ZERO
+                : amountPaid.divide(BigDecimal.valueOf(rooms), 2, RoundingMode.HALF_UP);
+        return calculatePayableAmount(roomRequest).subtract(paidPerRoom).max(BigDecimal.ZERO);
     }
 
     private BigDecimal calculatePayableAmount(ReservationBookingRequestDto request) {
@@ -648,41 +1396,14 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             return BigDecimal.ZERO;
         }
 
-        long nights = ChronoUnit.DAYS.between(request.getArrivalDate(), request.getDepartureDate());
-        if (nights <= 0) {
+        long nights = BillableNights.between(request.getArrivalDate(), request.getDepartureDate());
+        if (nights < 0) {
             return BigDecimal.ZERO;
         }
 
         return request.getRate()
                 .multiply(BigDecimal.valueOf(request.getNumberOfRooms().longValue()))
                 .multiply(BigDecimal.valueOf(nights));
-    }
-
-    private InventoryDeductionRequest buildInventoryDeductionRequest(
-            ReservationBookingRequestDto request,
-            String confirmationNumber
-    ) {
-        return InventoryDeductionRequest.builder()
-                .propertyId(request.getPropertyId())
-                .roomType(request.getRoomType())
-                .quantity(request.getNumberOfRooms())
-                .arrivalDate(request.getArrivalDate())
-                .departureDate(request.getDepartureDate())
-                .confirmationNumber(confirmationNumber)
-                .build();
-    }
-
-    private InventorySyncRequest buildInventorySyncRequest(
-            ReservationBookingRequestDto request,
-            String confirmationNumber
-    ) {
-        return InventorySyncRequest.builder()
-                .propertyId(request.getPropertyId())
-                .roomType(request.getRoomType())
-                .arrivalDate(request.getArrivalDate())
-                .departureDate(request.getDepartureDate())
-                .confirmationNumber(confirmationNumber)
-                .build();
     }
 
     private String generateConfirmationNumber(String propertyId) {
@@ -698,37 +1419,28 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         throw new IllegalStateException("Unable to generate unique confirmation number");
     }
 
-    private void validatePropertyAndInventory(ReservationBookingRequestDto request) {
-        if (!propertyWizardServiceProperties.isEnabled()) {
-            return;
+        private String resolveRoomTypeId(String propertyId, String roomType) {
+        List<com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto> roomTypes =
+            propertyInventoryPort.fetchRoomOutletTypes(propertyId);
+        String normalizedRoomType = roomType == null ? "" : roomType.trim();
+        return roomTypes.stream()
+            .filter(item -> item.getId() != null)
+            .filter(item -> normalizedRoomType.equalsIgnoreCase(item.getRoomName())
+                || normalizedRoomType.equalsIgnoreCase(item.getRoomCode()))
+            .findFirst()
+            .map(item -> inventoryRoomTypeId(propertyId, item.getRoomCode(), item.getRoomName()))
+            .orElseThrow(() -> new BadRequestException(
+                "roomType is not configured for selected property"));
         }
 
-        PropertyInventoryValidationResponse validation;
-        try {
-            validation = propertyInventoryPort.validateInventory(
-                request.getPropertyId(),
-                request.getRoomType(),
-                request.getNumberOfRooms()
-            );
-        } catch (ExternalServiceException ex) {
-            if (propertyWizardServiceProperties.isFailOpenOnValidationError()) {
-                return;
-            }
-            throw ex;
+        private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {
+        String roomKey = StringUtils.hasText(roomCode)
+            ? roomCode.trim()
+            : roomName == null ? "" : roomName.trim();
+        String payload = (propertyId + ":" + (roomKey.isBlank() ? "unknown" : roomKey))
+            .toLowerCase(Locale.ROOT);
+        return UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8)).toString();
         }
-
-        if (!Boolean.TRUE.equals(validation.getPropertyExists())) {
-            throw new BadRequestException("propertyId is invalid as per Property Wizard service");
-        }
-
-        if (!Boolean.TRUE.equals(validation.getRoomTypeAvailable())) {
-            throw new BadRequestException("roomType is not available for selected property");
-        }
-
-        if (validation.getAvailableRooms() != null && request.getNumberOfRooms() > validation.getAvailableRooms()) {
-            throw new BadRequestException("numberOfRooms exceeds available rooms for selected property and roomType");
-        }
-    }
 
     private void validateDates(LocalDate arrivalDate, LocalDate departureDate) {
         if (departureDate != null && arrivalDate != null && departureDate.isBefore(arrivalDate)) {
@@ -737,19 +1449,19 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     }
 
     private void validateRoomSelectionAndGuestNames(ReservationBookingRequestDto request) {
-        if (request.getNumberOfRooms() == null || request.getNumberOfRooms() < 1 || request.getNumberOfRooms() > 9) {
-            throw new BadRequestException("numberOfRooms must be between 1 and 9");
-        }
-
-        List<String> guestNames = request.getGuestNames();
-        if (guestNames == null || guestNames.size() != request.getNumberOfRooms()) {
-            throw new BadRequestException("guestNames count must match numberOfRooms");
-        }
-
-        boolean hasBlankGuestName = guestNames.stream().anyMatch(name -> !StringUtils.hasText(name));
-        if (hasBlankGuestName) {
-            throw new BadRequestException("guestNames must not contain blank values");
-        }
+//        if (request.getNumberOfRooms() == null || request.getNumberOfRooms() < 1 || request.getNumberOfRooms() > 9) {
+//            throw new BadRequestException("numberOfRooms must be between 1 and 9");
+//        }
+//
+//        List<String> guestNames = request.getGuestNames();
+//        if (guestNames == null || guestNames.size() != request.getNumberOfRooms()) {
+//            throw new BadRequestException("guestNames count must match numberOfRooms");
+//        }
+//
+//        boolean hasBlankGuestName = guestNames.stream().anyMatch(name -> !StringUtils.hasText(name));
+//        if (hasBlankGuestName) {
+//            throw new BadRequestException("guestNames must not contain blank values");
+//        }
     }
 
     private void validateRequiredContactFields(ReservationBookingRequestDto request) {
@@ -794,8 +1506,8 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
             throw new BadRequestException("phoneNumber is required");
         }
 
-        if (!phoneNumber.matches("\\d{10}")) {
-            throw new BadRequestException("phoneNumber must be exactly 10 digits");
+        if (!phoneNumber.matches("^\\+?[1-9]\\d{1,14}$")) {
+            throw new BadRequestException("phoneNumber must be a valid E.164 number");
         }
     }
 
@@ -814,4 +1526,20 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         updated.setPaymentType(existing.getPaymentType());
         updated.setCreatedAt(existing.getCreatedAt());
     }
+
+    private void validateDnmRoomLock(
+            ReservationBookingRecord existing,
+            ReservationBookingRequestDto request
+    ) {
+        if (!Boolean.TRUE.equals(existing.getDnm())
+                || !StringUtils.hasText(request.getAssignedRoomNo())
+                || !StringUtils.hasText(existing.getAssignedRoomNo())) {
+            return;
+        }
+
+        if (!existing.getAssignedRoomNo().trim().equalsIgnoreCase(request.getAssignedRoomNo().trim())) {
+            throw new BadRequestException("Room cannot be changed because DNM is enabled for this reservation");
+        }
+    }
 }
+

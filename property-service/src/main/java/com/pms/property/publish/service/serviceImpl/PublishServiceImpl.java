@@ -1,4 +1,4 @@
-package com.pms.property.publish.service;
+package com.pms.property.publish.service.serviceImpl;
 
 import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.common.exception.NotFoundException;
@@ -34,14 +34,28 @@ import com.pms.property.draft.service.DraftService;
 import com.pms.property.integration.inventory.service.InventorySyncService;
 import com.pms.property.publish.dto.PublishResponse;
 import com.pms.property.publish.mapper.PublishMapper;
+import com.pms.property.publish.service.PublishService;
 import com.pms.property.publish.validator.PublishValidator;
 import com.pms.property.upload.service.LocalImageStorageService;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class PublishServiceImpl implements PublishService {
+
+    private static final String PROPERTY_CODE_UNIQUE_INDEX = "uk_property_code_lower";
 
     private final DraftService draftService;
     private final PropertyRepository propertyRepository;
@@ -104,7 +118,7 @@ public class PublishServiceImpl implements PublishService {
 
     @Override
     @Transactional
-    public PublishResponse publish(Long draftId, String actor) {
+    public PublishResponse publish(Long draftId, UUID actor, String authHeader) {
         PropertyDraftEntity draft = draftService.getById(draftId);
         PublishMapper.NormalizedPublishData normalized = publishMapper.toNormalized(draft.getWizardData());
         publishValidator.validate(normalized.root());
@@ -116,15 +130,22 @@ public class PublishServiceImpl implements PublishService {
             propertyId = publishNewProperty(normalized, actor);
         }
 
-        inventorySyncService.requestSyncAfterCommit(propertyId);
+        log.info("Publish completed for draftId={}, propertyId={}, requesting inventory sync", draftId, propertyId);
+        inventorySyncService.requestSyncAfterCommit(propertyId, authHeader);
 
         draftService.markPublished(draft, propertyId, actor);
         return new PublishResponse(draftId, propertyId, DraftStatus.PUBLISHED.name());
     }
 
-    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, String actor) {
+    private String publishNewProperty(PublishMapper.NormalizedPublishData normalized, UUID actor) {
+        String propertyCode = normalized.property().getPropertyCode();
+        if (isPropertyCodeTakenByOtherProperty(propertyCode, null)) {
+            throw new BadRequestException("Property code already exists: " + propertyCode);
+        }
+
         normalized.property().setCreatedBy(actor);
-        PropertyEntity property = propertyRepository.save(normalized.property());
+        applyPropertyCodeKey(normalized.property(), propertyCode);
+        PropertyEntity property = savePropertyWithCodeGuard(normalized.property(), propertyCode);
         String propertyId = property.getId();
         saveNormalizedData(normalized, propertyId);
         return propertyId;
@@ -136,6 +157,11 @@ public class PublishServiceImpl implements PublishService {
             throw new BadRequestException("Draft already published, but property id missing");
         }
 
+        String propertyCode = normalized.property().getPropertyCode();
+        if (isPropertyCodeTakenByOtherProperty(propertyCode, propertyId)) {
+            throw new BadRequestException("Property code already exists: " + propertyCode);
+        }
+
         PropertyEntity existing = propertyRepository.findById(propertyId)
             .orElseThrow(() -> new NotFoundException("Property not found: " + propertyId));
 
@@ -143,12 +169,60 @@ public class PublishServiceImpl implements PublishService {
         updated.setId(existing.getId());
         updated.setCreatedAt(existing.getCreatedAt());
         updated.setCreatedBy(existing.getCreatedBy());
-        propertyRepository.save(updated);
+        applyPropertyCodeKey(updated, propertyCode);
+        savePropertyWithCodeGuard(updated, propertyCode);
 
         cleanupExistingPropertyImages(propertyId);
         clearNormalizedData(propertyId);
         saveNormalizedData(normalized, propertyId);
         return propertyId;
+    }
+
+    /**
+     * Case-insensitive uniqueness preflight shared by both publish paths and by the availability
+     * endpoint, so the preflight matches the publish contract. The database unique index remains the
+     * authority when concurrent publishes race.
+     */
+    private boolean isPropertyCodeTakenByOtherProperty(String propertyCode, String excludedPropertyId) {
+        if (propertyCode == null || propertyCode.isBlank()) {
+            return false;
+        }
+        String normalizedCode = propertyCode.trim();
+        return excludedPropertyId == null
+                ? propertyRepository.existsByPropertyCodeIgnoreCase(normalizedCode)
+                : propertyRepository.existsByPropertyCodeIgnoreCaseAndIdNot(normalizedCode, excludedPropertyId);
+    }
+
+    /**
+     * Maintains the case-insensitive key enforced by the unique index. A blank code maps to null,
+     * which unique indexes treat as distinct, so multiple properties may share a blank code.
+     */
+    private void applyPropertyCodeKey(PropertyEntity property, String propertyCode) {
+        property.setPropertyCodeLower(
+                propertyCode == null || propertyCode.isBlank()
+                        ? null
+                        : propertyCode.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Persists the property and translates a duplicate that only the case-insensitive unique index
+     * catches, because two concurrent publishes passed the preflight at the same time, into the same
+     * conflict the preflight reports.
+     */
+    private PropertyEntity savePropertyWithCodeGuard(PropertyEntity property, String propertyCode) {
+        try {
+            return propertyRepository.saveAndFlush(property);
+        } catch (DataIntegrityViolationException ex) {
+            if (isDuplicatePropertyCodeViolation(ex)) {
+                throw new BadRequestException("Property code already exists: " + propertyCode);
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isDuplicatePropertyCodeViolation(DataIntegrityViolationException ex) {
+        String message = String.valueOf(ex.getMessage()).toLowerCase(Locale.ROOT);
+        return message.contains(PROPERTY_CODE_UNIQUE_INDEX);
     }
 
     private void saveNormalizedData(PublishMapper.NormalizedPublishData normalized, String propertyId) {
@@ -174,7 +248,6 @@ public class PublishServiceImpl implements PublishService {
         inventoryRoomRepository.deleteByPropertyId(propertyId);
         floorPropertyAreaRepository.deleteByPropertyId(propertyId);
         floorConfigurationRepository.deleteByPropertyId(propertyId);
-        roomOutletTypeRepository.deleteByPropertyId(propertyId);
         propertyAreaRepository.deleteByPropertyId(propertyId);
         nearbyLocationAccessibilityRepository.deleteByPropertyId(propertyId);
         guestServiceAmenityRepository.deleteByPropertyId(propertyId);
@@ -187,7 +260,6 @@ public class PublishServiceImpl implements PublishService {
         inventoryRoomRepository.flush();
         floorPropertyAreaRepository.flush();
         floorConfigurationRepository.flush();
-        roomOutletTypeRepository.flush();
         propertyAreaRepository.flush();
         nearbyLocationAccessibilityRepository.flush();
         guestServiceAmenityRepository.flush();
@@ -239,11 +311,109 @@ public class PublishServiceImpl implements PublishService {
         propertyAreaRepository.saveAll(entities);
     }
 
+    /**
+     * Upserts instead of delete+insert: other services (rate-management mappings, rate plans,
+     * reservations) reference room outlet type ids, so ids must survive a republish.
+     */
     private void saveRoomOutletTypes(List<RoomOutletTypeEntity> entities, String propertyId) {
         for (RoomOutletTypeEntity entity : entities) {
-            entity.setPropertyId(propertyId);
+            String code = entity.getRoomCode();
+            if (code == null || code.isBlank()) {
+                throw new BadRequestException("roomCode is required for room outlet type");
+            }
+            if (!code.trim().matches("^[A-Z_]{2,20}$")) {
+                throw new BadRequestException("roomCode must match ^[A-Z_]{2,20}$");
+            }
         }
-        roomOutletTypeRepository.saveAll(entities);
+        List<RoomOutletTypeEntity> existing = roomOutletTypeRepository.findAllByPropertyId(propertyId);
+        Map<String, RoomOutletTypeEntity> existingByCode = new HashMap<>();
+        Map<String, RoomOutletTypeEntity> existingByName = new HashMap<>();
+        if (existing != null) {
+            for (RoomOutletTypeEntity row : existing) {
+                String codeKey = roomTypeKey(row.getRoomCode());
+                if (codeKey != null) {
+                    existingByCode.putIfAbsent(codeKey, row);
+                }
+                String nameKey = roomTypeKey(row.getRoomName());
+                if (nameKey != null) {
+                    existingByName.putIfAbsent(nameKey, row);
+                }
+            }
+        }
+
+        Set<RoomOutletTypeEntity> matched = Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<RoomOutletTypeEntity, RoomOutletTypeEntity> targetByIncoming = new IdentityHashMap<>();
+        // Code matches first for all rows, so a name-only match never takes a code still owned by another row (unique index).
+        for (RoomOutletTypeEntity incoming : entities) {
+            RoomOutletTypeEntity target = findUnmatched(existingByCode, roomTypeKey(incoming.getRoomCode()), matched);
+            if (target != null) {
+                matched.add(target);
+                targetByIncoming.put(incoming, target);
+            }
+        }
+        for (RoomOutletTypeEntity incoming : entities) {
+            if (targetByIncoming.containsKey(incoming)) {
+                continue;
+            }
+            RoomOutletTypeEntity target = findUnmatched(existingByName, roomTypeKey(incoming.getRoomName()), matched);
+            if (target != null) {
+                matched.add(target);
+                targetByIncoming.put(incoming, target);
+            }
+        }
+
+        // Delete removed rows before mutating kept ones: Hibernate flushes updates before deletes,
+        // so a kept row taking a removed row's code would otherwise hit the unique index.
+        if (existing != null) {
+            List<RoomOutletTypeEntity> removed = existing.stream()
+                .filter(row -> !matched.contains(row))
+                .toList();
+            if (!removed.isEmpty()) {
+                roomOutletTypeRepository.deleteAll(removed);
+                roomOutletTypeRepository.flush();
+            }
+        }
+
+        List<RoomOutletTypeEntity> toSave = new ArrayList<>();
+        for (RoomOutletTypeEntity incoming : entities) {
+            RoomOutletTypeEntity target = targetByIncoming.get(incoming);
+            if (target == null) {
+                incoming.setPropertyId(propertyId);
+                toSave.add(incoming);
+                continue;
+            }
+
+            target.setRoomName(incoming.getRoomName());
+            target.setRoomCode(incoming.getRoomCode());
+            target.setQuantity(incoming.getQuantity());
+            target.setAvailableForSell(incoming.getAvailableForSell());
+            target.setMaximumGuestOccupancy(incoming.getMaximumGuestOccupancy());
+            target.setDescription(incoming.getDescription());
+            target.setAmenitiesCsv(incoming.getAmenitiesCsv());
+            target.setImagesCsv(incoming.getImagesCsv());
+            toSave.add(target);
+        }
+
+        roomOutletTypeRepository.saveAll(toSave);
+    }
+
+    private RoomOutletTypeEntity findUnmatched(
+        Map<String, RoomOutletTypeEntity> index,
+        String key,
+        Set<RoomOutletTypeEntity> matched
+    ) {
+        if (key == null) {
+            return null;
+        }
+        RoomOutletTypeEntity candidate = index.get(key);
+        return candidate == null || matched.contains(candidate) ? null : candidate;
+    }
+
+    private String roomTypeKey(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 
     private void savePropertyOverview(PropertyOverviewEntity propertyOverview, String propertyId) {

@@ -39,4 +39,8 @@ public class GuestListingResponseDto {
     String tier;
     String groupCode;
     String stayStatus;
+    Boolean checkInCompleted;
+    String checkInChannel;
+    Boolean signatureCaptured;
+    Boolean idProofUploaded;
 }

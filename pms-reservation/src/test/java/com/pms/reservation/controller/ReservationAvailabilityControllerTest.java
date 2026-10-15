@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.pms.guestlisting.exception.GlobalExceptionHandler;
+import com.pms.reservation.dto.ReservationAvailabilityRequestDto;
 import com.pms.reservation.dto.DailyAvailabilityPricingDto;
 import com.pms.reservation.dto.RatePlanAvailabilityDto;
 import com.pms.reservation.dto.ReservationAvailabilityResponseDto;
@@ -17,14 +18,16 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(controllers = ReservationAvailabilityController.class, properties = "security.jwt.enabled=false")
+@WebMvcTest(controllers = ReservationAvailabilityController.class, properties = {"security.jwt.enabled=false", "spring.data.jpa.repositories.enabled=false"})
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class ReservationAvailabilityControllerTest {
@@ -35,10 +38,13 @@ class ReservationAvailabilityControllerTest {
     @MockBean
     private ReservationAvailabilityService reservationAvailabilityService;
 
+    @MockBean
+    private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
     @Test
     void getAvailabilityShouldReturnLiveInventoryAndPricing() throws Exception {
         ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 7, 1))
                 .departureDate(LocalDate.of(2026, 7, 3))
                 .night(2)
@@ -94,7 +100,7 @@ class ReservationAvailabilityControllerTest {
         when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/availability")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("date", "2026-07-01")
                         .param("night", "2")
                         .param("numberOfRooms", "1")
@@ -103,11 +109,12 @@ class ReservationAvailabilityControllerTest {
                         .param("rateCode", "BAR001")
                         .param("blockCode", "BLK01")
                         .param("adults", "2")
-                        .param("children", "1"))
+                        .param("children", "1")
+                        .param("ageOfChild1", "6"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Availability and pricing fetched successfully"))
-                .andExpect(jsonPath("$.data.propertyId").value("PROP001"))
+                .andExpect(jsonPath("$.data.propertyId").value("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
                 .andExpect(jsonPath("$.data.night").value(2))
                 .andExpect(jsonPath("$.data.numberOfRooms").value(1))
                 .andExpect(jsonPath("$.data.groupCode").value("GRP001"))
@@ -120,7 +127,11 @@ class ReservationAvailabilityControllerTest {
                 .andExpect(jsonPath("$.data.next15DaysPricing[0].date").value("2026-07-01"))
                 .andExpect(jsonPath("$.data.next15DaysPricing[0].availability[0].roomType").value("Deluxe King"));
 
-        verify(reservationAvailabilityService).getAvailability(any());
+        ArgumentCaptor<ReservationAvailabilityRequestDto> requestCaptor =
+                ArgumentCaptor.forClass(ReservationAvailabilityRequestDto.class);
+        verify(reservationAvailabilityService).getAvailability(requestCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().getAgeOfChild1()).isEqualTo(6);
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().getChildAges()).containsExactly(6);
     }
 
     @Test
@@ -139,7 +150,7 @@ class ReservationAvailabilityControllerTest {
         @Test
         void getAvailabilityShouldAllowMissingGroupCode() throws Exception {
                 ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                                .propertyId("PROP001")
+                                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                                 .arrivalDate(LocalDate.of(2026, 7, 1))
                                 .departureDate(LocalDate.of(2026, 7, 3))
                                 .night(2)
@@ -155,7 +166,7 @@ class ReservationAvailabilityControllerTest {
                 when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
                 mockMvc.perform(get("/api/v1/reservations/availability")
-                                                .param("propertyId", "PROP001")
+                                                .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                                                 .param("date", "2026-07-01")
                                                 .param("night", "2")
                                                 .param("numberOfRooms", "1")
@@ -163,7 +174,7 @@ class ReservationAvailabilityControllerTest {
                                                 .param("children", "1"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.success").value(true))
-                                .andExpect(jsonPath("$.data.propertyId").value("PROP001"));
+                                .andExpect(jsonPath("$.data.propertyId").value("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"));
 
                 verify(reservationAvailabilityService).getAvailability(any());
         }
@@ -171,7 +182,7 @@ class ReservationAvailabilityControllerTest {
     @Test
     void getAvailabilityShouldRejectLegacyDateRangeParams() throws Exception {
         ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 7, 1))
                 .departureDate(LocalDate.of(2026, 7, 3))
                 .night(2)
@@ -190,7 +201,7 @@ class ReservationAvailabilityControllerTest {
         when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/availability")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("arrivalDate", "2026-07-01")
                         .param("departureDate", "2026-07-03")
                         .param("adultCount", "2")
@@ -205,7 +216,7 @@ class ReservationAvailabilityControllerTest {
     @Test
     void getAvailabilityShouldDefaultNumberOfRoomsWhenMissing() throws Exception {
         ReservationAvailabilityResponseDto response = ReservationAvailabilityResponseDto.builder()
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .arrivalDate(LocalDate.of(2026, 7, 1))
                 .departureDate(LocalDate.of(2026, 7, 3))
                 .night(2)
@@ -224,7 +235,7 @@ class ReservationAvailabilityControllerTest {
         when(reservationAvailabilityService.getAvailability(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/reservations/availability")
-                        .param("propertyId", "PROP001")
+                        .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                         .param("date", "2026-07-01")
                         .param("night", "2")
                         .param("adults", "2")
@@ -236,4 +247,17 @@ class ReservationAvailabilityControllerTest {
 
         verify(reservationAvailabilityService).getAvailability(any());
     }
+
+        @Test
+        void getAvailabilityShouldRejectMoreThanNineRooms() throws Exception {
+                mockMvc.perform(get("/api/v1/reservations/availability")
+                                                .param("propertyId", "7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
+                                                .param("date", "2026-07-01")
+                                                .param("night", "2")
+                                                .param("numberOfRooms", "10"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Validation failed"))
+                                .andExpect(jsonPath("$.errors").value("getAvailability.numberOfRooms: numberOfRooms must be <= 9"));
+        }
 }

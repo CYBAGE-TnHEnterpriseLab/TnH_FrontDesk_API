@@ -1,5 +1,6 @@
 package com.pms.inventory.block.entity;
 
+import com.pms.common.entity.BaseEntity;
 import com.pms.inventory.block.enums.InventoryBlockStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,14 +11,16 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
+
+import java.time.LocalDateTime;
+  
 
 @Entity
 @Table(name = "inventory_block")
@@ -25,18 +28,18 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class InventoryBlock {
+@SuperBuilder
+public class InventoryBlock extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "property_id", nullable = false)
-    private UUID propertyId;
+    private String propertyId;
 
     @Column(name = "room_type_id", nullable = false)
-    private UUID roomTypeId;
+    private String roomTypeId;
 
     @Column(name = "from_date", nullable = false)
     private LocalDate fromDate;
@@ -53,11 +56,5 @@ public class InventoryBlock {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private InventoryBlockStatus status;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }
 

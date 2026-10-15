@@ -16,6 +16,7 @@ import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -88,7 +89,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -106,6 +107,139 @@ class RateManagementServiceClientTest {
         assertThat(quote.getBaseRate()).isEqualByComparingTo("9000");
         assertThat(quote.getFinalAmount()).isEqualByComparingTo("9000");
 
+        verify(restTemplate, times(2)).exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        );
+    }
+
+    @Test
+    void fetchRateQuotesShouldAddConfiguredChildAboveFiveRatePerApplicableChild() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                return ResponseEntity.ok("""
+                    [
+                      {
+                        "id": 32,
+                        "name": "Standard",
+                        "code": "STD",
+                        "occupancyType": "2 Guest",
+                        "calculationMethod": "MANUAL",
+                        "manualPricingByOccupancy": {
+                          "2 Guest": 9000,
+                          "CHILD_ABOVE_5": 400
+                        },
+                        "applicableRoomTypeIds": [28]
+                      }
+                    ]
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.toLowerCase().contains("child")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 400,
+                      "finalAmount": 400
+                    }
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 10000,
+                      "finalAmount": 9000
+                    }
+                    """);
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        var quotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 7, 14),
+            LocalDate.of(2026, 7, 16),
+            "Deluxe Room",
+            28L,
+            2,
+            2
+        );
+
+        assertThat(quotes).hasSize(1);
+        assertThat(quotes.get(0).getBaseRate()).isEqualByComparingTo("9800");
+        assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("9800");
+    }
+
+    @Test
+    void fetchRateQuotesShouldKeepManualPlanWhenChildRateIsNotConfigured() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                return ResponseEntity.ok("""
+                    [
+                      {
+                        "id": 32,
+                        "name": "Standard",
+                        "code": "STD",
+                        "occupancyType": "2 Guest",
+                        "calculationMethod": "MANUAL",
+                        "manualPricingByOccupancy": {
+                          "2 Guest": 9000
+                        },
+                        "applicableRoomTypeIds": [28]
+                      }
+                    ]
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 9000,
+                      "finalAmount": 9000
+                    }
+                    """);
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        var quotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 7, 14),
+            LocalDate.of(2026, 7, 16),
+            "Deluxe Room",
+            28L,
+            2,
+            1
+        );
+
+        assertThat(quotes).hasSize(1);
+        assertThat(quotes.get(0).getBaseRate()).isEqualByComparingTo("9000");
+        assertThat(quotes.get(0).getFinalAmount()).isEqualByComparingTo("9000");
         verify(restTemplate, times(2)).exchange(
             anyString(),
             eq(HttpMethod.GET),
@@ -136,7 +270,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -168,7 +302,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -181,6 +315,97 @@ class RateManagementServiceClientTest {
         RatePlanPricingQuoteDto quote = quotes.get(0);
         assertThat(quote.getRateCode()).isEqualTo("DLX");
         assertThat(quote.getFinalAmount()).isEqualByComparingTo("9000");
+    }
+
+    @Test
+    void fetchRateQuotesShouldRequireEveryStayNightToUseAnActiveWeekday() {
+        configureProperties(1, 0);
+
+        when(restTemplate.exchange(
+            anyString(),
+            eq(HttpMethod.GET),
+            any(HttpEntity.class),
+            eq(String.class)
+        )).thenAnswer(invocation -> {
+            String url = invocation.getArgument(0);
+
+            if (url.contains("/available")) {
+                throw HttpClientErrorException.create(
+                    HttpStatus.METHOD_NOT_ALLOWED,
+                    "Method Not Allowed",
+                    HttpHeaders.EMPTY,
+                    "get not supported".getBytes(StandardCharsets.UTF_8),
+                    StandardCharsets.UTF_8
+                );
+            }
+
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
+                && !url.contains("calculated-price")
+                && !url.contains("available")) {
+                return ResponseEntity.ok("""
+                    [
+                      {
+                        "id": 32,
+                        "name": "Weekday Plan",
+                        "code": "WEEKDAY",
+                        "status": "ACTIVE",
+                        "startDate": "2026-09-01",
+                        "endDate": "2026-10-02",
+                        "activeDaysOfWeek": ["TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+                        "applicableRoomTypeIds": [28]
+                      }
+                    ]
+                    """);
+            }
+
+            if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
+                return ResponseEntity.ok("""
+                    {
+                      "ratePlanId": 32,
+                      "masterBarAmount": 10000,
+                      "finalAmount": 9000
+                    }
+                    """);
+            }
+
+            throw new IllegalStateException("Unexpected URL: " + url);
+        });
+
+        List<RatePlanPricingQuoteDto> mondayQuotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 9, 28),
+            LocalDate.of(2026, 9, 30),
+            "Deluxe Room",
+            28L,
+            2,
+            0
+        );
+
+        assertThat(mondayQuotes).isEmpty();
+
+        List<RatePlanPricingQuoteDto> matchingStayQuotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 9, 29),
+            LocalDate.of(2026, 10, 3),
+            "Deluxe Room",
+            28L,
+            2,
+            0
+        );
+
+        assertThat(matchingStayQuotes).hasSize(1);
+
+        List<RatePlanPricingQuoteDto> dateRangeMismatchQuotes = client.fetchRateQuotes(
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
+            LocalDate.of(2026, 9, 29),
+            LocalDate.of(2026, 10, 4),
+            "Deluxe Room",
+            28L,
+            2,
+            0
+        );
+
+        assertThat(dateRangeMismatchQuotes).isEmpty();
     }
 
     @Test
@@ -205,7 +430,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -242,7 +467,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -280,7 +505,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -322,7 +547,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -360,7 +585,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -403,7 +628,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 14),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -441,7 +666,7 @@ class RateManagementServiceClientTest {
                 );
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -484,7 +709,7 @@ class RateManagementServiceClientTest {
         });
 
         var quotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 15),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -544,7 +769,7 @@ class RateManagementServiceClientTest {
                     """);
             }
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 listCalls.incrementAndGet();
@@ -577,7 +802,7 @@ class RateManagementServiceClientTest {
         });
 
         var nullRoomTypeQuotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 15),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -589,7 +814,7 @@ class RateManagementServiceClientTest {
         assertThat(nullRoomTypeQuotes.get(0).getFinalAmount()).isEqualByComparingTo("1800");
 
         var typedRoomTypeQuotes = client.fetchRateQuotes(
-            "PROP001",
+            "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
             LocalDate.of(2026, 7, 15),
             LocalDate.of(2026, 7, 16),
             "Deluxe Room",
@@ -636,6 +861,7 @@ class RateManagementServiceClientTest {
 
                         if (url.contains("/calculated-price") && url.contains("roomTypeId=28")) {
                             assertThat(url).containsPattern("occupancyType=1(\\+|%20| )Guest");
+                            assertThat(url).containsPattern("guestCount=1");
                                 return ResponseEntity.ok("""
                                         {
                                             "ratePlanId": 32,
@@ -649,7 +875,7 @@ class RateManagementServiceClientTest {
                 });
 
                 var quotes = client.fetchRateQuotes(
-                        "PROP001",
+                        "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                         LocalDate.of(2026, 7, 14),
                         LocalDate.of(2026, 7, 16),
                         "Deluxe Room",
@@ -717,7 +943,7 @@ class RateManagementServiceClientTest {
                 });
 
                 var quotes = client.fetchRateQuotes(
-                    "PROP001",
+                    "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                     LocalDate.of(2026, 7, 14),
                     LocalDate.of(2026, 7, 16),
                     "Deluxe Room",
@@ -786,7 +1012,7 @@ class RateManagementServiceClientTest {
                 });
 
                 var quotes = client.fetchRateQuotes(
-                    "PROP001",
+                    "7cfd4559-b6f3-4b7d-b933-e93018ac1d47",
                     LocalDate.of(2026, 7, 14),
                     LocalDate.of(2026, 7, 16),
                     "Deluxe Room",
@@ -811,7 +1037,7 @@ class RateManagementServiceClientTest {
         )).thenAnswer(invocation -> {
             String url = invocation.getArgument(0);
 
-            if (url.contains("/api/rate-plans/property/PROP001")
+            if (url.contains("/api/rate-plans/property/7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 && !url.contains("calculated-price")
                 && !url.contains("available")) {
                 return ResponseEntity.ok("""
@@ -845,7 +1071,7 @@ class RateManagementServiceClientTest {
             throw new IllegalStateException("Unexpected URL: " + url);
         });
 
-        Map<Long, BigDecimal> prices = client.getPricingByRoomTypeForRatePlan("PROP001", 50L);
+        Map<Long, BigDecimal> prices = client.getPricingByRoomTypeForRatePlan("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", 50L);
 
         assertThat(prices).hasSize(2);
         assertThat(prices.get(27L)).isEqualByComparingTo("8700");
@@ -864,7 +1090,7 @@ class RateManagementServiceClientTest {
                 StandardCharsets.UTF_8
             ));
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("401");
     }
@@ -881,7 +1107,7 @@ class RateManagementServiceClientTest {
                 StandardCharsets.UTF_8
             ));
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("403");
     }
@@ -898,7 +1124,7 @@ class RateManagementServiceClientTest {
                 StandardCharsets.UTF_8
             ));
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("404");
     }
@@ -920,7 +1146,7 @@ class RateManagementServiceClientTest {
                 );
             });
 
-        assertThatThrownBy(() -> client.listRatePlans("PROP001"))
+        assertThatThrownBy(() -> client.listRatePlans("7cfd4559-b6f3-4b7d-b933-e93018ac1d47"))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("5xx");
 
@@ -934,5 +1160,6 @@ class RateManagementServiceClientTest {
         lenient().when(properties.getCalculatedPricePath()).thenReturn("/api/rate-plans/property/{propertyId}/{ratePlanId}/calculated-price");
         lenient().when(properties.getRetryMaxAttempts()).thenReturn(retryMaxAttempts);
         lenient().when(properties.getRetryBackoffMs()).thenReturn(retryBackoffMs);
+        lenient().when(properties.getMaxPricedOccupancy()).thenReturn(4);
     }
 }

@@ -57,7 +57,7 @@ class ReservationServiceClientTest {
                 any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(List.of(dto)));
 
-        List<ReservationArrivalDto> result = client.fetchArrivals("PROP001", LocalDate.of(2026, 6, 3));
+        List<ReservationArrivalDto> result = client.fetchArrivals("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getConfirmationNumber()).isEqualTo("CNF-1001");
@@ -69,7 +69,7 @@ class ReservationServiceClientTest {
             any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)
         );
-        assertThat(urlCaptor.getValue()).contains("propertyId=PROP001");
+        assertThat(urlCaptor.getValue()).contains("propertyId=7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         assertThat(urlCaptor.getValue()).contains("businessDate=2026-06-03");
     }
 
@@ -82,7 +82,7 @@ class ReservationServiceClientTest {
                 any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(null));
 
-        List<ReservationArrivalDto> result = client.fetchArrivals("PROP001", LocalDate.of(2026, 6, 3));
+        List<ReservationArrivalDto> result = client.fetchArrivals("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3));
 
         assertThat(result).isEmpty();
     }
@@ -96,7 +96,7 @@ class ReservationServiceClientTest {
                 any(ParameterizedTypeReference.class)
         )).thenThrow(new RestClientException("upstream down"));
 
-        assertThatThrownBy(() -> client.fetchArrivals("PROP001", LocalDate.of(2026, 6, 3)))
+        assertThatThrownBy(() -> client.fetchArrivals("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3)))
                 .isInstanceOf(ExternalServiceException.class)
                 .hasMessageContaining("Failed to fetch arrivals from Reservation Service");
     }
@@ -139,7 +139,7 @@ class ReservationServiceClientTest {
             any(ParameterizedTypeReference.class)
         )).thenThrow(new RestClientException("upstream down"));
 
-        assertThatThrownBy(() -> client.fetchDepartures("PROP001", LocalDate.of(2026, 6, 3)))
+        assertThatThrownBy(() -> client.fetchDepartures("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3)))
             .isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("Failed to fetch departures from Reservation Service");
         }
@@ -153,7 +153,7 @@ class ReservationServiceClientTest {
                 any(ParameterizedTypeReference.class)
         )).thenReturn(ResponseEntity.ok(null));
 
-        List<ReservationArrivalDto> result = client.fetchDepartures("PROP001", LocalDate.of(2026, 6, 3));
+        List<ReservationArrivalDto> result = client.fetchDepartures("7cfd4559-b6f3-4b7d-b933-e93018ac1d47", LocalDate.of(2026, 6, 3));
 
         assertThat(result).isEmpty();
     }

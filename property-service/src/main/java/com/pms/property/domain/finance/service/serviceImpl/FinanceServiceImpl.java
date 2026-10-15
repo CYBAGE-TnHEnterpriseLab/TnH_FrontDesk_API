@@ -1,4 +1,4 @@
-package com.pms.property.domain.finance.service;
+package com.pms.property.domain.finance.service.serviceImpl;
 
 import com.pms.property.common.exception.NotFoundException;
 import com.pms.property.domain.finance.dto.ChartOfAccountRequest;
@@ -7,6 +7,8 @@ import com.pms.property.domain.finance.dto.FinanceSummaryResponse;
 import com.pms.property.domain.finance.entity.ChartOfAccountEntity;
 import com.pms.property.domain.finance.repository.ChartOfAccountRepository;
 import com.pms.property.domain.finance.repository.RevenueMappingRepository;
+import com.pms.property.domain.finance.service.FinanceService;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;

@@ -4,9 +4,11 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -35,6 +37,7 @@ public class RateManagementPlanDto {
     private String status;
     private String startDate;
     private String endDate;
+    private Set<DayOfWeek> activeDaysOfWeek;
 
     private Long roomTypeId;
     @JsonAlias({"roomTypeName", "roomType"})

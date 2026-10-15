@@ -5,6 +5,8 @@ import com.pms.housekeeping.service.RoomMasterSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,6 +32,13 @@ public class RoomMasterSyncController {
                 "syncedRooms", result.syncedRooms(),
                 "deactivatedRooms", result.deactivatedRooms()
         ));
+    }
+
+    @DeleteMapping("/properties/{propertyId}")
+    @Operation(summary = "Delete all housekeeping data for a property")
+    public ResponseEntity<Map<String, Object>> deletePropertyData(@PathVariable String propertyId) {
+        roomMasterSyncService.deletePropertyData(propertyId);
+        return ResponseEntity.ok(Map.of("deleted", true));
     }
 }
 

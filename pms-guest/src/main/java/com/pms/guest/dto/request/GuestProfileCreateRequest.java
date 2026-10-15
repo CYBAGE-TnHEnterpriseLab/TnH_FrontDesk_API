@@ -1,0 +1,96 @@
+package com.pms.guest.dto.request;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class GuestProfileCreateRequest {
+
+    @NotBlank(message = "propertyId is required")
+    @Size(max = 36, message = "propertyId must not exceed 36 characters")
+    private String propertyId;
+
+    @Size(max = 20)
+    private String salutation;
+
+    @NotBlank(message = "firstName is required")
+    @Size(max = 80, message = "firstName must not exceed 80 characters")
+    private String firstName;
+
+    @NotBlank(message = "lastName is required")
+    @Size(max = 80, message = "lastName must not exceed 80 characters")
+    private String lastName;
+
+    @Email(message = "personalEmail must be a valid email")
+    @Size(max = 160, message = "personalEmail must not exceed 160 characters")
+    private String personalEmail;
+
+    @Email(message = "officialEmail must be a valid email")
+    @Size(max = 160, message = "officialEmail must not exceed 160 characters")
+    private String officialEmail;
+
+    @Size(max = 20)
+    private String phoneNumber;
+
+    @Size(max = 20)
+    private String mobileNumber;
+
+    @Size(max = 255)
+    private String address;
+
+    @Size(max = 80)
+    private String city;
+
+    @Size(max = 80)
+    private String state;
+
+    @Size(max = 80)
+    private String country;
+
+    @Size(max = 20)
+    private String postalCode;
+
+    @Size(max = 80)
+    private String nationality;
+
+    private LocalDate dateOfBirth;
+
+    @Size(max = 20)
+    private String gender;
+
+    @Size(max = 120)
+    private String companyName;
+
+    private Boolean vipStatus;
+
+    @Size(max = 40)
+    private String idType;
+
+    @Size(max = 80)
+    private String idNumber;
+
+    @Size(max = 500)
+    private String idDocumentPath;
+
+    @Size(max = 40)
+    private String loyaltyMembershipNumber;
+
+    @Size(max = 40)
+    private String loyaltyTier;
+
+    @AssertTrue(message = "loyaltyMembershipNumber and loyaltyTier must both be null or both be populated")
+    public boolean isLoyaltyDataConsistent() {
+        return (loyaltyMembershipNumber == null && loyaltyTier == null)
+                || (hasText(loyaltyMembershipNumber) && hasText(loyaltyTier));
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+}

@@ -1,5 +1,6 @@
 package com.frontdesk.pms.rate_management.entity;
 
+import com.pms.common.entity.BaseEntity;
 import jakarta.persistence.*;
 
 @Entity
@@ -8,7 +9,7 @@ import jakarta.persistence.*;
         @UniqueConstraint(name = "uk_room_type_occupancy", columnNames = {"room_type_id", "occupancy_type"})
     }
 )
-public class MasterRoomPricing {
+public class MasterRoomPricing extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

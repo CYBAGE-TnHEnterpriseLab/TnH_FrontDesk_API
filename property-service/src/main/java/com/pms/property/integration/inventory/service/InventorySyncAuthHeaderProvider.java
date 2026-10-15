@@ -33,6 +33,13 @@ public class InventorySyncAuthHeaderProvider {
         return Optional.empty();
     }
 
+    public Optional<String> resolveAuthorizationHeader(String explicitHeader) {
+        if (explicitHeader != null && !explicitHeader.isBlank()) {
+            return Optional.of(explicitHeader);
+        }
+        return resolveAuthorizationHeader();
+    }
+
     private String inboundAuthorizationHeader() {
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
         if (!(attributes instanceof ServletRequestAttributes servletAttributes)) {

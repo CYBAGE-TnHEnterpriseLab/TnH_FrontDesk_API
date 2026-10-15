@@ -5,13 +5,14 @@ import com.pms.property.draft.entity.DraftStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PropertyDraftRepository extends JpaRepository<PropertyDraftEntity, Long> {
 
 	List<PropertyDraftEntity> findByStatusInOrderByUpdatedAtDesc(Collection<DraftStatus> statuses);
 
-	List<PropertyDraftEntity> findByCreatedByAndStatusInOrderByUpdatedAtDesc(String createdBy, Collection<DraftStatus> statuses);
+	List<PropertyDraftEntity> findByCreatedByAndStatusInOrderByUpdatedAtDesc(UUID createdBy, Collection<DraftStatus> statuses);
 
 			Optional<PropertyDraftEntity> findFirstByPublishedPropertyIdAndStatusOrderByUpdatedAtDesc(
 				String publishedPropertyId,

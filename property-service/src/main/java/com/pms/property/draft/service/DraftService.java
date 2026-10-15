@@ -8,26 +8,27 @@ import com.pms.property.draft.entity.DraftStatus;
 import com.pms.property.draft.entity.PropertyDraftEntity;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 public interface DraftService {
 
-    DraftResponse createDraft(CreateDraftRequest request, String actor);
+    DraftResponse createDraft(CreateDraftRequest request, UUID actor);
 
-    DraftResponse saveDraft(Long draftId, SaveDraftRequest request, String actor);
+    DraftResponse saveDraft(Long draftId, SaveDraftRequest request, UUID actor);
 
     DraftResponse getDraft(Long draftId);
 
-    DraftResponse getPublishedDraftByPropertyId(String propertyId, String actor);
+    DraftResponse getPublishedDraftByPropertyId(String propertyId, UUID actor);
 
-    List<WizardPropertyOptionResponse> getMyPublishedWizardProperties(String actor);
+    List<WizardPropertyOptionResponse> getMyPublishedWizardProperties(UUID actor);
 
-    List<DraftResponse> getDraftsByStatus(Collection<DraftStatus> requestedStatuses, String actor);
+    List<DraftResponse> getDraftsByStatus(Collection<DraftStatus> requestedStatuses, UUID actor);
 
     PropertyDraftEntity getById(Long draftId);
 
-    void deleteDraft(Long draftId, String actor);
+    void deleteDraft(Long draftId, UUID actor);
 
     void deleteImagesFromWizardData(String wizardDataJson);
 
-    void markPublished(PropertyDraftEntity draft, String propertyId, String actor);
+    void markPublished(PropertyDraftEntity draft, String propertyId, UUID actor);
 }

@@ -11,4 +11,11 @@ public interface PaymentProcessingService {
             String confirmationNumber,
             BigDecimal amount
     );
+
+    void compensatePayment(
+            ReservationBookingRequestDto request,
+            String confirmationNumber,
+            BigDecimal amount,
+            PaymentProcessingResult paymentResult
+    );
 }

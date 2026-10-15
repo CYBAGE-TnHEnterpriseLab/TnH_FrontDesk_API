@@ -11,12 +11,11 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 public record HousekeepingRoomFilterRequest(
 
         @NotNull
-        UUID propertyId,
+        String propertyId,
 
         @NotNull
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -33,19 +32,19 @@ public record HousekeepingRoomFilterRequest(
 
         List<ReservationStatus> reservationStatus,
 
-        UUID roomTypeId,
+        String roomTypeId,
 
         String floor,
 
         String attendant,
 
         HousekeepingPriority priority,
+//        Boolean vipOnly,
 
         @Min(0)
         Integer page,
 
         @Min(1)
-        @Max(200)
         Integer size,
 
         String sortBy,

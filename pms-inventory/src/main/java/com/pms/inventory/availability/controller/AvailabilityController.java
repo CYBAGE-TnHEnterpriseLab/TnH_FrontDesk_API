@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/inventory/availability")
@@ -29,8 +28,8 @@ public class AvailabilityController {
     @GetMapping
     @Operation(summary = "Get room-type availability")
     public List<AvailabilityResponse> getAvailability(
-            @RequestParam @NotNull UUID propertyId,
-            @RequestParam @NotNull UUID roomTypeId,
+            @RequestParam @NotNull String propertyId,
+            @RequestParam @NotNull String roomTypeId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {

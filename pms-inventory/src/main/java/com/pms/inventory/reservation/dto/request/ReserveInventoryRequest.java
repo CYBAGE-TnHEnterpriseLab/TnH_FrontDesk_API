@@ -5,17 +5,15 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
-import java.util.UUID;
-
 public record ReserveInventoryRequest(
         @NotNull(message = "reservationId is required")
-        UUID reservationId,
+        String confirmationNumber,
         @NotNull(message = "propertyId is required")
-        UUID propertyId,
+        String propertyId,
         @NotNull(message = "bookedRoomTypeId is required")
-        UUID bookedRoomTypeId,
+        String bookedRoomTypeId,
         @NotNull(message = "assignedRoomTypeId is required")
-        UUID assignedRoomTypeId,
+        String assignedRoomTypeId,
         @NotNull(message = "checkInDate is required")
         LocalDate checkInDate,
         @NotNull(message = "checkOutDate is required")
@@ -23,9 +21,9 @@ public record ReserveInventoryRequest(
         @Positive(message = "quantity must be greater than 0")
         Integer quantity
 ) {
-    @AssertTrue(message = "checkOutDate must be after checkInDate")
+    @AssertTrue(message = "checkOutDate must be on or after checkInDate")
     public boolean isDateRangeValid() {
-        return checkInDate != null && checkOutDate != null && checkOutDate.isAfter(checkInDate);
+        return checkInDate != null && checkOutDate != null && !checkOutDate.isBefore(checkInDate);
     }
 }
 

@@ -34,13 +34,13 @@ class RoomMasterSyncControllerTest {
 
     @Test
     void sync_shouldReturnCountsFromService() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         RoomMasterSyncRequest request = new RoomMasterSyncRequest(
                 propertyId,
                 LocalDate.of(2026, 8, 18),
                 LocalDate.of(2026, 8, 20),
                 List.of(new RoomMasterSyncRequest.RoomMasterUnit(
-                        UUID.randomUUID(),
+                        "13",
                         "Deluxe",
                         "101",
                         "1",

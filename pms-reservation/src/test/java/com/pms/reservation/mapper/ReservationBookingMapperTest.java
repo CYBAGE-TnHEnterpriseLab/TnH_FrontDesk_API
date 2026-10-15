@@ -22,6 +22,7 @@ class ReservationBookingMapperTest {
         ReservationBookingRequestDto request = validRequest();
         request.setRate(new BigDecimal("2500.00"));
         request.setNumberOfRooms(2);
+        request.setGuestNames(List.of("Alex Johnson", "Priya Rao"));
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
@@ -32,9 +33,27 @@ class ReservationBookingMapperTest {
         assertThat(entity.getTotalRate()).isEqualByComparingTo("10000.00");
         assertThat(entity.getPaymentType()).isEqualTo("FULL_PAYMENT");
         assertThat(entity.getMobileNumber()).isEqualTo("9876543210");
+        assertThat(entity.getDateOfBirth()).isEqualTo(LocalDate.of(1990, 1, 15));
+        assertThat(entity.getState()).isEqualTo("Maharashtra");
+        assertThat(entity.getIdType()).isEqualTo("PASSPORT");
+        assertThat(entity.getIdNumber()).isEqualTo("P1234567");
+        assertThat(entity.getEnrollGuest()).isTrue();
         assertThat(entity.getAssignedRoomNo()).isEqualTo("1203");
         assertThat(entity.getFloor()).isEqualTo(12);
         assertThat(entity.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    void toResponseShouldKeepOneGuestNamePerSelectedRoom() {
+        ReservationBookingRequestDto request = validRequest();
+        request.setNumberOfRooms(2);
+        request.setGuestNames(List.of("Alex Johnson", "Priya Rao"));
+
+        ReservationBookingRecord entity = mapper.toEntity(request);
+        ReservationBookingResponseDto response = mapper.toResponse(entity);
+
+        assertThat(response.getNumberOfRooms()).isEqualTo(2);
+        assertThat(response.getGuestNames()).containsExactly("Alex Johnson", "Priya Rao");
     }
 
     @Test
@@ -49,7 +68,7 @@ class ReservationBookingMapperTest {
     }
 
     @Test
-    void toEntityShouldSetTotalRateToZeroWhenStayNightsAreZero() {
+    void toEntityShouldSetTotalRateToOneNightWhenStayNightsAreZero() {
         ReservationBookingRequestDto request = validRequest();
         request.setArrivalDate(LocalDate.of(2026, 6, 20));
         request.setDepartureDate(LocalDate.of(2026, 6, 20));
@@ -58,7 +77,7 @@ class ReservationBookingMapperTest {
 
         ReservationBookingRecord entity = mapper.toEntity(request);
 
-        assertThat(entity.getTotalRate()).isEqualByComparingTo("0");
+        assertThat(entity.getTotalRate()).isEqualByComparingTo("5000.00");
     }
 
     @Test
@@ -67,7 +86,7 @@ class ReservationBookingMapperTest {
                 .id(42L)
             .confirmationNumber("1234567890")
                 .reservationStatus("CONFIRMED")
-                .propertyId("PROP001")
+                .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
                 .salutation("Mr")
                 .vipTag(Boolean.FALSE)
                 .guestName("Alex Johnson")
@@ -124,10 +143,15 @@ class ReservationBookingMapperTest {
 
     private ReservationBookingRequestDto validRequest() {
         ReservationBookingRequestDto request = new ReservationBookingRequestDto();
-        request.setPropertyId("PROP001");
+        request.setPropertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47");
         request.setSalutation("Mr");
         request.setVipTag(Boolean.FALSE);
         request.setGuestName("Alex Johnson");
+        request.setDateOfBirth(LocalDate.of(1990, 1, 15));
+        request.setState("Maharashtra");
+        request.setIdType("PASSPORT");
+        request.setIdNumber("P1234567");
+        request.setEnrollGuest(Boolean.TRUE);
         request.setGuestNames(List.of("Alex Johnson"));
         request.setPersonalEmail("alex.personal@example.com");
         request.setOfficialEmail("alex.official@example.com");

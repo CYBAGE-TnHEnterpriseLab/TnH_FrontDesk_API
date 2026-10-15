@@ -1,11 +1,8 @@
 package com.pms.housekeeping.controller;
 
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.dto.response.*;
-import com.pms.housekeeping.entity.CleaningStatus;
-import com.pms.housekeeping.entity.FrontOfficeStatus;
-import com.pms.housekeeping.entity.ReservationStatus;
 import com.pms.housekeeping.service.HousekeepingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/housekeeping")
@@ -34,7 +30,7 @@ public class HousekeepingController {
     @GetMapping("/dashboard")
     @Operation(summary = "Get housekeeping dashboard counters")
     public HousekeepingDashboardResponse dashboard(
-            @RequestParam @NotNull UUID propertyId,
+            @RequestParam @NotNull String propertyId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate
     ) {
         return housekeepingService.dashboard(propertyId, businessDate);
@@ -42,7 +38,8 @@ public class HousekeepingController {
 
     @GetMapping("/rooms")
     @Operation(summary = "Get housekeeping rooms")
-    public HousekeepingRoomsPageResponse rooms(@Valid @ModelAttribute HousekeepingRoomFilterRequest request
+    public HousekeepingRoomsPageResponse rooms(
+            @Valid @ModelAttribute HousekeepingRoomFilterRequest request
     ) {
         return housekeepingService.rooms(request);
     }
@@ -50,7 +47,7 @@ public class HousekeepingController {
     @GetMapping("/rooms/calendar")
     @Operation(summary = "Get housekeeping rooms for calendar view")
     public HousekeepingCalendarResponse calendar(
-            @RequestParam @NotNull UUID propertyId,
+            @RequestParam @NotNull String propertyId,
 
             @RequestParam @NotNull
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -61,33 +58,46 @@ public class HousekeepingController {
             LocalDate toDate,
 
             @RequestParam(required = false)
-            UUID roomTypeId
+            List<String> roomTypes
     ) {
         return housekeepingService.calendar(
                 propertyId,
                 fromDate,
                 toDate,
-                roomTypeId
+                roomTypes
         );
     }
 
     @GetMapping("/assignable-rooms")
     @Operation(summary = "Get assignable room numbers for dropdown")
     public List<AssignableRoomResponse> assignableRooms(
-            @RequestParam @NotNull UUID propertyId,
-            @RequestParam @NotNull UUID roomTypeId,
+            @RequestParam @NotNull String propertyId,
+            @RequestParam @NotNull String roomTypeId,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate businessDate,
             @RequestParam(defaultValue = "50") int limit
     ) {
         return housekeepingService.assignableRooms(propertyId, businessDate, roomTypeId, limit);
     }
 
-    @PatchMapping("/rooms/{roomNumber}/status")
-    @Operation(summary = "Update housekeeping status for a room")
-    public HousekeepingStatusUpdateResponse updateRoomStatus(
+    @PatchMapping("/rooms/{roomNumber}/updateRoom")
+    @Operation(summary = "Update room status, attendant, features")
+    public HousekeepingRoomDetailsUpdateResponse updateRoomDetails(
             @PathVariable String roomNumber,
-            @Valid @RequestBody UpdateHousekeepingStatusRequest request
+            @Valid @RequestBody UpdateHousekeepingRoomDetailsRequest request
     ) {
-        return housekeepingService.updateRoomStatus(roomNumber, request);
+        return housekeepingService.updateRoomDetails(roomNumber, request);
+    }
+
+    @PostMapping("/reservations/{confirmationId}/release")
+    @Operation(summary = "Release all housekeeping room assignments for a reservation")
+    public int releaseReservationAssignment(
+            @PathVariable String confirmationId,
+            @RequestParam @NotNull String propertyId,
+            @RequestParam(required = false) String roomNumber,
+            @RequestParam(required = false) LocalDate arrivalDate,
+            @RequestParam(required = false) LocalDate departureDate
+    ) {
+        return housekeepingService.releaseReservationAssignment(
+                propertyId, confirmationId, roomNumber, arrivalDate, departureDate);
     }
 }

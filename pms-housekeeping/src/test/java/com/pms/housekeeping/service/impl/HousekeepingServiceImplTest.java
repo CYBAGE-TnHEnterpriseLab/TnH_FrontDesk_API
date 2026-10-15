@@ -2,7 +2,7 @@ package com.pms.housekeeping.service.impl;
 
 import com.pms.housekeeping.common.exception.HousekeepingNotFoundException;
 import com.pms.housekeeping.dto.request.HousekeepingRoomFilterRequest;
-import com.pms.housekeeping.dto.request.UpdateHousekeepingStatusRequest;
+import com.pms.housekeeping.dto.request.UpdateHousekeepingRoomDetailsRequest;
 import com.pms.housekeeping.dto.response.AssignableRoomResponse;
 import com.pms.housekeeping.dto.response.CalendarDateResponse;
 import com.pms.housekeeping.dto.response.CalendarRoomResponse;
@@ -11,7 +11,7 @@ import com.pms.housekeeping.dto.response.HousekeepingCalendarResponse;
 import com.pms.housekeeping.dto.response.HousekeepingDashboardResponse;
 import com.pms.housekeeping.dto.response.HousekeepingRoomRowResponse;
 import com.pms.housekeeping.dto.response.HousekeepingRoomsPageResponse;
-import com.pms.housekeeping.dto.response.HousekeepingStatusUpdateResponse;
+import com.pms.housekeeping.dto.response.HousekeepingRoomDetailsUpdateResponse;
 import com.pms.housekeeping.dto.response.RoomTypeOptionResponse;
 import com.pms.housekeeping.entity.CleaningStatus;
 import com.pms.housekeeping.entity.FrontOfficeStatus;
@@ -24,7 +24,10 @@ import com.pms.housekeeping.entity.StatusChangeSource;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusHistoryRepository;
 import com.pms.housekeeping.repository.HousekeepingRoomDayStatusRepository;
 import com.pms.housekeeping.repository.RoomMasterProjectionRepository;
-import com.pms.housekeeping.security.CurrentUserProvider;
+import com.pms.common.security.CurrentUserProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,7 +100,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void dashboard_shouldCalculateAllCounters() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         List<HousekeepingRoomDayStatus> rows = List.of(
                 status(propertyId, businessDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.ARRIVAL),
@@ -128,10 +131,10 @@ class HousekeepingServiceImplTest {
 
     @Test
     void rooms_shouldApplyDefaultPagingSortingAndFilters() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "201", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
-        row.setRoomTypeId(UUID.randomUUID());
+        row.setRoomTypeId("13");
         row.setRoomTypeName("Deluxe");
         row.setFloor("2");
         row.setGuestDisplayName("Jane Doe");
@@ -146,7 +149,7 @@ class HousekeepingServiceImplTest {
 
         Page<HousekeepingRoomDayStatus> roomPage = new PageImpl<>(List.of(row), PageRequest.of(0, 50, Sort.by(Sort.Direction.ASC, "roomNumber")), 1);
         when(dayStatusRepository.findAll(org.mockito.ArgumentMatchers.<Specification<HousekeepingRoomDayStatus>>any(), pageableCaptor.capture())).thenReturn(roomPage);
-        when(dayStatusRepository.findDistinctRoomTypes(propertyId, businessDate)).thenReturn(List.of(new RoomTypeOptionResponse(UUID.randomUUID(), "Deluxe")));
+        when(dayStatusRepository.findDistinctRoomTypes(propertyId, businessDate)).thenReturn(List.of(new RoomTypeOptionResponse("13", "Deluxe")));
         when(dayStatusRepository.findDistinctFloors(propertyId, businessDate)).thenReturn(List.of("2"));
         when(dayStatusRepository.findDistinctAttendants(propertyId, businessDate)).thenReturn(List.of("Alice"));
 
@@ -194,7 +197,7 @@ class HousekeepingServiceImplTest {
         assertThat(room.priority()).isEqualTo(HousekeepingPriority.HIGH);
         assertThat(room.sellable()).isTrue();
         assertThat(room.confirmationId()).isEqualTo("CONF-1");
-        assertThat(room.featuresCsv()).isEqualTo("WiFi,TV");
+        assertThat(room.features()).containsExactly("WiFi","TV");
     }
 
     @Test
@@ -232,7 +235,7 @@ class HousekeepingServiceImplTest {
     @Test
     void calendar_shouldRejectInvalidDateRange() {
         assertThatThrownBy(() -> service.calendar(
-                UUID.randomUUID(),
+                UUID.randomUUID().toString(),
                 LocalDate.of(2026, 8, 20),
                 LocalDate.of(2026, 8, 18),
                 null
@@ -242,82 +245,270 @@ class HousekeepingServiceImplTest {
 
     @Test
     void calendar_shouldBuildNestedDateAndRoomStructure() {
-        UUID propertyId = UUID.randomUUID();
-        UUID roomTypeId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
+        String roomTypeId = "13";
+
         LocalDate fromDate = LocalDate.of(2026, 8, 18);
         LocalDate toDate = LocalDate.of(2026, 8, 20);
 
-        HousekeepingRoomDayStatus room101Day1 = status(propertyId, fromDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.ARRIVAL);
+        List<String> roomTypes = List.of("Deluxe");
+
+        HousekeepingRoomDayStatus room101Day1 =
+                status(
+                        propertyId,
+                        fromDate,
+                        "101",
+                        CleaningStatus.CLEAN,
+                        FrontOfficeStatus.VACANT,
+                        ReservationStatus.ARRIVAL
+                );
+
         room101Day1.setRoomTypeId(roomTypeId);
         room101Day1.setRoomTypeName("Deluxe");
         room101Day1.setFloor("1");
         room101Day1.setGuestDisplayName("Guest One");
-        room101Day1.setArrivalDate(LocalDate.of(2026, 8, 18));
-        room101Day1.setDepartureDate(LocalDate.of(2026, 8, 20));
+        room101Day1.setArrivalDate(
+                LocalDate.of(2026, 8, 18)
+        );
+        room101Day1.setDepartureDate(
+                LocalDate.of(2026, 8, 20)
+        );
         room101Day1.setAttendantName("Anna");
-        room101Day1.setPriority(HousekeepingPriority.NORMAL);
+        room101Day1.setPriority(
+                HousekeepingPriority.NORMAL
+        );
         room101Day1.setSellable(true);
-        room101Day1.setConfirmationId(UUID.randomUUID().toString());
+        room101Day1.setConfirmationId(
+                UUID.randomUUID().toString()
+        );
 
-        HousekeepingRoomDayStatus room101Day3 = status(propertyId, toDate, "101", null, FrontOfficeStatus.OCCUPIED, ReservationStatus.DEPARTURE);
+        HousekeepingRoomDayStatus room101Day3 =
+                status(
+                        propertyId,
+                        toDate,
+                        "101",
+                        null,
+                        FrontOfficeStatus.OCCUPIED,
+                        ReservationStatus.DEPARTURE
+                );
+
         room101Day3.setRoomTypeId(roomTypeId);
         room101Day3.setRoomTypeName("Deluxe");
         room101Day3.setFloor("1");
         room101Day3.setGuestDisplayName("Guest One");
-        room101Day3.setArrivalDate(LocalDate.of(2026, 8, 18));
-        room101Day3.setDepartureDate(LocalDate.of(2026, 8, 20));
+        room101Day3.setArrivalDate(
+                LocalDate.of(2026, 8, 18)
+        );
+        room101Day3.setDepartureDate(
+                LocalDate.of(2026, 8, 20)
+        );
         room101Day3.setAttendantName("Anna");
-        room101Day3.setPriority(HousekeepingPriority.HIGH);
+        room101Day3.setPriority(
+                HousekeepingPriority.HIGH
+        );
         room101Day3.setSellable(false);
         room101Day3.setConfirmationId(null);
 
-        HousekeepingRoomDayStatus room102Day2 = status(propertyId, fromDate.plusDays(1), "102", CleaningStatus.DIRTY, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
+        HousekeepingRoomDayStatus room102Day2 =
+                status(
+                        propertyId,
+                        fromDate.plusDays(1),
+                        "102",
+                        CleaningStatus.DIRTY,
+                        FrontOfficeStatus.VACANT,
+                        ReservationStatus.NOT_RESERVED
+                );
+
         room102Day2.setRoomTypeId(roomTypeId);
         room102Day2.setRoomTypeName("Deluxe");
         room102Day2.setFloor("1");
         room102Day2.setGuestDisplayName(null);
         room102Day2.setAttendantName(null);
-        room102Day2.setPriority(HousekeepingPriority.NORMAL);
+        room102Day2.setPriority(
+                HousekeepingPriority.NORMAL
+        );
         room102Day2.setSellable(false);
 
-        when(housekeepingRoomDayStatusRepository.findCalendarData(propertyId, fromDate, toDate, roomTypeId))
-                .thenReturn(List.of(room101Day1, room101Day3, room102Day2));
+        when(
+                housekeepingRoomDayStatusRepository.findCalendarData(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                )
+        ).thenReturn(
+                List.of(
+                        room101Day1,
+                        room101Day3,
+                        room102Day2
+                )
+        );
 
-        HousekeepingCalendarResponse response = service.calendar(propertyId, fromDate, toDate, roomTypeId);
+        HousekeepingCalendarResponse response =
+                service.calendar(
+                        propertyId,
+                        fromDate,
+                        toDate,
+                        roomTypes
+                );
 
-        assertThat(response.propertyId()).isEqualTo(propertyId);
-        assertThat(response.fromDate()).isEqualTo(fromDate);
-        assertThat(response.toDate()).isEqualTo(toDate);
-        assertThat(response.dates()).hasSize(3);
-        assertThat(response.dates().getFirst()).isEqualTo(new CalendarDateResponse(fromDate, fromDate.getDayOfWeek().name(), fromDate.getDayOfMonth()));
-        assertThat(response.roomTypes()).hasSize(1);
+        assertThat(response.propertyId())
+                .isEqualTo(propertyId);
 
-        CalendarRoomTypeResponse roomType = response.roomTypes().getFirst();
-        assertThat(roomType.roomTypeId()).isEqualTo(roomTypeId);
-        assertThat(roomType.roomTypeName()).isEqualTo("Deluxe");
-        assertThat(roomType.rooms()).hasSize(2);
+        assertThat(response.fromDate())
+                .isEqualTo(fromDate);
 
-        CalendarRoomResponse room101 = roomType.rooms().getFirst();
-        assertThat(room101.roomNumber()).isEqualTo("101");
-        assertThat(room101.floor()).isEqualTo("1");
-        assertThat(room101.days()).hasSize(3);
-        assertThat(room101.days().get(0).cleaningStatus()).isEqualTo("CLEAN");
-        assertThat(room101.days().get(1).cleaningStatus()).isNull();
-        assertThat(room101.days().get(2).frontOfficeStatus()).isEqualTo("OCCUPIED");
-        assertThat(room101.days().get(2).priority()).isEqualTo("HIGH");
-        assertThat(room101.days().get(2).assignedReservationId()).isNull();
+        assertThat(response.toDate())
+                .isEqualTo(toDate);
 
-        CalendarRoomResponse room102 = roomType.rooms().get(1);
-        assertThat(room102.roomNumber()).isEqualTo("102");
-        assertThat(room102.days().get(0).cleaningStatus()).isNull();
-        assertThat(room102.days().get(1).cleaningStatus()).isEqualTo("DIRTY");
-        assertThat(room102.days().get(2).sellable()).isNull();
+        assertThat(response.dates())
+                .hasSize(3);
+
+        assertThat(response.dates().getFirst())
+                .isEqualTo(
+                        new CalendarDateResponse(
+                                fromDate,
+                                fromDate.getDayOfWeek().name(),
+                                fromDate.getDayOfMonth()
+                        )
+                );
+
+        assertThat(response.roomTypes())
+                .hasSize(1);
+
+        CalendarRoomTypeResponse roomType =
+                response.roomTypes().getFirst();
+
+        assertThat(roomType.roomTypeId())
+                .isEqualTo(roomTypeId);
+
+        assertThat(roomType.roomTypeName())
+                .isEqualTo("Deluxe");
+
+        assertThat(roomType.rooms())
+                .hasSize(2);
+
+        CalendarRoomResponse room101 =
+                roomType.rooms().getFirst();
+
+        assertThat(room101.roomNumber())
+                .isEqualTo("101");
+
+        assertThat(room101.floor())
+                .isEqualTo("1");
+
+        assertThat(room101.days())
+                .hasSize(3);
+
+        assertThat(room101.days().get(0).cleaningStatus())
+                .isEqualTo("CLEAN");
+
+        assertThat(room101.days().get(1).cleaningStatus())
+                .isNull();
+
+        assertThat(room101.days().get(2).frontOfficeStatus())
+                .isEqualTo("OCCUPIED");
+
+        assertThat(room101.days().get(2).priority())
+                .isEqualTo("HIGH");
+
+        assertThat(room101.days().get(2).assignedReservationId())
+                .isNull();
+
+        CalendarRoomResponse room102 =
+                roomType.rooms().get(1);
+
+        assertThat(room102.roomNumber())
+                .isEqualTo("102");
+
+        assertThat(room102.days().get(0).cleaningStatus())
+                .isNull();
+
+        assertThat(room102.days().get(1).cleaningStatus())
+                .isEqualTo("DIRTY");
+
+        assertThat(room102.days().get(2).sellable())
+                .isNull();
     }
+
+//    @Test
+//    void calendar_shouldBuildNestedDateAndRoomStructure() {
+//        String propertyId = UUID.randomUUID().toString();
+//        UUID roomTypeId = UUID.randomUUID();
+//        LocalDate fromDate = LocalDate.of(2026, 8, 18);
+//        LocalDate toDate = LocalDate.of(2026, 8, 20);
+//
+//        HousekeepingRoomDayStatus room101Day1 = status(propertyId, fromDate, "101", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.ARRIVAL);
+//        room101Day1.setRoomTypeId(roomTypeId);
+//        room101Day1.setRoomTypeName("Deluxe");
+//        room101Day1.setFloor("1");
+//        room101Day1.setGuestDisplayName("Guest One");
+//        room101Day1.setArrivalDate(LocalDate.of(2026, 8, 18));
+//        room101Day1.setDepartureDate(LocalDate.of(2026, 8, 20));
+//        room101Day1.setAttendantName("Anna");
+//        room101Day1.setPriority(HousekeepingPriority.NORMAL);
+//        room101Day1.setSellable(true);
+//        room101Day1.setConfirmationId(UUID.randomUUID().toString());
+//
+//        HousekeepingRoomDayStatus room101Day3 = status(propertyId, toDate, "101", null, FrontOfficeStatus.OCCUPIED, ReservationStatus.DEPARTURE);
+//        room101Day3.setRoomTypeId(roomTypeId);
+//        room101Day3.setRoomTypeName("Deluxe");
+//        room101Day3.setFloor("1");
+//        room101Day3.setGuestDisplayName("Guest One");
+//        room101Day3.setArrivalDate(LocalDate.of(2026, 8, 18));
+//        room101Day3.setDepartureDate(LocalDate.of(2026, 8, 20));
+//        room101Day3.setAttendantName("Anna");
+//        room101Day3.setPriority(HousekeepingPriority.HIGH);
+//        room101Day3.setSellable(false);
+//        room101Day3.setConfirmationId(null);
+//
+//        HousekeepingRoomDayStatus room102Day2 = status(propertyId, fromDate.plusDays(1), "102", CleaningStatus.DIRTY, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
+//        room102Day2.setRoomTypeId(roomTypeId);
+//        room102Day2.setRoomTypeName("Deluxe");
+//        room102Day2.setFloor("1");
+//        room102Day2.setGuestDisplayName(null);
+//        room102Day2.setAttendantName(null);
+//        room102Day2.setPriority(HousekeepingPriority.NORMAL);
+//        room102Day2.setSellable(false);
+//
+//        when(housekeepingRoomDayStatusRepository.findCalendarData(propertyId, fromDate, toDate, "Deluxe"))
+//                .thenReturn(List.of(room101Day1, room101Day3, room102Day2));
+//
+//        HousekeepingCalendarResponse response = service.calendar(propertyId, fromDate, toDate, roomTypeId);
+//
+//        assertThat(response.propertyId()).isEqualTo(propertyId);
+//        assertThat(response.fromDate()).isEqualTo(fromDate);
+//        assertThat(response.toDate()).isEqualTo(toDate);
+//        assertThat(response.dates()).hasSize(3);
+//        assertThat(response.dates().getFirst()).isEqualTo(new CalendarDateResponse(fromDate, fromDate.getDayOfWeek().name(), fromDate.getDayOfMonth()));
+//        assertThat(response.roomTypes()).hasSize(1);
+//
+//        CalendarRoomTypeResponse roomType = response.roomTypes().getFirst();
+//        assertThat(roomType.roomTypeId()).isEqualTo(roomTypeId);
+//        assertThat(roomType.roomTypeName()).isEqualTo("Deluxe");
+//        assertThat(roomType.rooms()).hasSize(2);
+//
+//        CalendarRoomResponse room101 = roomType.rooms().getFirst();
+//        assertThat(room101.roomNumber()).isEqualTo("101");
+//        assertThat(room101.floor()).isEqualTo("1");
+//        assertThat(room101.days()).hasSize(3);
+//        assertThat(room101.days().get(0).cleaningStatus()).isEqualTo("CLEAN");
+//        assertThat(room101.days().get(1).cleaningStatus()).isNull();
+//        assertThat(room101.days().get(2).frontOfficeStatus()).isEqualTo("OCCUPIED");
+//        assertThat(room101.days().get(2).priority()).isEqualTo("HIGH");
+//        assertThat(room101.days().get(2).assignedReservationId()).isNull();
+//
+//        CalendarRoomResponse room102 = roomType.rooms().get(1);
+//        assertThat(room102.roomNumber()).isEqualTo("102");
+//        assertThat(room102.days().get(0).cleaningStatus()).isNull();
+//        assertThat(room102.days().get(1).cleaningStatus()).isEqualTo("DIRTY");
+//        assertThat(room102.days().get(2).sellable()).isNull();
+//    }
 
     @Test
     void assignableRooms_shouldClampLimitAndEnrichResults() {
-        UUID propertyId = UUID.randomUUID();
-        UUID roomTypeId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
+        String roomTypeId = "13";
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
 
         List<HousekeepingRoomDayStatus> rows = new ArrayList<>();
@@ -375,8 +566,8 @@ class HousekeepingServiceImplTest {
 
     @Test
     void assignableRooms_shouldReturnAtLeastOneRoomEvenWhenLimitIsZero() {
-        UUID propertyId = UUID.randomUUID();
-        UUID roomTypeId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
+        String roomTypeId = "14";
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "301", CleaningStatus.INSPECTED, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setRoomTypeId(roomTypeId);
@@ -400,12 +591,13 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldThrowWhenRoomIsMissing() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
-        UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
+        UpdateHousekeepingRoomDetailsRequest request = new UpdateHousekeepingRoomDetailsRequest(
                 propertyId,
                 businessDate,
                 CleaningStatus.CLEAN,
+                null,
                 null,
                 null,
                 null,
@@ -423,7 +615,7 @@ class HousekeepingServiceImplTest {
         when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "404")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateRoomStatus("404", request))
+        assertThatThrownBy(() -> service.updateRoomDetails("404", request))
                 .isInstanceOf(HousekeepingNotFoundException.class)
                 .hasMessageContaining("Housekeeping status not found for room: 404");
         verifyNoInteractions(historyRepository);
@@ -431,7 +623,7 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldApplyChangesSaveHistoryAndComputeSellable() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "501", CleaningStatus.DIRTY, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setAttendantName("Old Attendant");
@@ -442,11 +634,14 @@ class HousekeepingServiceImplTest {
         row.setConfirmationId(null);
         row.setSellable(false);
 
-        when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "501")).thenReturn(Optional.of(row));
         when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(currentUserProvider.getCurrentUsername()).thenReturn("11111111-1111-1111-1111-111111111111");
 
-        UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
+        SecurityContextHolder.setContext(
+                new SecurityContextImpl(new UsernamePasswordAuthenticationToken("11111111-1111-1111-1111-111111111111", null, List.of())));
+
+        UpdateHousekeepingRoomDetailsRequest request = new UpdateHousekeepingRoomDetailsRequest(
                 propertyId,
                 businessDate,
                 CleaningStatus.CLEAN,
@@ -454,6 +649,7 @@ class HousekeepingServiceImplTest {
                 ReservationStatus.NOT_RESERVED,
                 "CONF-123",
                 "New Attendant",
+                List.of("KING_BED", "TV", "GARDEN_VIEW"),
                 HousekeepingPriority.HIGH,
                 "New Guest",
                 LocalDate.of(2026, 8, 18),
@@ -464,7 +660,7 @@ class HousekeepingServiceImplTest {
                 null
         );
 
-        HousekeepingStatusUpdateResponse response = service.updateRoomStatus("501", request);
+        HousekeepingRoomDetailsUpdateResponse response = service.updateRoomDetails("501", request);
 
         assertThat(response.roomNumber()).isEqualTo("501");
         assertThat(response.cleaningStatus()).isEqualTo("CLEAN");
@@ -473,14 +669,14 @@ class HousekeepingServiceImplTest {
         assertThat(response.attendantName()).isEqualTo("New Attendant");
         assertThat(response.priority()).isEqualTo(HousekeepingPriority.HIGH);
         assertThat(response.confirmationId()).isEqualTo("CONF-123");
-        assertThat(response.sellable()).isFalse();
+        assertThat(response.sellable()).isTrue();
         assertThat(response.updatedAt()).isNotNull();
         assertThat(response.lastCleanedAt()).isNotNull();
 
         ArgumentCaptor<HousekeepingRoomDayStatus> savedCaptor = ArgumentCaptor.forClass(HousekeepingRoomDayStatus.class);
         verify(dayStatusRepository).save(savedCaptor.capture());
         HousekeepingRoomDayStatus saved = savedCaptor.getValue();
-        assertThat(saved.getUpdatedBy()).isEqualTo("alice");
+        assertThat(saved.getUpdatedBy()).isEqualTo(UUID.fromString("11111111-1111-1111-1111-111111111111"));
         assertThat(saved.getCleaningStatus()).isEqualTo(CleaningStatus.CLEAN);
         assertThat(saved.getFrontOfficeStatus()).isEqualTo(FrontOfficeStatus.VACANT);
         assertThat(saved.getReservationStatus()).isEqualTo(ReservationStatus.NOT_RESERVED);
@@ -490,36 +686,40 @@ class HousekeepingServiceImplTest {
         assertThat(saved.getGuestDisplayName()).isEqualTo("New Guest");
         assertThat(saved.getArrivalDate()).isEqualTo(LocalDate.of(2026, 8, 18));
         assertThat(saved.getDepartureDate()).isEqualTo(LocalDate.of(2026, 8, 20));
-        assertThat(saved.isSellable()).isFalse();
+        assertThat(saved.isSellable()).isTrue();
         assertThat(saved.getLastCleanedAt()).isNotNull();
 
-        verify(historyRepository, org.mockito.Mockito.times(4)).save(historyCaptor.capture());
+        verify(historyRepository, org.mockito.Mockito.times(5)).save(historyCaptor.capture());
         List<HousekeepingRoomDayStatusHistory> histories = historyCaptor.getAllValues();
         assertThat(histories).extracting(HousekeepingRoomDayStatusHistory::getChangedField)
                 .containsExactly(
                         "cleaningStatus",
                         "assignedReservationId",
                         "attendantName",
-                        "priority"
+                        "priority",
+                        "featuresCsv"
                 );
-        assertThat(histories).allMatch(h -> h.getChangedBy().equals("alice") && h.getSourceModule() == StatusChangeSource.HOUSEKEEPING);
+        assertThat(histories).allMatch(h -> h.getChangedBy().equals("11111111-1111-1111-1111-111111111111") && h.getSourceModule() == StatusChangeSource.HOUSEKEEPING);
     }
 
     @Test
-    void updateRoomStatus_shouldRespectExplicitSellableAndSkipNoOpChanges() {
-        UUID propertyId = UUID.randomUUID();
+    void updateRoomStatus_shouldComputeSellableAndSkipNoOpChanges() {
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "601", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setAttendantName("Alice");
         row.setPriority(HousekeepingPriority.NORMAL);
         row.setConfirmationId("CONF-EXISTING");
         row.setSellable(true);
+        row.setFeaturesCsv("KING_BED,TV,GARDEN_VIEW");
 
-        when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "601")).thenReturn(Optional.of(row));
         when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
+        SecurityContextHolder.setContext(
+                new SecurityContextImpl(new UsernamePasswordAuthenticationToken("11111111-1111-1111-1111-111111111111", null, List.of())));
+
+        UpdateHousekeepingRoomDetailsRequest request = new UpdateHousekeepingRoomDetailsRequest(
                 propertyId,
                 businessDate,
                 CleaningStatus.CLEAN,
@@ -527,6 +727,7 @@ class HousekeepingServiceImplTest {
                 ReservationStatus.NOT_RESERVED,
                 "CONF-EXISTING",
                 "Alice",
+                List.of("KING_BED", "TV", "GARDEN_VIEW"),
                 HousekeepingPriority.NORMAL,
                 null,
                 null,
@@ -537,9 +738,9 @@ class HousekeepingServiceImplTest {
                 null
         );
 
-        HousekeepingStatusUpdateResponse response = service.updateRoomStatus("601", request);
+        HousekeepingRoomDetailsUpdateResponse response = service.updateRoomDetails("601", request);
 
-        assertThat(response.sellable()).isFalse();
+        assertThat(response.sellable()).isTrue();
         assertThat(response.cleaningStatus()).isEqualTo("CLEAN");
         assertThat(response.confirmationId()).isEqualTo("CONF-EXISTING");
         verify(historyRepository, never()).save(any());
@@ -547,23 +748,26 @@ class HousekeepingServiceImplTest {
 
     @Test
     void updateRoomStatus_shouldComputeSellableWhenEligibleAndSellableIsNotProvided() {
-        UUID propertyId = UUID.randomUUID();
+        String propertyId = UUID.randomUUID().toString();
         LocalDate businessDate = LocalDate.of(2026, 8, 18);
         HousekeepingRoomDayStatus row = status(propertyId, businessDate, "602", CleaningStatus.CLEAN, FrontOfficeStatus.VACANT, ReservationStatus.NOT_RESERVED);
         row.setConfirmationId(null);
         row.setPriority(HousekeepingPriority.NORMAL);
         row.setSellable(false);
 
-        when(currentUserProvider.getCurrentUsername()).thenReturn("alice");
         when(dayStatusRepository.findByPropertyIdAndBusinessDateAndRoomNumber(propertyId, businessDate, "602")).thenReturn(Optional.of(row));
         when(dayStatusRepository.save(any(HousekeepingRoomDayStatus.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UpdateHousekeepingStatusRequest request = new UpdateHousekeepingStatusRequest(
+        SecurityContextHolder.setContext(
+                new SecurityContextImpl(new UsernamePasswordAuthenticationToken("11111111-1111-1111-1111-111111111111", null, List.of())));
+
+        UpdateHousekeepingRoomDetailsRequest request = new UpdateHousekeepingRoomDetailsRequest(
                 propertyId,
                 businessDate,
                 CleaningStatus.CLEAN,
                 FrontOfficeStatus.VACANT,
                 ReservationStatus.NOT_RESERVED,
+                null,
                 null,
                 null,
                 null,
@@ -576,7 +780,7 @@ class HousekeepingServiceImplTest {
                 null
         );
 
-        HousekeepingStatusUpdateResponse response = service.updateRoomStatus("602", request);
+        HousekeepingRoomDetailsUpdateResponse response = service.updateRoomDetails("602", request);
 
         assertThat(response.sellable()).isTrue();
         assertThat(response.cleaningStatus()).isEqualTo("CLEAN");
@@ -585,7 +789,7 @@ class HousekeepingServiceImplTest {
     }
 
     private static HousekeepingRoomDayStatus status(
-            UUID propertyId,
+            String propertyId,
             LocalDate businessDate,
             String roomNumber,
             CleaningStatus cleaningStatus,
@@ -596,7 +800,7 @@ class HousekeepingServiceImplTest {
                 .propertyId(propertyId)
                 .businessDate(businessDate)
                 .roomNumber(roomNumber)
-                .roomTypeId(UUID.randomUUID())
+                .roomTypeId("13")
                 .roomTypeName("Standard")
                 .floor("1")
                 .cleaningStatus(cleaningStatus)

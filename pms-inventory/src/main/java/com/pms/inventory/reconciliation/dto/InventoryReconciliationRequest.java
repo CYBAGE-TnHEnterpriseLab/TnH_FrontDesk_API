@@ -8,27 +8,26 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 public record InventoryReconciliationRequest(
         @NotNull(message = "propertyId is required")
-        UUID propertyId,
+        String propertyId,
         @NotNull(message = "fromDate is required")
         LocalDate fromDate,
         @NotNull(message = "toDate is required")
         LocalDate toDate,
         @Valid
-        @NotEmpty(message = "roomTypes is required")
+        @NotNull(message = "roomTypes is required")
         List<RoomTypeInventoryInput> roomTypes
 ) {
-    @AssertTrue(message = "toDate must be after fromDate")
+    @AssertTrue(message = "toDate must be on or after fromDate")
     public boolean isDateRangeValid() {
-        return fromDate != null && toDate != null && toDate.isAfter(fromDate);
+        return fromDate != null && toDate != null && !toDate.isBefore(fromDate);
     }
 
     public record RoomTypeInventoryInput(
             @NotNull(message = "roomTypeId is required")
-            UUID roomTypeId,
+            String roomTypeId,
             @NotNull(message = "totalInventory is required")
             @PositiveOrZero(message = "totalInventory must be >= 0")
             Integer totalInventory

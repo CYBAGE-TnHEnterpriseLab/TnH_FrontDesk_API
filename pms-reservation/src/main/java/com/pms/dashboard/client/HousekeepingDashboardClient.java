@@ -24,18 +24,19 @@ public class HousekeepingDashboardClient extends DashboardWebClientSupport {
         this.config = properties.getHousekeeping();
     }
 
-    public Mono<DashboardModels.HousekeepingDashboardData> fetchDashboard(UUID propertyId, LocalDate businessDate) {
+    public Mono<DashboardModels.HousekeepingDashboardData> fetchDashboard(UUID propertyId, LocalDate businessDate, String authorization) {
         return getJson(
                 webClient.get(),
                 uri -> uri.path(config.getPrimaryPath())
                         .queryParam("propertyId", propertyId)
                         .queryParam("businessDate", businessDate)
                         .build(),
-                "housekeeping.dashboard"
+                "housekeeping.dashboard",
+                authorization
         ).map(this::toDashboardData);
     }
 
-    public Mono<List<DashboardModels.HousekeepingRoomData>> fetchRooms(UUID propertyId, LocalDate businessDate) {
+    public Mono<List<DashboardModels.HousekeepingRoomData>> fetchRooms(UUID propertyId, LocalDate businessDate, String authorization) {
         return getJson(
                 webClient.get(),
                 uri -> uri.path(config.getSecondaryPath())
@@ -46,7 +47,8 @@ public class HousekeepingDashboardClient extends DashboardWebClientSupport {
                         .queryParam("sortBy", SORT_BY_ROOM_NUMBER)
                         .queryParam("sortDir", SORT_ASC)
                         .build(),
-                HOUSEKEEPING_ROOMS_SOURCE
+                HOUSEKEEPING_ROOMS_SOURCE,
+                authorization
         ).map(this::toRooms);
     }
 
