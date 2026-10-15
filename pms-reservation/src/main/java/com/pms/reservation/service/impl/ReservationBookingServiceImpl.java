@@ -318,7 +318,9 @@ private ReservationBookingRequestDto requestForRoom(
 
         ReservationBookingRecord updated = reservationBookingMapper.mergeEntity(existing, request);
 
-        boolean roomTypeChanged = !sameValue(existing.getRoomType(), updated.getRoomType());
+boolean roomTypeChanged = request.getRoomType() != null
+                && !sameValue(previousRoomTypeId,
+                    resolveRoomTypeId(existing.getPropertyId(), updated.getRoomType()));
         if (roomTypeChanged && !Boolean.TRUE.equals(existing.getDnm())) {
             updated.setAssignedRoomNo(null);
             updated.setFloor(null);
