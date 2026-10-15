@@ -93,7 +93,7 @@ class ReservationAvailabilityServiceImplTest {
                 any(),
                 any(),
                 eq(2),
-                eq(0),
+                eq(4),
                 isNull(),
                 isNull()
         )).thenReturn(List.of());

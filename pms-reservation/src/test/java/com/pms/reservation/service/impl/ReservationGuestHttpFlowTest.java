@@ -24,8 +24,10 @@ import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationGuest;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.GuestServiceClient;
+import com.pms.reservation.integration.AuthServiceClient;
 import com.pms.reservation.integration.FolioServiceClient;
 import com.pms.reservation.integration.LoyaltyServiceClient;
+import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.LoyaltyMembershipResponse;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
@@ -87,6 +89,8 @@ class ReservationGuestHttpFlowTest {
     @Mock private HousekeepingRoomCalendarClient housekeepingCalendarClient;
     @Mock private FolioServiceClient folioServiceClient;
     @Mock private LoyaltyServiceClient loyaltyServiceClient;
+        @Mock private AuthServiceClient authServiceClient;
+        @Mock private RateManagementPort rateManagementPort;
 
     private MockRestServiceServer guestHttp;
     private ReservationBookingServiceImpl bookingService;
@@ -121,7 +125,9 @@ class ReservationGuestHttpFlowTest {
                 paymentProcessingService,
                 housekeepingStatusClient,
                 housekeepingCalendarClient,
-                folioServiceClient);
+                folioServiceClient,
+                authServiceClient,
+                rateManagementPort);
 
         PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
         roomType.setId(1L);
