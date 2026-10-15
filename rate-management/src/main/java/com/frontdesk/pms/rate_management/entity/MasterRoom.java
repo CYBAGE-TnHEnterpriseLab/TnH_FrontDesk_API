@@ -23,7 +23,7 @@ public class MasterRoom extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "meal_option")
-    private MasterRoomMealOption mealOption;
+    private MasterRoomMealOption mealOption = MasterRoomMealOption.NO_MEALS;
 
     @Column(name = "inclusion")
     private String inclusion;
@@ -110,5 +110,14 @@ public class MasterRoom extends BaseEntity {
 
     public void setRoomTypeMappings(List<MasterRoomRoomTypeMapping> roomTypeMappings) {
         this.roomTypeMappings = roomTypeMappings;
+    }
+
+    @PostLoad
+    @PrePersist
+    @PreUpdate
+    private void defaultMealOption() {
+        if (mealOption == null) {
+            mealOption = MasterRoomMealOption.NO_MEALS;
+        }
     }
 }

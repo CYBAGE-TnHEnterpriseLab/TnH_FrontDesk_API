@@ -5,4 +5,8 @@
 -- code, which stays unconstrained because publish only enforces uniqueness for non-blank codes.
 alter table property add column if not exists property_code_lower varchar(120);
 
+update property
+set property_code_lower = lower(trim(property_code))
+where property_code is not null and trim(property_code) <> '';
+
 create unique index if not exists uk_property_code_lower on property (property_code_lower);

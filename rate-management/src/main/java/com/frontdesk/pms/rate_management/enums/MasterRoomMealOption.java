@@ -10,7 +10,10 @@ public enum MasterRoomMealOption {
     LUNCH("lunch"),
     DINNER("dinner"),
     ALL_MEALS("all meals"),
-    BREAKFAST_AND_LUNCH("breakfast and lunch");
+    BREAKFAST_AND_LUNCH("breakfast and lunch"),
+    BREAKFAST_AND_DINNER("breakfast and dinner"),
+    LUNCH_AND_DINNER("lunch and dinner"),
+    NO_MEALS("no meals");
 
     private final String label;
 
@@ -48,7 +51,9 @@ public enum MasterRoomMealOption {
                         || option.name().equalsIgnoreCase(rawValue.trim()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Invalid meal option: " + rawValue + ". Allowed values: breakfast, lunch, dinner, all meals, breakfast and lunch"
+                        "Invalid meal option: " + rawValue
+                                + ". Allowed values: breakfast, lunch, dinner, all meals, breakfast and lunch, "
+                                + "breakfast and dinner, lunch and dinner, no meals"
                 ));
     }
 }

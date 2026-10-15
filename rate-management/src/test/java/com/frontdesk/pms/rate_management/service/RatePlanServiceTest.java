@@ -441,6 +441,51 @@ class RatePlanServiceTest {
     }
 
     @Test
+    void createRatePlan_shouldPersistNoMealsMealOption() {
+        RatePlanRequestDTO requestDTO = validRequest();
+        requestDTO.setMealOption(MasterRoomMealOption.NO_MEALS);
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L));
+        when(ratePlanRepository.existsByPropertyIdAndCodeIgnoreCase(PROPERTY_ID, requestDTO.getCode()))
+                .thenReturn(false);
+        when(ratePlanRepository.existsByPropertyIdAndNameIgnoreCase(PROPERTY_ID, requestDTO.getName()))
+                .thenReturn(false);
+        when(ratePlanRepository.save(org.mockito.ArgumentMatchers.any(RatePlan.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        RatePlanResponseDTO response = ratePlanService.createRatePlan(PROPERTY_ID, requestDTO);
+
+        assertEquals(MasterRoomMealOption.NO_MEALS, response.getMealOption());
+        verify(ratePlanRepository).save(org.mockito.ArgumentMatchers.argThat(
+                ratePlan -> ratePlan.getMealOption() == MasterRoomMealOption.NO_MEALS));
+    }
+
+    @Test
+    void updateRatePlan_shouldReplaceMealCombination() {
+        RatePlanRequestDTO requestDTO = validRequest();
+        requestDTO.setMealOption(MasterRoomMealOption.LUNCH_AND_DINNER);
+
+        RatePlan existing = new RatePlan();
+        existing.setId(42L);
+        existing.setPropertyId(PROPERTY_ID);
+        existing.setName(requestDTO.getName());
+        existing.setCode(requestDTO.getCode());
+        existing.setMealOption(MasterRoomMealOption.BREAKFAST);
+        existing.setApplicableRoomTypeIds(Set.of(101L));
+
+        when(propertyWizardClient.propertyExists(PROPERTY_ID)).thenReturn(true);
+        when(propertyWizardClient.getRoomTypesByProperty(PROPERTY_ID)).thenReturn(roomTypes(101L));
+        when(ratePlanRepository.findByIdAndPropertyId(42L, PROPERTY_ID)).thenReturn(Optional.of(existing));
+        when(ratePlanRepository.save(existing)).thenReturn(existing);
+
+        RatePlanResponseDTO response = ratePlanService.updateRatePlan(PROPERTY_ID, 42L, requestDTO);
+
+        assertEquals(MasterRoomMealOption.LUNCH_AND_DINNER, response.getMealOption());
+        verify(ratePlanRepository).save(org.mockito.ArgumentMatchers.argThat(
+                ratePlan -> ratePlan.getMealOption() == MasterRoomMealOption.LUNCH_AND_DINNER));
+    }
+
+    @Test
     void createRatePlan_shouldFailWhenRoomTypeDoesNotBelongToProperty() {
         RatePlanRequestDTO requestDTO = validRequest();
         requestDTO.setApplicableRoomTypeIds(Set.of(999L));
