@@ -10,8 +10,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
+import com.pms.reservation.util.BillableNights;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +49,9 @@ public class ReservationAvailabilityController {
             @RequestParam(required = false) @Min(value = 0, message = "children must be >= 0") Integer children,
             @RequestParam(required = false) @Min(value = 1, message = "adultCount must be >= 1") Integer adultCount,
             @RequestParam(required = false) @Min(value = 0, message = "childCount must be >= 0") Integer childCount,
+            @RequestParam(required = false) Integer ageOfChild1,
+            @RequestParam(required = false) Integer ageOfChild2,
+            @RequestParam(required = false) List<Integer> childAges,
             @RequestParam(required = false) String company,
             @RequestParam(required = false) String roomType,
             @RequestParam(required = false) String rateCode,
@@ -63,12 +68,14 @@ public class ReservationAvailabilityController {
             resolvedNight = night;
             resolvedDepartureDate = resolvedArrivalDate.plusDays(night.longValue());
         } else if (arrivalDate != null && departureDate != null) {
-            long computedNights = ChronoUnit.DAYS.between(arrivalDate, departureDate);
-            if (computedNights < 1) {
+            // A same-day stay is a valid day-use booking billed as one night, so only reject a
+            // departure that falls before the arrival date.
+            if (departureDate.isBefore(arrivalDate)) {
                 throw new BadRequestException("departureDate must be on or after arrivalDate");
             }
+            long computedNights = BillableNights.between(arrivalDate, departureDate);
             resolvedNight = Math.toIntExact(computedNights);
-            resolvedDepartureDate = departureDate;
+            resolvedDepartureDate = resolvedArrivalDate.plusDays(computedNights);
         } else {
             throw new BadRequestException("night is required");
         }
@@ -90,8 +97,31 @@ public class ReservationAvailabilityController {
         request.setBlockCode(blockCode);
         request.setAdultCount(resolvedAdults);
         request.setChildCount(resolvedChildren);
+        List<Integer> resolvedChildAges = resolveChildAges(childAges, ageOfChild1, ageOfChild2);
+        request.setAgeOfChild1(ageOfChild1 != null ? ageOfChild1 : ageAt(resolvedChildAges, 0));
+        request.setAgeOfChild2(ageOfChild2 != null ? ageOfChild2 : ageAt(resolvedChildAges, 1));
+        request.setChildAges(resolvedChildAges);
 
         ReservationAvailabilityResponseDto result = reservationAvailabilityService.getAvailability(request);
         return ResponseEntity.ok(ApiResponse.success("Availability and pricing fetched successfully", result));
+    }
+
+    private List<Integer> resolveChildAges(List<Integer> childAges, Integer ageOfChild1, Integer ageOfChild2) {
+        if (childAges != null && !childAges.isEmpty()) {
+            return childAges;
+        }
+
+        List<Integer> resolved = new ArrayList<>(2);
+        if (ageOfChild1 != null) {
+            resolved.add(ageOfChild1);
+        }
+        if (ageOfChild2 != null) {
+            resolved.add(ageOfChild2);
+        }
+        return resolved;
+    }
+
+    private Integer ageAt(List<Integer> ages, int index) {
+        return ages.size() > index ? ages.get(index) : null;
     }
 }

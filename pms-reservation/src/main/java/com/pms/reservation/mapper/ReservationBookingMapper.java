@@ -4,6 +4,8 @@ import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -202,12 +204,9 @@ public class ReservationBookingMapper {
             return java.math.BigDecimal.ZERO;
         }
 
-        long nights = ChronoUnit.DAYS.between(arrivalDate, departureDate);
+        long nights = com.pms.reservation.util.BillableNights.between(arrivalDate, departureDate);
         if (nights < 0) {
             return java.math.BigDecimal.ZERO;
-        }
-        if (nights == 0) {
-            nights = 1;
         }
 
         return rate
@@ -259,7 +258,9 @@ if (request.getAdultCount() != null) existing.setAdultCount(request.getAdultCoun
         if (request.getCheckOutTime() != null) existing.setCheckOutTime(request.getCheckOutTime());
         if (request.getDnm() != null) existing.setDnm(request.getDnm());
         if (request.getNoPost() != null) existing.setNoPost(request.getNoPost());
-        if (request.getGuestBalance() != null) existing.setGuestBalance(request.getGuestBalance());
+        if (request.getGuestBalance() != null) {
+            existing.setGuestBalance(request.getGuestBalance());
+        }
         if (request.getSpecialRequests() != null) existing.setSpecialRequests(request.getSpecialRequests());
         if (request.getDiscount() != null) existing.setDiscount(request.getDiscount());
         if (request.getAlertsMessages() != null) existing.setAlertsMessages(request.getAlertsMessages());

@@ -1,5 +1,6 @@
 package com.pms.reservation.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Value;
@@ -12,4 +13,5 @@ public class PaymentProcessingResult {
     String processorName;
     String failureReason;
     LocalDateTime processedAt;
+    BigDecimal amount;
 }

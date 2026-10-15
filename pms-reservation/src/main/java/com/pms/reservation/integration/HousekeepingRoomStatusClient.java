@@ -133,10 +133,18 @@ public class HousekeepingRoomStatusClient {
                 null, null, "VACANT", "NOT_RESERVED", "DIRTY");
     }
 
+    /**
+     * Releases the reservation booking and re-books it for the shortened range, so the nights that are no
+     * longer part of the stay go back to their default state.
+     *
+     * The range is inclusive of its departure date, matching updateReservationStay and updateCheckedInStay,
+     * which mark every night up to and including departure. Excluding it left the final night of a shortened
+     * stay still marked OCCUPIED/DEPARTURE with the guest name attached.
+     */
     private void clearStay(UUID propertyId, LocalDate arrivalDate, LocalDate departureDate,
                            String roomNumber, String cleaningStatus) {
         LocalDate businessDate = arrivalDate;
-        while (businessDate.isBefore(departureDate)) {
+        while (!businessDate.isAfter(departureDate)) {
             updateStatus(propertyId, businessDate, arrivalDate, departureDate, roomNumber,
                     null, null, "VACANT", "NOT_RESERVED", cleaningStatus);
             businessDate = businessDate.plusDays(1);

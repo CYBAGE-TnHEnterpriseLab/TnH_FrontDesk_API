@@ -19,11 +19,13 @@ jobs:
       fail-fast: false
       matrix:
         service:
+          - pms-guest
           - pms-reservation
           - pms-auth
           - pms-housekeeping
           - pms-inventory
           - pms-folio-billing
+          - pms-loyalty
           - property-service
           - rate-management
           - Policy

@@ -118,6 +118,9 @@ public class ReservationBookingRecord extends BaseEntity {
     @Column(nullable = false)
     private LocalDate departureDate;
 
+    @Column
+    private LocalDate originalDepartureDate;
+
     @Column(nullable = false)
     private Integer adultCount;
 

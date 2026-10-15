@@ -1,9 +1,11 @@
 package com.pms.guestlisting.config;
 
 import com.pms.reservation.config.AvailabilityPerformanceProperties;
+import com.pms.reservation.config.GuestServiceProperties;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
 import com.pms.reservation.config.InventoryServiceProperties;
 import com.pms.reservation.config.RateManagementServiceProperties;
+import com.pms.reservation.config.LoyaltyServiceProperties;
 import com.pms.reservation.integration.RateManagementAuthInterceptor;
 import com.pms.common.config.BaseOpenApiConfig;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -30,8 +32,10 @@ import com.pms.reservation.config.AuthServiceProperties;
         AuthServiceProperties.class,
     PropertyWizardServiceProperties.class,
     InventoryServiceProperties.class,
+    GuestServiceProperties.class,
     RateManagementServiceProperties.class,
-    AvailabilityPerformanceProperties.class
+    AvailabilityPerformanceProperties.class,
+    LoyaltyServiceProperties.class
 })
 public class AppConfig extends BaseOpenApiConfig {
 
@@ -52,6 +56,13 @@ public class AppConfig extends BaseOpenApiConfig {
                 properties.getConnectTimeoutMs(), properties.getReadTimeoutMs()));
         template.getInterceptors().add(new RateManagementAuthInterceptor(properties.getServiceAuthToken()));
         return template;
+    }
+
+    @Bean
+    @Qualifier("guestServiceRestTemplate")
+    public RestTemplate guestServiceRestTemplate(GuestServiceProperties properties) {
+        return new RestTemplate(httpRequestFactory(
+                properties.getConnectTimeoutMs(), properties.getReadTimeoutMs()));
     }
 
     private HttpComponentsClientHttpRequestFactory httpRequestFactory(int connectTimeoutMs, int readTimeoutMs) {
@@ -83,4 +94,3 @@ public class AppConfig extends BaseOpenApiConfig {
                 .contact(new Contact().name("Front Desk Team").email("frontdesk@hotel.com")));
     }
 }
-

@@ -78,7 +78,7 @@ public class RateManagementServiceClient implements RateManagementPort {
             String roomType,
             Long roomTypeId,
             Integer adultCount,
-            Integer childCount
+            Integer childAbove5Count
     ) {
         return fetchRateQuotes(propertyId, arrivalDate, departureDate, roomType, roomTypeId,
             adultCount, childCount, null, null);
@@ -178,6 +178,14 @@ public class RateManagementServiceClient implements RateManagementPort {
                         candidateRoomTypeId,
                         ex.getMessage()
                     );
+                }
+
+                if (childAbove5Count != null && childAbove5Count > 0) {
+                    BigDecimal childRate = resolveChildAbove5Rate(propertyId, plan, candidateRoomTypeId);
+                    if (childRate != null) {
+                        resolvedFinalAmount = resolvedFinalAmount.add(
+                            childRate.multiply(BigDecimal.valueOf(childAbove5Count)));
+                    }
                 }
 
                 RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();

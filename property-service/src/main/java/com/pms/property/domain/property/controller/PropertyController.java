@@ -6,12 +6,14 @@ import com.pms.property.domain.property.service.PropertyService;
 import com.pms.common.utils.CurrentUser;
 import com.pms.common.security.CurrentUserProvider;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -45,6 +47,16 @@ public class PropertyController {
         UUID actor = CurrentUser.userId();
         propertyService.deleteOwnedProperty(propertyId, actor);
         return ResponseEntity.ok(ApiResponse.ok(null, "Published property deleted"));
+    }
+
+    /** Checks whether a property code is available for use. */
+    @GetMapping("/checkPropertyCode")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkPropertyCode(
+            @RequestParam String propertyCode,
+            @RequestParam(name = "excludePropertyId", required = false) String excludePropertyId
+    ) {
+        boolean available = propertyService.isPropertyCodeAvailable(propertyCode, excludePropertyId);
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("available", available), "Property code availability checked"));
     }
 }
 

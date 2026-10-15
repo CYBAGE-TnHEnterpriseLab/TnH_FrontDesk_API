@@ -131,6 +131,12 @@ public class MasterRoomService {
     }
 
     @Transactional
+    public void deleteAllMasterRoomsForProperty(String propertyId) {
+        List<MasterRoom> masterRooms = masterRoomRepository.findByPropertyId(propertyId);
+        masterRoomRepository.deleteAll(masterRooms);
+    }
+
+    @Transactional
     public MasterRoomPricingResponseDTO addOrUpdatePricing(String propertyId, Long masterRoomId, MasterRoomPricingRequestDTO pricingRequestDTO) {
         MasterRoom masterRoom = getMasterRoomInProperty(propertyId, masterRoomId);
         String normalizedOccupancyType = OccupancyType.normalizeOrThrow(pricingRequestDTO.getOccupancyType());
