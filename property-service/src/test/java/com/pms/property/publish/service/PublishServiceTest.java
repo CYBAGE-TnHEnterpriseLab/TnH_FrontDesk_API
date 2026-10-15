@@ -1,13 +1,16 @@
 package com.pms.property.publish.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pms.property.common.exception.BadRequestException;
 import com.pms.property.domain.content.entity.PropertyOverviewEntity;
 import com.pms.property.domain.content.repository.GuestServiceAmenityRepository;
 import com.pms.property.domain.content.repository.NearbyLocationAccessibilityRepository;
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 
 class PublishServiceTest {
 
@@ -132,7 +136,7 @@ class PublishServiceTest {
         when(draftService.getById(41L)).thenReturn(draft);
         when(publishMapper.toNormalized("{}")).thenReturn(normalized);
         when(propertyRepository.findById("P-100")).thenReturn(java.util.Optional.of(existingProperty));
-        when(propertyRepository.save(any(PropertyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(propertyRepository.saveAndFlush(any(PropertyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(propertyOverviewRepository.findByPropertyId("P-100")).thenReturn(java.util.Optional.of(existingOverview));
 
         PropertyAreaEntity existingArea = new PropertyAreaEntity();
@@ -149,7 +153,7 @@ class PublishServiceTest {
         assertEquals("PUBLISHED", response.status());
 
         ArgumentCaptor<PropertyEntity> propertyCaptor = ArgumentCaptor.forClass(PropertyEntity.class);
-        verify(propertyRepository).save(propertyCaptor.capture());
+        verify(propertyRepository).saveAndFlush(propertyCaptor.capture());
         assertEquals("P-100", propertyCaptor.getValue().getId());
         assertEquals(OWNER_ID, propertyCaptor.getValue().getCreatedBy());
         assertEquals(existingProperty.getCreatedAt(), propertyCaptor.getValue().getCreatedAt());
@@ -163,5 +167,175 @@ class PublishServiceTest {
         verify(propertyOverviewRepository).flush();
         verify(inventorySyncService).requestSyncAfterCommit(eq("P-100"), eq("Bearer test-token"));
         verify(draftService).markPublished(eq(draft), eq("P-100"), eq(OWNER_ID));
+    }
+
+    @Test
+    void shouldRejectPublishWhenPropertyCodeAlreadyExistsIgnoringCase() {
+        DraftService draftService = mock(DraftService.class);
+        PropertyRepository propertyRepository = mock(PropertyRepository.class);
+        PropertyOverviewRepository propertyOverviewRepository = mock(PropertyOverviewRepository.class);
+        GuestServiceAmenityRepository guestServiceAmenityRepository = mock(GuestServiceAmenityRepository.class);
+        NearbyLocationAccessibilityRepository nearbyLocationAccessibilityRepository = mock(NearbyLocationAccessibilityRepository.class);
+        PropertyAreaRepository propertyAreaRepository = mock(PropertyAreaRepository.class);
+        RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
+        FloorConfigurationRepository floorConfigurationRepository = mock(FloorConfigurationRepository.class);
+        FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
+        InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
+        ChartOfAccountRepository chartOfAccountRepository = mock(ChartOfAccountRepository.class);
+        RevenueMappingRepository revenueMappingRepository = mock(RevenueMappingRepository.class);
+        PaymentMethodRepository paymentMethodRepository = mock(PaymentMethodRepository.class);
+        TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
+        PublishMapper publishMapper = mock(PublishMapper.class);
+        PublishValidator publishValidator = mock(PublishValidator.class);
+        LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
+        InventorySyncService inventorySyncService = mock(InventorySyncService.class);
+
+        PublishService service = new PublishServiceImpl(
+            draftService,
+            propertyRepository,
+            propertyOverviewRepository,
+            guestServiceAmenityRepository,
+            nearbyLocationAccessibilityRepository,
+            propertyAreaRepository,
+            roomOutletTypeRepository,
+            floorConfigurationRepository,
+            floorPropertyAreaRepository,
+            inventoryRoomRepository,
+            chartOfAccountRepository,
+            revenueMappingRepository,
+            paymentMethodRepository,
+            taxRuleRepository,
+            publishMapper,
+            publishValidator,
+            localImageStorageService,
+            inventorySyncService
+        );
+
+        PropertyDraftEntity draft = new PropertyDraftEntity();
+        draft.setId(50L);
+        draft.setStatus(DraftStatus.DRAFT);
+        draft.setWizardData("{}");
+
+        PropertyEntity mappedProperty = new PropertyEntity();
+        mappedProperty.setTitle("Racy property");
+        mappedProperty.setPropertyCode("abc");
+
+        PropertyOverviewEntity overview = new PropertyOverviewEntity();
+        overview.setPropertyDescription("overview");
+
+        PublishMapper.NormalizedPublishData normalized = new PublishMapper.NormalizedPublishData(
+            new ObjectMapper().createObjectNode(),
+            mappedProperty,
+            overview,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of()
+        );
+
+        when(draftService.getById(50L)).thenReturn(draft);
+        when(publishMapper.toNormalized("{}")).thenReturn(normalized);
+        when(propertyRepository.existsByPropertyCodeIgnoreCase("abc")).thenReturn(true);
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+            () -> service.publish(50L, OWNER_ID, "Bearer test-token"));
+
+        assertEquals("Property code already exists: abc", ex.getMessage());
+        verify(propertyRepository, never()).saveAndFlush(any(PropertyEntity.class));
+        verify(inventorySyncService, never()).requestSyncAfterCommit(any(String.class), any(String.class));
+    }
+
+    @Test
+    void shouldTranslateRacingDuplicatePropertyCodeIntoConflict() {
+        DraftService draftService = mock(DraftService.class);
+        PropertyRepository propertyRepository = mock(PropertyRepository.class);
+        PropertyOverviewRepository propertyOverviewRepository = mock(PropertyOverviewRepository.class);
+        GuestServiceAmenityRepository guestServiceAmenityRepository = mock(GuestServiceAmenityRepository.class);
+        NearbyLocationAccessibilityRepository nearbyLocationAccessibilityRepository = mock(NearbyLocationAccessibilityRepository.class);
+        PropertyAreaRepository propertyAreaRepository = mock(PropertyAreaRepository.class);
+        RoomOutletTypeRepository roomOutletTypeRepository = mock(RoomOutletTypeRepository.class);
+        FloorConfigurationRepository floorConfigurationRepository = mock(FloorConfigurationRepository.class);
+        FloorPropertyAreaRepository floorPropertyAreaRepository = mock(FloorPropertyAreaRepository.class);
+        InventoryRoomRepository inventoryRoomRepository = mock(InventoryRoomRepository.class);
+        ChartOfAccountRepository chartOfAccountRepository = mock(ChartOfAccountRepository.class);
+        RevenueMappingRepository revenueMappingRepository = mock(RevenueMappingRepository.class);
+        PaymentMethodRepository paymentMethodRepository = mock(PaymentMethodRepository.class);
+        TaxRuleRepository taxRuleRepository = mock(TaxRuleRepository.class);
+        PublishMapper publishMapper = mock(PublishMapper.class);
+        PublishValidator publishValidator = mock(PublishValidator.class);
+        LocalImageStorageService localImageStorageService = mock(LocalImageStorageService.class);
+        InventorySyncService inventorySyncService = mock(InventorySyncService.class);
+
+        PublishService service = new PublishServiceImpl(
+            draftService,
+            propertyRepository,
+            propertyOverviewRepository,
+            guestServiceAmenityRepository,
+            nearbyLocationAccessibilityRepository,
+            propertyAreaRepository,
+            roomOutletTypeRepository,
+            floorConfigurationRepository,
+            floorPropertyAreaRepository,
+            inventoryRoomRepository,
+            chartOfAccountRepository,
+            revenueMappingRepository,
+            paymentMethodRepository,
+            taxRuleRepository,
+            publishMapper,
+            publishValidator,
+            localImageStorageService,
+            inventorySyncService
+        );
+
+        PropertyDraftEntity draft = new PropertyDraftEntity();
+        draft.setId(51L);
+        draft.setStatus(DraftStatus.DRAFT);
+        draft.setWizardData("{}");
+
+        PropertyEntity mappedProperty = new PropertyEntity();
+        mappedProperty.setTitle("Racy property");
+        mappedProperty.setPropertyCode("ABC");
+
+        PropertyOverviewEntity overview = new PropertyOverviewEntity();
+        overview.setPropertyDescription("overview");
+
+        PublishMapper.NormalizedPublishData normalized = new PublishMapper.NormalizedPublishData(
+            new ObjectMapper().createObjectNode(),
+            mappedProperty,
+            overview,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of()
+        );
+
+        when(draftService.getById(51L)).thenReturn(draft);
+        when(publishMapper.toNormalized("{}")).thenReturn(normalized);
+        when(propertyRepository.existsByPropertyCodeIgnoreCase("ABC")).thenReturn(false);
+        when(propertyRepository.saveAndFlush(any(PropertyEntity.class))).thenThrow(new DataIntegrityViolationException(
+            "duplicate key value violates unique constraint \"uk_property_code_lower\""));
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+            () -> service.publish(51L, OWNER_ID, "Bearer test-token"));
+
+        assertEquals("Property code already exists: ABC", ex.getMessage());
+        ArgumentCaptor<PropertyEntity> propertyCaptor = ArgumentCaptor.forClass(PropertyEntity.class);
+        verify(propertyRepository).saveAndFlush(propertyCaptor.capture());
+        assertEquals("abc", propertyCaptor.getValue().getPropertyCodeLower());
+        verify(inventorySyncService, never()).requestSyncAfterCommit(any(String.class), any(String.class));
     }
 }

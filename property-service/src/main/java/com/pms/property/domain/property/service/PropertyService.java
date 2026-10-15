@@ -11,6 +11,8 @@ public interface PropertyService {
     List<PropertyResponse> listByCreator(UUID creator);
 
     void deleteOwnedProperty(String propertyId, UUID actor);
+
+    boolean isPropertyCodeAvailable(String propertyCode, String excludePropertyId);
 }
 
 

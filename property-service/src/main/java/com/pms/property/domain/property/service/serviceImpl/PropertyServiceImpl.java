@@ -103,6 +103,14 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     @Override
+    public boolean isPropertyCodeAvailable(String propertyCode, String excludePropertyId) {
+        if (propertyCode == null || propertyCode.isBlank()) {
+            return true;
+        }
+        return !propertyRepository.existsByPropertyCodeIgnoreCaseAndIdNot(propertyCode.trim(), excludePropertyId);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PropertyResponse getById(String propertyId) {
         return propertyRepository.findById(propertyId)

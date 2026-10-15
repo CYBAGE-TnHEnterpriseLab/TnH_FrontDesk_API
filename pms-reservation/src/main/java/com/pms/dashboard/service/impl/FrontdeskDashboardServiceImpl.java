@@ -65,7 +65,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
         );
 
         Duration housekeepingRoomsTimeout = Duration.ofMillis(
-                Math.max(MIN_TIMEOUT_MS, properties.getTimeoutMs() * 2)
+                Math.max(MIN_TIMEOUT_MS, properties.getTimeoutMs())
         );
 
         Mono<SourceResult<DashboardModels.HousekeepingDashboardData>> housekeepingSummary = wrap(
@@ -178,13 +178,18 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             long newReservations = reservationBookingRepository.countNewReservationsByPropertyIdAndBusinessDate(
                     propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
             long checkedOut = reservationBookingRepository.countCheckedOutsByPropertyIdAndBusinessDate(
-                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+                    propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay(), businessDate);
             long earlyDepartures = reservationBookingRepository.countEarlyDeparturesByPropertyIdAndBusinessDate(
                     propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
             long sameDayCancels = reservationBookingRepository.countSameDayCancelsByPropertyIdAndBusinessDate(
                     propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
             long checkedIn = reservationBookingRepository.countCheckInsByPropertyIdAndBusinessDate(
                     propertyId.toString(), businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
+            long expectedDeparturesBase = reservationBookingRepository.countExpectedDeparturesByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate);
+            long expectedArrivals = reservationBookingRepository.countExpectedArrivalsByPropertyIdAndBusinessDate(
+                    propertyId.toString(), businessDate);
+            long expectedDepartures = Math.max(0, expectedDeparturesBase);
 
             FrontdeskDashboardResponse.HousekeepingRoomStatus housekeepingStatus = summarizeHousekeepingStatus(hkSummary.payload(), hkToday.payload());
 
@@ -206,7 +211,7 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
                     housekeepingStatus,
                     resolvedRoomOverview,
                     summarizeTurndownStatus(hkTomorrow.payload()),
-                    summarizeGuestActivity(arrivals, departures, stayovers, occupiedTonight, walkIns, newReservations, checkedIn, checkedOut, earlyDepartures, 0, 0, sameDayCancels),
+                    summarizeGuestActivity(expectedArrivals, expectedDepartures, stayovers, occupiedTonight, walkIns, newReservations, checkedIn, checkedOut, earlyDepartures, 0, 0, sameDayCancels),
                     sources
             );
         });
@@ -426,8 +431,8 @@ public class FrontdeskDashboardServiceImpl implements FrontdeskDashboardService 
             long sameDayCancels
     ) {
         return new FrontdeskDashboardResponse.DailyGuestActivity(
-                new FrontdeskDashboardResponse.Today(arrivals, checkedIn, walkIns, newReservations),
-                new FrontdeskDashboardResponse.Arrivals(departures, checkedOut, earlyDepartures),
+                new FrontdeskDashboardResponse.Arrivals(arrivals, checkedIn, walkIns, newReservations),
+                new FrontdeskDashboardResponse.Departures(departures, checkedOut, earlyDepartures),
                 new FrontdeskDashboardResponse.OtherActivity(stayovers, extendedStays, dayUseRooms, sameDayCancels)
         );
     }
