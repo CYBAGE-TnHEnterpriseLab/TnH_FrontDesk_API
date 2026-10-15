@@ -2,6 +2,7 @@ package com.pms.reservation.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,6 +19,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -40,6 +43,33 @@ class ReservationAvailabilityControllerTest {
 
     @MockBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
+
+    @ParameterizedTest
+    @CsvSource({"adults,0", "adults,-1", "adultCount,0", "adultCount,-1"})
+    void getAvailabilityShouldRejectNonpositiveAdults(String parameter, String count) throws Exception {
+        mockMvc.perform(get("/api/v1/reservations/availability")
+                        .param("propertyId", "property-1")
+                        .param("date", "2026-07-01")
+                        .param("night", "1")
+                        .param(parameter, count))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("enter Adult should be greater then 0"));
+        verifyNoInteractions(reservationAvailabilityService);
+    }
+
+    @Test
+    void getAvailabilityShouldRejectInvalidAliasEvenWhenAdultsIsValid() throws Exception {
+        mockMvc.perform(get("/api/v1/reservations/availability")
+                        .param("propertyId", "property-1")
+                        .param("date", "2026-07-01")
+                        .param("night", "1")
+                        .param("adults", "1")
+                        .param("adultCount", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("enter Adult should be greater then 0"));
+        verifyNoInteractions(reservationAvailabilityService);
+    }
 
     @Test
     void getAvailabilityShouldReturnLiveInventoryAndPricing() throws Exception {

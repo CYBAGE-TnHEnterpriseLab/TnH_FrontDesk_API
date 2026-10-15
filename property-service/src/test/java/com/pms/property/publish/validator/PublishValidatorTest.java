@@ -60,13 +60,13 @@ class PublishValidatorTest {
         String payload = validPayload().replace(
             """
                 \"roomTypes\": [
-                  {\"roomName\": \"Standard Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 2, \"maximumGuestOccupancy\": 2}
+                  {\"roomName\": \"Standard Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 2, \"maximumGuestOccupancy\": 2, \"minimumGuestOccupancy\": 1}
                 ]
             """,
             """
                 \"roomTypes\": [
-                  {\"roomName\": \"Standard Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 1, \"maximumGuestOccupancy\": 2},
-                  {\"roomName\": \"Executive Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 1, \"maximumGuestOccupancy\": 2}
+                  {\"roomName\": \"Standard Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 1, \"maximumGuestOccupancy\": 2, \"minimumGuestOccupancy\": 1},
+                  {\"roomName\": \"Executive Deluxe\", \"roomCode\": \"STANDARD_DELUXE\", \"quantity\": 1, \"maximumGuestOccupancy\": 2, \"minimumGuestOccupancy\": 1}
                 ]
             """
         );
@@ -115,7 +115,7 @@ class PublishValidatorTest {
               },
               "roomsAndOutlets": {
                 "roomTypes": [
-                  {"roomName": "Standard Deluxe", "roomCode": "STANDARD_DELUXE", "quantity": 2, "maximumGuestOccupancy": 2}
+                  {"roomName": "Standard Deluxe", "roomCode": "STANDARD_DELUXE", "quantity": 2, "maximumGuestOccupancy": 2, "minimumGuestOccupancy": 1}
                 ]
               },
               "roomConfiguration": {

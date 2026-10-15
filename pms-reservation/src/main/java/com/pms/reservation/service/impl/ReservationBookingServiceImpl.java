@@ -350,6 +350,12 @@ private ReservationBookingRequestDto requestForRoom(
             validateRoomSelectionAndGuestNames(request);
         }
 
+        if (request.getAdultCount() != null || request.getRoomType() != null) {
+            String effectiveRoomType = request.getRoomType() != null ? request.getRoomType() : existing.getRoomType();
+            Integer effectiveAdultCount = request.getAdultCount() != null ? request.getAdultCount() : existing.getAdultCount();
+            validateAdultOccupancyForRoomType(existing.getPropertyId(), effectiveRoomType, effectiveAdultCount);
+        }
+
         String previousRoomNumber = existing.getAssignedRoomNo();
         LocalDate previousArrivalDate = existing.getArrivalDate();
         LocalDate previousDepartureDate = existing.getDepartureDate();
@@ -1300,6 +1306,14 @@ private ReservationBookingRequestDto requestForRoom(
     }
 
         private String resolveRoomTypeId(String propertyId, String roomType) {
+        return findConfiguredRoomType(propertyId, roomType)
+            .map(item -> inventoryRoomTypeId(propertyId, item.getRoomCode(), item.getRoomName()))
+            .orElseThrow(() -> new BadRequestException(
+                "roomType is not configured for selected property"));
+        }
+
+        private Optional<com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto> findConfiguredRoomType(
+            String propertyId, String roomType) {
         List<com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto> roomTypes =
             propertyInventoryPort.fetchRoomOutletTypes(propertyId);
         String normalizedRoomType = roomType == null ? "" : roomType.trim();
@@ -1307,10 +1321,29 @@ private ReservationBookingRequestDto requestForRoom(
             .filter(item -> item.getId() != null)
             .filter(item -> normalizedRoomType.equalsIgnoreCase(item.getRoomName())
                 || normalizedRoomType.equalsIgnoreCase(item.getRoomCode()))
-            .findFirst()
-            .map(item -> inventoryRoomTypeId(propertyId, item.getRoomCode(), item.getRoomName()))
-            .orElseThrow(() -> new BadRequestException(
-                "roomType is not configured for selected property"));
+            .findFirst();
+        }
+
+        /**
+         * Same min/max guest occupancy rules the availability search applies per room type,
+         * enforced on reservation edits.
+         */
+        void validateAdultOccupancyForRoomType(String propertyId, String roomType, Integer adultCount) {
+        if (adultCount == null || !StringUtils.hasText(roomType)) {
+            return;
+        }
+        findConfiguredRoomType(propertyId, roomType).ifPresent(configured -> {
+            Integer maximumOccupancy = configured.getMaximumGuestOccupancy();
+            Integer minimumOccupancy = configured.getMinimumGuestOccupancy();
+            if (maximumOccupancy != null && adultCount > maximumOccupancy) {
+                throw new BadRequestException(
+                    "The maximum occupancy for room type " + roomType.trim() + " is " + maximumOccupancy);
+            }
+            if (minimumOccupancy != null && adultCount < minimumOccupancy) {
+                throw new BadRequestException(
+                    "The minimum occupancy for room type " + roomType.trim() + " is " + minimumOccupancy);
+            }
+        });
         }
 
         private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {

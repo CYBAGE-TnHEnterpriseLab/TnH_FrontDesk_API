@@ -8,9 +8,9 @@ public record RoomOutletTypeResponse(
     Integer quantity,
     Boolean availableForSell,
     Integer maximumGuestOccupancy,
+    Integer minimumGuestOccupancy,
     String description,
     String amenitiesCsv,
     String imagesCsv
 ) {
 }
-

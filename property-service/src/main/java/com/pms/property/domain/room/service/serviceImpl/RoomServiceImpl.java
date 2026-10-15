@@ -147,6 +147,7 @@ public class RoomServiceImpl implements RoomService {
             entity.getQuantity(),
             entity.getAvailableForSell(),
             entity.getMaximumGuestOccupancy(),
+            entity.getMinimumGuestOccupancy(),
             entity.getDescription(),
             entity.getAmenitiesCsv(),
             entity.getImagesCsv()

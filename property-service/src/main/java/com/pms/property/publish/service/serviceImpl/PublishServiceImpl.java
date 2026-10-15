@@ -317,6 +317,7 @@ public class PublishServiceImpl implements PublishService {
             target.setQuantity(incoming.getQuantity());
             target.setAvailableForSell(incoming.getAvailableForSell());
             target.setMaximumGuestOccupancy(incoming.getMaximumGuestOccupancy());
+            target.setMinimumGuestOccupancy(incoming.getMinimumGuestOccupancy());
             target.setDescription(incoming.getDescription());
             target.setAmenitiesCsv(incoming.getAmenitiesCsv());
             target.setImagesCsv(incoming.getImagesCsv());
@@ -416,5 +417,4 @@ public class PublishServiceImpl implements PublishService {
         taxRuleRepository.saveAll(entities);
     }
 }
-
 

@@ -121,6 +121,64 @@ class ReservationBookingServiceImplTest {
                 same(paymentResult));
     }
 
+    @Test
+    void occupancyValidationRejectsAdultsAboveRoomTypeMaximum() {
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "DLX", 5))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessage("The maximum occupancy for room type DLX is 4");
+    }
+
+    @Test
+    void occupancyValidationRejectsAdultsBelowRoomTypeMinimum() {
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "DLX", 1))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessage("The minimum occupancy for room type DLX is 2");
+    }
+
+    @Test
+    void occupancyValidationAcceptsAdultsAtBoundaries() {
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "dlx", 2);
+        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "DLX", 4);
+    }
+
+    @Test
+    void updateBookingRejectsAdultCountAboveRoomTypeMaximum() {
+        ReservationBookingRecord existing = new ReservationBookingRecord();
+        existing.setId(101L);
+        existing.setPropertyId(PROPERTY_ID);
+        existing.setConfirmationNumber("1234567890");
+        existing.setRoomType("DLX");
+        existing.setAdultCount(2);
+        when(bookingRepository.findByConfirmationNumber("1234567890")).thenReturn(List.of(existing));
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        ReservationBookingRequestDto request = new ReservationBookingRequestDto();
+        request.setAdultCount(6);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.updateBooking("1234567890", request))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessage("The maximum occupancy for room type DLX is 4");
+    }
+
+    private PropertyRoomOutletTypeDto configuredRoomType() {
+        PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
+        roomType.setId(1L);
+        roomType.setRoomCode("DLX");
+        roomType.setRoomName("DLX");
+        roomType.setMinimumGuestOccupancy(2);
+        roomType.setMaximumGuestOccupancy(4);
+        return roomType;
+    }
+
     private void verifyCreateBooking(int roomCount, List<String> roomNames, List<Long> savedIds) {
         ReservationBookingRequestDto request = bookingRequest(roomCount, roomNames);
         List<ResolvedReservationGuest> resolvedGuests = List.of(

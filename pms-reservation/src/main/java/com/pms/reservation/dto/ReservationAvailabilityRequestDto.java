@@ -42,7 +42,7 @@ public class ReservationAvailabilityRequestDto {
     private String roomType;
 
     @NotNull(message = "adultCount is required")
-    @Min(value = 1, message = "adultCount must be >= 1")
+    @Min(value = 1, message = "enter Adult should be greater then 0")
     private Integer adultCount = 1;
 
     @NotNull(message = "childCount is required")
