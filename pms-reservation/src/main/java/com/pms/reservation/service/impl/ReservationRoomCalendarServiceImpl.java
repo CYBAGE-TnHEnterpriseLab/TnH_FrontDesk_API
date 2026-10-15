@@ -155,12 +155,12 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             requestedRoomTypes,
             roomMetaByNo);
 
-        Map<String, RoomPricing> pricingByRoomType = loadRoomPricing(
+        Map<String, RoomPricing> pricingByRoom = loadRoomPricing(
             propertyId, arrivalDate, departureDate, roomMetaByNo, overlappingBookings,
             adults, children, rateCode,
             ageOfChild1, ageOfChild2);
         List<ReservationRoomCalendarResponseDto.RoomCalendarRowDto> roomRows = buildRoomRows(
-            roomMetaByNo, grid, dates, pricingByRoomType, overlappingBookings, adults, children);
+            roomMetaByNo, grid, dates, pricingByRoom, overlappingBookings, adults, children);
         List<ReservationRoomCalendarResponseDto.RoomCalendarDaySummaryDto> summary = buildDaySummary(dates, roomRows);
 
         return ReservationRoomCalendarResponseDto.builder()
@@ -189,31 +189,6 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             return Map.of();
         }
 
-        ReservationBookingRecord occupancyBooking = adults == null && children == null
-            ? findFirstPricingBooking(roomMetaByNo, overlappingBookings)
-            : null;
-        boolean occupancyWasInferredFromBooking = occupancyBooking != null;
-        Integer effectiveAgeOfChild1 = ageOfChild1 != null
-            ? ageOfChild1
-            : occupancyBooking == null ? null : occupancyBooking.getAgeOfChild1();
-        Integer effectiveAgeOfChild2 = ageOfChild2 != null
-            ? ageOfChild2
-            : occupancyBooking == null ? null : occupancyBooking.getAgeOfChild2();
-        int effectiveAdults = adults != null
-            ? adults
-            : occupancyBooking == null || occupancyBooking.getAdultCount() == null
-                ? 1 : occupancyBooking.getAdultCount();
-        int effectiveChildren = children != null
-            ? children
-            : occupancyBooking == null || occupancyBooking.getChildCount() == null
-                ? 0 : occupancyBooking.getChildCount();
-        int providedChildAges = (effectiveAgeOfChild1 == null ? 0 : 1)
-            + (effectiveAgeOfChild2 == null ? 0 : 1);
-        if (effectiveChildren > 2
-            || (!occupancyWasInferredFromBooking && providedChildAges < effectiveChildren)) {
-            throw new BadRequestException("An age is required for every child in calendar pricing");
-        }
-        String requestedOccupancy = formatRequestedOccupancy(effectiveAdults, effectiveChildren);
         int nights = Math.max(1, (int) java.time.temporal.ChronoUnit.DAYS.between(arrivalDate, departureDate));
         Map<String, RoomPricing> result = new LinkedHashMap<>();
         List<PropertyRoomOutletTypeDto> propertyRoomTypes = propertyInventoryPort.fetchRoomOutletTypes(propertyId);
@@ -222,9 +197,32 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
         }
         roomMetaByNo.values().stream()
             .filter(room -> StringUtils.hasText(room.roomType))
-            .map(room -> room.roomType)
-            .distinct()
-            .forEach(roomType -> {
+            .forEach(room -> {
+                String roomType = room.roomType;
+                ReservationBookingRecord roomBooking = adults == null && children == null
+                    ? findActiveBookingForRoom(room.roomNo, overlappingBookings)
+                    : null;
+                int effectiveAdults = adults != null
+                    ? adults
+                    : roomBooking == null || roomBooking.getAdultCount() == null
+                        ? 1 : roomBooking.getAdultCount();
+                int effectiveChildren = children != null
+                    ? children
+                    : roomBooking == null || roomBooking.getChildCount() == null
+                        ? 0 : roomBooking.getChildCount();
+                Integer effectiveAgeOfChild1 = ageOfChild1 != null
+                    ? ageOfChild1
+                    : roomBooking == null ? null : roomBooking.getAgeOfChild1();
+                Integer effectiveAgeOfChild2 = ageOfChild2 != null
+                    ? ageOfChild2
+                    : roomBooking == null ? null : roomBooking.getAgeOfChild2();
+                int providedChildAges = (effectiveAgeOfChild1 == null ? 0 : 1)
+                    + (effectiveAgeOfChild2 == null ? 0 : 1);
+                if (effectiveChildren > 2
+                    || (adults != null && children != null && providedChildAges < effectiveChildren)) {
+                    throw new BadRequestException("An age is required for every child in calendar pricing");
+                }
+                String requestedOccupancy = formatRequestedOccupancy(effectiveAdults, effectiveChildren);
                     PropertyRoomOutletTypeDto propertyRoomType = propertyRoomTypes.stream()
                     .filter(item -> item != null && (roomType.equalsIgnoreCase(item.getRoomName())
                         || roomType.equalsIgnoreCase(item.getRoomCode())))
@@ -246,7 +244,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                     .findFirst()
                     .orElse(null);
                 if (quote != null && quote.getFinalAmount() != null) {
-                result.put(normalize(roomType), new RoomPricing(
+                result.put(normalize(room.roomNo), new RoomPricing(
                                 quote.getRateCode(), quote.getRatePlan(), requestedOccupancy,
                                 quote.getBaseRate(), quote.getTaxAmount(), quote.getFinalAmount(),
                                 quote.getFinalAmount().multiply(BigDecimal.valueOf(nights))));
@@ -254,21 +252,6 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             });
         return result;
         }
-
-    private ReservationBookingRecord findFirstPricingBooking(
-            Map<String, RoomMeta> roomMetaByNo,
-            List<ReservationBookingRecord> overlappingBookings) {
-        if (overlappingBookings == null) {
-            return null;
-        }
-        return overlappingBookings.stream()
-                .filter(booking -> booking != null
-                        && StringUtils.hasText(booking.getAssignedRoomNo())
-                        && roomMetaByNo.containsKey(booking.getAssignedRoomNo().trim())
-                        && isActiveReservation(booking.getReservationStatus()))
-                .findFirst()
-                .orElse(null);
-    }
 
     private String formatRequestedOccupancy(int adults, int children) {
         int guests = adults + children;
@@ -605,7 +588,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             Map<String, RoomMeta> roomMetaByNo,
             Map<String, Map<LocalDate, MutableCell>> grid,
             List<LocalDate> dates,
-            Map<String, RoomPricing> pricingByRoomType,
+            Map<String, RoomPricing> pricingByRoom,
             List<ReservationBookingRecord> overlappingBookings,
             Integer requestedAdults,
             Integer requestedChildren
@@ -616,7 +599,7 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
                         .thenComparing(item -> item.roomNo, String.CASE_INSENSITIVE_ORDER))
                 .map(roomMeta -> {
                     Map<LocalDate, MutableCell> roomCells = grid.get(roomMeta.roomNo);
-                    RoomPricing roomPricing = pricingFor(roomMeta, pricingByRoomType);
+                    RoomPricing roomPricing = pricingFor(roomMeta, pricingByRoom);
                     ReservationBookingRecord roomBooking = findActiveBookingForRoom(
                             roomMeta.roomNo, overlappingBookings);
                     List<ReservationRoomCalendarResponseDto.RoomCalendarCellDto> calendarCells = dates.stream()
@@ -703,8 +686,8 @@ public class ReservationRoomCalendarServiceImpl implements ReservationRoomCalend
             return null;
             }
 
-    private RoomPricing pricingFor(RoomMeta roomMeta, Map<String, RoomPricing> pricingByRoomType) {
-        return pricingByRoomType.getOrDefault(normalize(roomMeta.roomType), RoomPricing.EMPTY);
+    private RoomPricing pricingFor(RoomMeta roomMeta, Map<String, RoomPricing> pricingByRoom) {
+        return pricingByRoom.getOrDefault(normalize(roomMeta.roomNo), RoomPricing.EMPTY);
     }
 
     private record RoomPricing(
