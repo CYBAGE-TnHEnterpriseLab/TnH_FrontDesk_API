@@ -6,6 +6,7 @@ import com.pms.reservation.service.ReservationRoomCalendarService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -38,11 +39,11 @@ public class ReservationRoomCalendarController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate departureDate,
                         @RequestParam(required = false) List<String> roomTypes,
                             @RequestParam(required = false) String roomType,
-                            @RequestParam(required = false) Integer adults,
-                            @RequestParam(required = false) Integer children,
+                            @RequestParam(required = false) @Min(value = 1, message = "adults must be >= 1") Integer adults,
+                            @RequestParam(required = false) @Min(value = 0, message = "children must be >= 0") Integer children,
                             @RequestParam(required = false) String rateCode,
-                            @RequestParam(required = false) Integer ageOfChild1,
-                            @RequestParam(required = false) Integer ageOfChild2
+                            @RequestParam(required = false) @Min(value = 0, message = "ageOfChild1 must be >= 0") Integer ageOfChild1,
+                            @RequestParam(required = false) @Min(value = 0, message = "ageOfChild2 must be >= 0") Integer ageOfChild2
     ) {
                 List<String> effectiveRoomTypes = mergeRoomTypes(roomTypes, roomType);
         ReservationRoomCalendarResponseDto response;

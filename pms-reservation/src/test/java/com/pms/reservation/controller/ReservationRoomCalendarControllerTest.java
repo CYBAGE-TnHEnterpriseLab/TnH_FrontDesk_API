@@ -115,4 +115,18 @@ class ReservationRoomCalendarControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }
+
+        @Test
+        void getRoomCalendarShouldValidateOccupancyAndChildAges() throws Exception {
+                mockMvc.perform(get("/api/v1/reservations/rooms/calendar")
+                                                .param("propertyId", "property-1")
+                                                .param("arrivalDate", "2026-08-01")
+                                                .param("departureDate", "2026-08-03")
+                                                .param("adults", "0")
+                                                .param("children", "-1")
+                                                .param("ageOfChild1", "-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.message").value("Validation failed"));
+        }
 }
