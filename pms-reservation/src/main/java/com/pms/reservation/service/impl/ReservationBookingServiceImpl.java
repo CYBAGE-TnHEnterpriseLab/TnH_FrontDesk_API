@@ -423,9 +423,11 @@ private ReservationBookingRequestDto requestForRoom(
                 || (request.getDepartureDate() != null && !sameValue(existing.getDepartureDate(), request.getDepartureDate()))
                 || (request.getRateCode() != null && !sameValue(existing.getRateCode(), request.getRateCode()))
                 || (request.getRate() != null && existing.getRate() != null && existing.getRate().compareTo(request.getRate()) != 0)
-                || (request.getNumberOfRooms() != null && !sameValue(existing.getNumberOfRooms(), request.getNumberOfRooms()))
+|| (request.getNumberOfRooms() != null && !sameValue(existing.getNumberOfRooms(), request.getNumberOfRooms()))
                 || (request.getAdultCount() != null && !sameValue(existing.getAdultCount(), request.getAdultCount()))
-                || (request.getChildCount() != null && !sameValue(existing.getChildCount(), request.getChildCount()));
+                || (request.getChildCount() != null && !sameValue(existing.getChildCount(), request.getChildCount()))
+                || (request.getAgeOfChild1() != null && !sameValue(existing.getAgeOfChild1(), request.getAgeOfChild1()))
+                || (request.getAgeOfChild2() != null && !sameValue(existing.getAgeOfChild2(), request.getAgeOfChild2()));
     }
 
     private void verifyPricingEdit(ReservationBookingRequestDto request) {
