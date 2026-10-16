@@ -45,9 +45,9 @@ public class ReservationAvailabilityController {
             @Min(value = 1, message = "numberOfRooms must be >= 1")
             @Max(value = 9, message = "numberOfRooms must be <= 9") Integer numberOfRooms,
             @RequestParam(required = false) String groupCode,
-            @RequestParam(required = false) @Min(value = 1, message = "adults must be >= 1") Integer adults,
+            @RequestParam(required = false) Integer adults,
             @RequestParam(required = false) @Min(value = 0, message = "children must be >= 0") Integer children,
-            @RequestParam(required = false) @Min(value = 1, message = "adultCount must be >= 1") Integer adultCount,
+            @RequestParam(required = false) Integer adultCount,
             @RequestParam(required = false) @Min(value = 0, message = "childCount must be >= 0") Integer childCount,
             @RequestParam(required = false) Integer ageOfChild1,
             @RequestParam(required = false) Integer ageOfChild2,
@@ -56,6 +56,9 @@ public class ReservationAvailabilityController {
             @RequestParam(required = false) String rateCode,
             @RequestParam(required = false) String blockCode
     ) {
+        if ((adults != null && adults < 1) || (adultCount != null && adultCount < 1)) {
+            throw new BadRequestException("enter Adult should be greater then 0");
+        }
         LocalDate resolvedArrivalDate = date != null ? date : arrivalDate;
         if (resolvedArrivalDate == null) {
             throw new BadRequestException("date is required");

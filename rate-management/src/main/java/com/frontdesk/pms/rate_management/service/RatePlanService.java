@@ -85,7 +85,6 @@ public class RatePlanService {
 
         existing.setName(requestDTO.getName());
         existing.setCode(requestDTO.getCode());
-        existing.setOccupancyType(normalizeOccupancyType(requestDTO.getOccupancyType()));
         existing.setMealOption(requestDTO.getMealOption());
         existing.setInclusion(requestDTO.getInclusion());
         existing.setType(requestDTO.getType());
@@ -99,6 +98,10 @@ public class RatePlanService {
                 normalizeManualPricingByOccupancy(requestDTO.getManualPricingByOccupancy()));
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
+        existing.setOccupancyType(resolveStoredOccupancyType(
+                existing.getApplicableRoomTypeIds(),
+                fetchRoomTypesById(propertyId),
+                requestDTO.getOccupancyType()));
         existing.setPolicyId(requestDTO.getPolicyId()); // Update the policy ID in the entity
 
         return toResponseDTO(ratePlanRepository.save(existing));
@@ -163,7 +166,7 @@ public class RatePlanService {
                 RatePlanStatus.ACTIVE)
                 .stream()
                 .filter(ratePlan -> ratePlan.getActiveDaysOfWeek().contains(stayDate.getDayOfWeek()))
-                .filter(ratePlan -> supportsOccupancy(ratePlan, normalizedOccupancyType))
+                .filter(ratePlan -> supportsOccupancy(ratePlan, roomTypeId, normalizedOccupancyType))
                 .map(this::toResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -265,7 +268,6 @@ public class RatePlanService {
         entity.setPropertyId(propertyId);
         entity.setName(dto.getName());
         entity.setCode(dto.getCode());
-        entity.setOccupancyType(normalizeOccupancyType(dto.getOccupancyType()));
         entity.setMealOption(dto.getMealOption());
         entity.setInclusion(dto.getInclusion());
         entity.setType(dto.getType());
@@ -278,6 +280,10 @@ public class RatePlanService {
         entity.setManualPricingByOccupancy(normalizeManualPricingByOccupancy(dto.getManualPricingByOccupancy()));
         entity.setParentRatePlanId(dto.getParentRatePlanId());
         entity.setApplicableRoomTypeIds(new HashSet<>(dto.getApplicableRoomTypeIds()));
+        entity.setOccupancyType(resolveStoredOccupancyType(
+                entity.getApplicableRoomTypeIds(),
+                fetchRoomTypesById(propertyId),
+                dto.getOccupancyType()));
         entity.setPolicyId(dto.getPolicyId()); // Set the policy ID in the entity
         return entity;
     }
@@ -341,6 +347,15 @@ public class RatePlanService {
         return EnumSet.copyOf(activeDaysOfWeek);
     }
 
+    private String normalizeOccupancyKey(String occupancyType) {
+        return occupancyType == null ? "" : occupancyType.toLowerCase(Locale.ROOT)
+                .replace("_", "")
+                .replace("-", "")
+                .replace(" ", "")
+                .replace("(", "")
+                .replace(")", "");
+    }
+
     private Double resolveMasterBarAmount(String propertyId, RatePlan ratePlan,
             Long roomTypeId, String selectedOccupancyType) {
         if (roomTypeId == null) {
@@ -351,12 +366,17 @@ public class RatePlanService {
             throw new InvalidRatePlanException("Room type is not applicable for this rate plan");
         }
 
-        // Uttam's Fix
-        // this is fix where the database has Occupancy Type "2_Guest" but the query
-        // finding for "2 Guest"
-        String normalizedOccupancyType =
-                selectedOccupancyType.toUpperCase(Locale.ROOT)
-                        .replace(" ", "_");
+        String occupancyLookupSource = selectedOccupancyType;
+        if (occupancyLookupSource == null || occupancyLookupSource.isBlank()) {
+            occupancyLookupSource = ratePlan.getOccupancyType();
+        }
+        if (occupancyLookupSource == null || occupancyLookupSource.isBlank()) {
+            throw new InvalidRatePlanException("Occupancy type is required to derive BAR amount");
+        }
+
+        String canonicalOccupancyType = OccupancyType.normalizeOrThrow(occupancyLookupSource);
+        String underscoredOccupancyType = canonicalOccupancyType.toUpperCase(Locale.ROOT).replace(" ", "_");
+        String normalizedOccupancyKey = normalizeOccupancyKey(canonicalOccupancyType);
 
         MasterRoomRoomTypeMapping mapping =
                 mappingRepository
@@ -367,17 +387,20 @@ public class RatePlanService {
                                 "Room type mapping not found for room type "
                                         + roomTypeId));
 
-        MasterRoomPricing pricing =
-                masterRoomPricingRepository
-                        .findByMasterRoomIdAndRoomTypeIdAndOccupancyType(
-                                mapping.getMasterRoom().getId(),
-                                roomTypeId,
-                                normalizedOccupancyType)
-                        .orElseThrow(() -> new InvalidRatePlanException(
-                                "Master BAR pricing not found for room type "
-                                        + roomTypeId
-                                        + " and occupancy "
-                                        + normalizedOccupancyType));
+        MasterRoomPricing pricing = masterRoomPricingRepository
+                .findByMasterRoomIdAndRoomTypeId(mapping.getMasterRoom().getId(), roomTypeId)
+                .stream()
+                .filter(item -> item.getOccupancyType() != null)
+                .filter(item -> normalizeOccupancyKey(item.getOccupancyType()).equals(normalizedOccupancyKey))
+                .findFirst()
+                .orElseThrow(() -> new InvalidRatePlanException(
+                        "Master BAR pricing not found for room type "
+                                + roomTypeId
+                                + " and occupancy "
+                                + canonicalOccupancyType
+                                + " (or "
+                                + underscoredOccupancyType
+                                + ")"));
 
         validateMasterBarAmount(pricing.getPrice());
         return calculateDifferentialPrice(
@@ -489,7 +512,8 @@ public class RatePlanService {
     }
 
     private void doReconcileExistingRatePlansWithPropertyWizard(String propertyId) {
-        Set<Long> availableRoomTypeIds = fetchRoomTypeIdsByProperty(propertyId);
+        Map<Long, RoomDTO> roomTypesById = fetchRoomTypesById(propertyId);
+        Set<Long> availableRoomTypeIds = roomTypesById.keySet();
         List<RatePlan> existingRatePlans = ratePlanRepository.findByPropertyId(propertyId);
         if (existingRatePlans == null || existingRatePlans.isEmpty()) {
             return;
@@ -507,14 +531,21 @@ public class RatePlanService {
                     .filter(availableRoomTypeIds::contains)
                     .collect(Collectors.toCollection(HashSet::new));
 
-                boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
-                boolean expired = ratePlan.getEndDate() != null
-                    && ratePlan.getEndDate().isBefore(LocalDate.now());
-                boolean shouldDeactivate = ratePlan.getStatus() == RatePlanStatus.ACTIVE
-                    && (sanitizedRoomTypeIds.isEmpty() || expired);
+            String derivedOccupancyType = resolveStoredOccupancyType(
+                    sanitizedRoomTypeIds,
+                    roomTypesById,
+                    ratePlan.getOccupancyType());
 
-            if (roomTypesChanged || shouldDeactivate) {
+            boolean roomTypesChanged = !sanitizedRoomTypeIds.equals(applicableRoomTypeIds);
+            boolean occupancyChanged = !Objects.equals(derivedOccupancyType, ratePlan.getOccupancyType());
+            boolean expired = ratePlan.getEndDate() != null
+                && ratePlan.getEndDate().isBefore(LocalDate.now());
+            boolean shouldDeactivate = ratePlan.getStatus() == RatePlanStatus.ACTIVE
+                && (sanitizedRoomTypeIds.isEmpty() || expired);
+
+            if (roomTypesChanged || occupancyChanged || shouldDeactivate) {
                 ratePlan.setApplicableRoomTypeIds(sanitizedRoomTypeIds);
+                ratePlan.setOccupancyType(derivedOccupancyType);
                 if (shouldDeactivate) {
                     ratePlan.setStatus(RatePlanStatus.INACTIVE);
                 }
@@ -607,10 +638,25 @@ public class RatePlanService {
         return occupancies;
     }
 
-    private boolean supportsOccupancy(RatePlan ratePlan, String occupancyType) {
+    private boolean supportsOccupancy(RatePlan ratePlan, Long roomTypeId, String occupancyType) {
         if (occupancyType == null || occupancyType.isBlank()) {
             return false;
         }
+
+        if (ratePlan.getCalculationMethod() != RatePlanCalculationMethod.MANUAL) {
+            RoomDTO roomType = roomTypeId == null ? null : fetchRoomTypesById(ratePlan.getPropertyId()).get(roomTypeId);
+            Integer requestedGuestCount = parseGuestCount(occupancyType);
+            if (roomType != null && requestedGuestCount != null) {
+                Integer minimumOccupancy = roomType.getMinimumGuestOccupancy();
+                Integer maximumOccupancy = roomType.getMaximumGuestOccupancy();
+                boolean meetsMinimum = minimumOccupancy == null || requestedGuestCount >= minimumOccupancy;
+                boolean withinMaximum = maximumOccupancy == null || requestedGuestCount <= maximumOccupancy;
+                if (meetsMinimum && withinMaximum) {
+                    return true;
+                }
+            }
+        }
+
         return extractSupportedOccupancies(ratePlan).contains(normalizeOccupancyType(occupancyType));
     }
 
@@ -686,15 +732,65 @@ public class RatePlanService {
     }
 
     private Set<Long> fetchRoomTypeIdsByProperty(String propertyId) {
+        return fetchRoomTypesById(propertyId).keySet();
+    }
+
+
+    private String resolveStoredOccupancyType(
+            Set<Long> applicableRoomTypeIds,
+            Map<Long, RoomDTO> roomTypesById,
+            String fallbackOccupancyType) {
+        Integer maximumOccupancy = applicableRoomTypeIds == null ? null : applicableRoomTypeIds.stream()
+                .map(roomTypesById::get)
+                .filter(Objects::nonNull)
+                .map(RoomDTO::getMaximumGuestOccupancy)
+                .filter(Objects::nonNull)
+                .filter(value -> value > 0)
+                .max(Integer::compareTo)
+                .orElse(null);
+
+        if (maximumOccupancy != null) {
+            return toOccupancyLabel(maximumOccupancy);
+        }
+
+        return normalizeOccupancyType(fallbackOccupancyType);
+    }
+
+    private Map<Long, RoomDTO> fetchRoomTypesById(String propertyId) {
         RoomDTO[] roomTypes = propertyWizardClient.getRoomTypesByProperty(propertyId);
         if (roomTypes == null || roomTypes.length == 0) {
-            return Set.of();
+            return Map.of();
         }
 
         return Arrays.stream(roomTypes)
-                .map(RoomDTO::getId)
                 .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+                .filter(roomType -> roomType.getId() != null)
+                .collect(Collectors.toMap(RoomDTO::getId, roomType -> roomType, (left, right) -> left));
+    }
+
+
+    private Integer parseGuestCount(String occupancyType) {
+        String normalized = normalizeOccupancyType(occupancyType);
+        return switch (normalized) {
+            case "1 Guest" -> 1;
+            case "2 Guest" -> 2;
+            case "3 Guest" -> 3;
+            case "4 Guest" -> 4;
+            default -> null;
+        };
+    }
+
+    private String toOccupancyLabel(Integer guestCount) {
+        if (guestCount == null || guestCount <= 1) {
+            return "1 Guest";
+        }
+        if (guestCount == 2) {
+            return "2 Guest";
+        }
+        if (guestCount == 3) {
+            return "3 Guest";
+        }
+        return "4 Guest";
     }
 
     public RatePlanResponseDTO mapPolicyToRatePlan(String propertyId, Long ratePlanId, List<String> policyId) {

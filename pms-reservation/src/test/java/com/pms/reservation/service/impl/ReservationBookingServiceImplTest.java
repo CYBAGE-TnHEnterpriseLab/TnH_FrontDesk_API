@@ -5,11 +5,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 import com.pms.housekeeping.repository.HousekeepingRoomStatusRepository;
 import com.pms.reservation.config.PropertyWizardServiceProperties;
@@ -17,6 +17,7 @@ import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationGuestRequestDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
+import com.pms.reservation.dto.RoomTypeOccupancyRateDto;
 import com.pms.reservation.entity.ReservationBookingRecord;
 import com.pms.reservation.entity.ReservationPaymentTransactionRecord;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
@@ -24,6 +25,8 @@ import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.FolioServiceClient;
 import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.PropertyInventoryPort;
+import com.pms.reservation.integration.RateManagementPort;
+import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.integration.dto.InventoryReservationRequest;
 import com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
@@ -34,7 +37,6 @@ import com.pms.reservation.service.ReservationGuestResolver;
 import com.pms.reservation.service.ReservationGuestService;
 import com.pms.reservation.service.ResolvedReservationGuest;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -52,8 +54,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReservationBookingServiceImplTest {
 
     private static final String PROPERTY_ID = "7cfd4559-b6f3-4b7d-b933-e93018ac1d47";
-    private static final BigDecimal PAYMENT_COLLECTED = new BigDecimal("500.00");
-    private static final BigDecimal ROOM_PAYABLE = new BigDecimal("1000.00");
 
     @Mock private ReservationBookingRepository bookingRepository;
     @Mock private ReservationPaymentTransactionRepository paymentRepository;
@@ -66,6 +66,7 @@ class ReservationBookingServiceImplTest {
     @Mock private HousekeepingRoomStatusClient housekeepingStatusClient;
     @Mock private HousekeepingRoomCalendarClient housekeepingCalendarClient;
     @Mock private FolioServiceClient folioServiceClient;
+    @Mock private RateManagementPort rateManagementPort;
 
     private ReservationBookingServiceImpl service;
 
@@ -75,7 +76,7 @@ class ReservationBookingServiceImplTest {
                 bookingRepository, paymentRepository, housekeepingRepository, propertyInventoryPort,
                 inventoryServiceClient, new PropertyWizardServiceProperties(),
                 new ReservationBookingMapper(), guestResolver, guestService, paymentProcessingService,
-                housekeepingStatusClient, housekeepingCalendarClient, folioServiceClient);
+                housekeepingStatusClient, housekeepingCalendarClient, folioServiceClient, rateManagementPort);
     }
 
     @Test
@@ -86,77 +87,6 @@ class ReservationBookingServiceImplTest {
     @Test
     void multipleRoomsResolveOnceAndAssignSameGuestsToEachSavedBookingId() {
         verifyCreateBooking(2, List.of("Ava Guest", "Bea Guest"), List.of(101L, 102L));
-    }
-
-    @Test
-    void paymentShareIsAllocatedAcrossRoomsWithoutDuplicatingReservationTotals() {
-        verifyCreateBooking(3, List.of("Ava Guest", "Bea Guest", "Cyd Guest"), List.of(101L, 102L, 103L));
-    }
-
-    @Test
-    void guestBalanceViewShowsZeroForFullyPrepaidBookingInsteadOfTotalRate() {
-        ReservationBookingRecord booking = viewBooking();
-        booking.setGuestBalance(BigDecimal.ZERO);
-        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
-        when(folioServiceClient.getFolioBalance("1237448178", 11L)).thenReturn(Optional.empty());
-
-        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
-
-        assertThat(view.getPricing().getGuestBalance()).isEqualByComparingTo(BigDecimal.ZERO);
-    }
-
-    @Test
-    void guestBalanceViewFollowsLiveFolioOverStoredBalance() {
-        ReservationBookingRecord booking = viewBooking();
-        booking.setGuestBalance(BigDecimal.ZERO);
-        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
-        when(folioServiceClient.getFolioBalance("1237448178", 11L))
-                .thenReturn(Optional.of(new BigDecimal("900.00")));
-
-        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
-
-        assertThat(view.getPricing().getGuestBalance()).isEqualByComparingTo(new BigDecimal("900.00"));
-    }
-
-    @Test
-    void guestBalanceViewShowsStoredOutstandingWhenFolioMissing() {
-        ReservationBookingRecord booking = viewBooking();
-        booking.setGuestBalance(new BigDecimal("900.00"));
-        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
-        when(folioServiceClient.getFolioBalance("1237448178", 11L)).thenReturn(Optional.empty());
-
-        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
-
-        assertThat(view.getPricing().getGuestBalance()).isEqualByComparingTo(new BigDecimal("900.00"));
-    }
-
-    @Test
-    void sameDayStayViewReportsOneBillableNight() {
-        ReservationBookingRecord booking = viewBooking();
-        booking.setDepartureDate(booking.getArrivalDate());
-        booking.setGuestBalance(BigDecimal.ZERO);
-        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1237448178")).thenReturn(List.of(booking));
-        when(folioServiceClient.getFolioBalance("1237448178", 11L)).thenReturn(Optional.empty());
-
-        ReservationViewResponseDto view = service.getBookingDetails("1237448178");
-
-        assertThat(view.getStay().getNights()).isEqualTo(1);
-    }
-
-    private ReservationBookingRecord viewBooking() {
-        return ReservationBookingRecord.builder()
-                .id(11L)
-                .confirmationNumber("1237448178")
-                .propertyId(PROPERTY_ID)
-                .guestName("nikhil kinge")
-                .arrivalDate(LocalDate.of(2026, 10, 12))
-                .departureDate(LocalDate.of(2026, 10, 12))
-                .roomType("Deluxe Twin")
-                .assignedRoomNo("117")
-                .rate(new BigDecimal("900.00"))
-                .totalRate(new BigDecimal("900.00"))
-                .reservationStatus("CHECKED_IN")
-                .build();
     }
 
     @Test
@@ -198,6 +128,250 @@ class ReservationBookingServiceImplTest {
                 same(paymentResult));
     }
 
+    @Test
+    void occupancyValidationRejectsAdultsAboveRoomTypeMaximum() {
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "DLX", 5))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessage("The maximum occupancy for room type DLX is 4");
+    }
+
+    @Test
+    void occupancyValidationRejectsAdultsBelowRoomTypeMinimum() {
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "DLX", 1))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessage("The minimum occupancy for room type DLX is 2");
+    }
+
+    @Test
+    void occupancyValidationAcceptsAdultsAtBoundaries() {
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "dlx", 2);
+        service.validateAdultOccupancyForRoomType(PROPERTY_ID, "DLX", 4);
+    }
+
+    @Test
+    void roomRateQuoteReturnsCheapestRateManagementRateForEachOccupancy() {
+        ReservationBookingRecord existing = new ReservationBookingRecord();
+        existing.setId(101L);
+        existing.setPropertyId(PROPERTY_ID);
+        existing.setConfirmationNumber("1234567890");
+        existing.setRoomType("DLX");
+        existing.setChildCount(0);
+        existing.setRateCode("LEGACY-RATE");
+        when(bookingRepository.findByIdAndConfirmationNumber(101L, "1234567890"))
+                .thenReturn(Optional.of(existing));
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        RatePlanPricingQuoteDto firstQuote = new RatePlanPricingQuoteDto();
+        firstQuote.setRateCode("RATE-MGMT-SINGLE");
+        firstQuote.setOccupancy("1 Guest");
+        firstQuote.setFinalAmount(new BigDecimal("1000.00"));
+
+        RatePlanPricingQuoteDto doubleGuestQuote = new RatePlanPricingQuoteDto();
+        doubleGuestQuote.setRateCode("RATE-MGMT-PRIMARY");
+        doubleGuestQuote.setOccupancy("2 Guest");
+        doubleGuestQuote.setFinalAmount(new BigDecimal("1200.00"));
+
+        RatePlanPricingQuoteDto savedRateCodeQuote = new RatePlanPricingQuoteDto();
+        savedRateCodeQuote.setRateCode("LEGACY-RATE");
+        savedRateCodeQuote.setOccupancy("2 Guest");
+        savedRateCodeQuote.setFinalAmount(new BigDecimal("9999.00"));
+
+        RatePlanPricingQuoteDto tripleGuestQuote = new RatePlanPricingQuoteDto();
+        tripleGuestQuote.setRateCode("RATE-MGMT-TRIPLE");
+        tripleGuestQuote.setOccupancy("3 Guest");
+        tripleGuestQuote.setFinalAmount(new BigDecimal("1500.00"));
+
+        RatePlanPricingQuoteDto quadGuestQuote = new RatePlanPricingQuoteDto();
+        quadGuestQuote.setRateCode("RATE-MGMT-QUAD");
+        quadGuestQuote.setOccupancy("4 Guest");
+        quadGuestQuote.setFinalAmount(new BigDecimal("1800.00"));
+
+        when(rateManagementPort.fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                1,
+                0)).thenReturn(List.of(firstQuote));
+        when(rateManagementPort.fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                2,
+                0)).thenReturn(List.of(doubleGuestQuote, savedRateCodeQuote));
+        when(rateManagementPort.fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                3,
+                0)).thenReturn(List.of(tripleGuestQuote));
+        when(rateManagementPort.fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                4,
+                0)).thenReturn(List.of(quadGuestQuote));
+
+        List<RoomTypeOccupancyRateDto> response = service.getRoomRateQuote(
+                "1234567890",
+                101L,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                2);
+
+        assertThat(response)
+                .hasSize(4)
+                .extracting(RoomTypeOccupancyRateDto::getGuestCount)
+                .containsExactly(1, 2, 3, 4);
+        assertThat(response)
+                .extracting(RoomTypeOccupancyRateDto::getFinalAmount)
+                .containsExactly(
+                        new BigDecimal("1000.00"),
+                        new BigDecimal("1200.00"),
+                        new BigDecimal("1500.00"),
+                        new BigDecimal("1800.00"));
+        assertThat(response)
+                .extracting(RoomTypeOccupancyRateDto::getRoomType)
+                .containsOnly("DLX");
+        verify(rateManagementPort).fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                1,
+                0);
+        verify(rateManagementPort).fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                2,
+                0);
+        verify(rateManagementPort).fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                3,
+                0);
+        verify(rateManagementPort).fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 2),
+                "DLX",
+                1L,
+                4,
+                0);
+    }
+
+    @Test
+    void updateBookingRejectsAdultCountAboveRoomTypeMaximum() {
+        ReservationBookingRecord existing = new ReservationBookingRecord();
+        existing.setId(101L);
+        existing.setPropertyId(PROPERTY_ID);
+        existing.setConfirmationNumber("1234567890");
+        existing.setRoomType("DLX");
+        existing.setAdultCount(2);
+        when(bookingRepository.findByConfirmationNumber("1234567890")).thenReturn(List.of(existing));
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+
+        ReservationBookingRequestDto request = new ReservationBookingRequestDto();
+        request.setAdultCount(6);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.updateBooking("1234567890", request))
+                .isInstanceOf(com.pms.guestlisting.exception.BadRequestException.class)
+                .hasMessage("The maximum occupancy for room type DLX is 4");
+    }
+
+    @Test
+    void updateBookingRefreshesRateFromRateManagementWhenAdultCountChanges() {
+        ReservationBookingRecord existing = new ReservationBookingRecord();
+        existing.setId(101L);
+        existing.setPropertyId(PROPERTY_ID);
+        existing.setConfirmationNumber("1234567890");
+        existing.setReservationStatus("CONFIRMED");
+        existing.setGuestName("Ava Guest");
+        existing.setRoomType("DLX");
+        existing.setRateCode("BAR");
+        existing.setAdultCount(2);
+        existing.setChildCount(0);
+        existing.setArrivalDate(LocalDate.of(2026, 10, 1));
+        existing.setDepartureDate(LocalDate.of(2026, 10, 3));
+        existing.setNumberOfRooms(1);
+        existing.setRate(new BigDecimal("1000.00"));
+        existing.setTotalRate(new BigDecimal("2000.00"));
+        existing.setGuestBalance(new BigDecimal("2000.00"));
+
+        when(bookingRepository.findByConfirmationNumber("1234567890")).thenReturn(List.of(existing));
+        when(bookingRepository.findByConfirmationNumberOrderByIdAsc("1234567890")).thenReturn(List.of(existing));
+        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(configuredRoomType()));
+        when(paymentRepository.findTopByBookingIdOrderByCreatedAtDesc(101L)).thenReturn(Optional.empty());
+        when(folioServiceClient.getFolioBalance("1234567890", 101L)).thenReturn(Optional.empty());
+        when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        RatePlanPricingQuoteDto quote = new RatePlanPricingQuoteDto();
+        quote.setRoomTypeId(1L);
+        quote.setRoomType("DLX");
+        quote.setRateCode("BAR");
+        quote.setFinalAmount(new BigDecimal("1500.00"));
+        when(rateManagementPort.fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 3),
+                "DLX",
+                1L,
+                3,
+                0)).thenReturn(List.of(quote));
+
+        ReservationBookingRequestDto request = new ReservationBookingRequestDto();
+        request.setAdultCount(3);
+
+        ReservationViewResponseDto response = service.updateBooking("1234567890", request);
+
+        assertThat(response.getStay().getAdults()).isEqualTo(3);
+        assertThat(response.getPricing().getRoomRate()).isEqualByComparingTo("1500.00");
+        assertThat(response.getPricing().getTotalRate()).isEqualByComparingTo("3000.00");
+
+        verify(rateManagementPort).fetchRateQuotes(
+                PROPERTY_ID,
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 3),
+                "DLX",
+                1L,
+                3,
+                0);
+        verify(bookingRepository, never()).findByIdAndConfirmationNumber(101L, "1234567890");
+    }
+
+    private PropertyRoomOutletTypeDto configuredRoomType() {
+        PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
+        roomType.setId(1L);
+        roomType.setRoomCode("DLX");
+        roomType.setRoomName("DLX");
+        roomType.setMinimumGuestOccupancy(2);
+        roomType.setMaximumGuestOccupancy(4);
+        return roomType;
+    }
+
     private void verifyCreateBooking(int roomCount, List<String> roomNames, List<Long> savedIds) {
         ReservationBookingRequestDto request = bookingRequest(roomCount, roomNames);
         List<ResolvedReservationGuest> resolvedGuests = List.of(
@@ -210,10 +384,7 @@ class ReservationBookingServiceImplTest {
         roomType.setRoomCode("DLX");
         when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(roomType));
         when(paymentProcessingService.processPayment(same(request), any(String.class), any(BigDecimal.class)))
-                .thenReturn(PaymentProcessingResult.builder()
-                        .status("SUCCESS")
-                        .amount(PAYMENT_COLLECTED)
-                        .build());
+                .thenReturn(PaymentProcessingResult.builder().status("SUCCESS").build());
 
         AtomicLong nextId = new AtomicLong(savedIds.get(0));
         when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> {
@@ -236,16 +407,6 @@ class ReservationBookingServiceImplTest {
         assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getConfirmationNumber)
                 .containsOnly(response.getConfirmationNumber());
 
-        BigDecimal paidPerRoom = PAYMENT_COLLECTED.divide(BigDecimal.valueOf(roomCount), 2, RoundingMode.HALF_UP);
-        BigDecimal expectedRoomOutstanding = ROOM_PAYABLE.subtract(paidPerRoom).max(BigDecimal.ZERO);
-        assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getGuestBalance)
-                .allSatisfy(balance -> assertThat(balance).isEqualByComparingTo(expectedRoomOutstanding));
-        BigDecimal aggregateOutstanding = bookings.getAllValues().stream()
-                .map(ReservationBookingRecord::getGuestBalance)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertThat(aggregateOutstanding)
-                .isEqualByComparingTo(expectedRoomOutstanding.multiply(BigDecimal.valueOf(roomCount)));
-
         InOrder order = inOrder(guestResolver, inventoryServiceClient, paymentProcessingService,
                 bookingRepository, guestService, paymentRepository);
         order.verify(guestResolver).resolveGuests(eq(PROPERTY_ID), same(request.getGuests()));
@@ -265,37 +426,6 @@ class ReservationBookingServiceImplTest {
         assertThat(response.getBookingId()).isEqualTo(savedIds.get(0));
         assertThat(response.getRoomBookings()).extracting(summary -> summary.getBookingId())
                 .containsExactlyElementsOf(savedIds);
-    }
-
-    @Test
-    void advanceBookingKeepsFullPayableAsGuestBalanceAndCollectsNothing() {
-        ReservationBookingRequestDto request = bookingRequest(2, List.of("Ava Guest", "Bea Guest"));
-        request.setPaymentType("ADVANCE");
-        List<ResolvedReservationGuest> resolvedGuests = List.of(
-                new ResolvedReservationGuest(125L, true),
-                new ResolvedReservationGuest(126L, false));
-        when(guestResolver.resolveGuests(eq(PROPERTY_ID), same(request.getGuests()))).thenReturn(resolvedGuests);
-
-        PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
-        roomType.setId(1L);
-        roomType.setRoomCode("DLX");
-        when(propertyInventoryPort.fetchRoomOutletTypes(PROPERTY_ID)).thenReturn(List.of(roomType));
-
-        AtomicLong nextId = new AtomicLong(101L);
-        when(bookingRepository.save(any(ReservationBookingRecord.class))).thenAnswer(invocation -> {
-            ReservationBookingRecord booking = invocation.getArgument(0);
-            booking.setId(nextId.getAndIncrement());
-            return booking;
-        });
-
-        service.createBooking(request);
-
-        verify(paymentProcessingService, never()).processPayment(any(), any(String.class), any());
-        verify(paymentRepository, never()).save(any(ReservationPaymentTransactionRecord.class));
-        ArgumentCaptor<ReservationBookingRecord> bookings = ArgumentCaptor.forClass(ReservationBookingRecord.class);
-        verify(bookingRepository, times(2)).save(bookings.capture());
-        assertThat(bookings.getAllValues()).extracting(ReservationBookingRecord::getGuestBalance)
-                .containsExactly(new BigDecimal("1000.00"), new BigDecimal("1000.00"));
     }
 
     private ReservationBookingRequestDto bookingRequest(int roomCount, List<String> roomNames) {

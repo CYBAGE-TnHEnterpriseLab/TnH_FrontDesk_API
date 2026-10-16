@@ -382,7 +382,16 @@ confirmation-level reservation.
 **Response:** wrapped `ReservationAvailabilityResponseDto`, including room
 availability, rate plans, pricing, and stay dates.
 
-**Errors:** `400` missing date/night or departure before arrival; `422` parameter
+Room occupancy is evaluated against adults only. A room remains eligible when the
+entered adult count is below its configured `minimumGuestOccupancy`; its pricing
+uses the greater of the entered count and that room's minimum. Rooms whose
+`maximumGuestOccupancy` is below the entered adult count are excluded. The entered
+adult count is preserved in the response, while each room's occupancy and rate
+reflect the pricing quote. These rules also apply to forecast pricing.
+
+**Errors:** `400` when either `adults` or `adultCount` is less than 1, with message
+`enter Adult should be greater then 0`; also `400` when adults exceed the property's
+highest configured maximum occupancy, for missing date/night or departure before arrival; `422` parameter
 validation failure; downstream inventory/rate errors may produce `502`/`500`.
 
 ### 3.14 Get Reservation Room Calendar

@@ -60,6 +60,9 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
     @Override
     public ReservationAvailabilityResponseDto getAvailability(ReservationAvailabilityRequestDto request) {
+        if (request.getAdultCount() == null || request.getAdultCount() < 1) {
+            throw new BadRequestException("enter Adult should be greater then 0");
+        }
      //validateRequestedRoomCount(request.getNumberOfRooms());
         validateDates(request.getArrivalDate(), request.getDepartureDate());
 
@@ -74,6 +77,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
 
         List<PropertyTaxRuleResponseDto> taxRules = parallelExecutor.join(taxRulesFuture);
         List<PropertyRoomOutletTypeDto> roomOutletTypes = parallelExecutor.join(roomOutletTypesFuture);
+        validateAdultCount(request.getAdultCount(), roomOutletTypes);
 
         int forecastDays = Math.max(1, performanceProperties.getForecastDays());
         LocalDate forecastEnd = request.getArrivalDate().plusDays(forecastDays);
@@ -115,20 +119,22 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         );
     }
 
+    private void validateAdultCount(Integer adultCount, List<PropertyRoomOutletTypeDto> roomOutletTypes) {
+        if (adultCount == null || roomOutletTypes == null || roomOutletTypes.isEmpty()) {
+            return;
+        }
 
-    /*private void validateRequestedRoomCount(Integer numberOfRooms) {
-        if (numberOfRooms == null || numberOfRooms < 1 || numberOfRooms > 9) {
-            throw new BadRequestException("numberOfRooms must be between 1 and 9");
+        int maximumOccupancy = roomOutletTypes.stream()
+            .filter(roomType -> roomType != null && roomType.getMaximumGuestOccupancy() != null)
+            .mapToInt(PropertyRoomOutletTypeDto::getMaximumGuestOccupancy)
+            .max()
+            .orElse(Integer.MAX_VALUE);
+
+        if (adultCount > maximumOccupancy) {
+            throw new BadRequestException(
+                "The maximum occupancy for this property is " + maximumOccupancy);
         }
     }
-
-        private List<DailyAvailabilityPricingDto> fetchNext15DaysPricing(
-            ReservationAvailabilityRequestDto request,
-            List<PropertyTaxRuleResponseDto> taxRules
-        ) {
-        List<DailyAvailabilityPricingDto> result = new ArrayList<>();
-        for (int i = 0; i < 15; i++) {
-            LocalDate date = request.getArrivalDate().plusDays(i);*/
 
     /**
      * Loads the full forecast window for every known room type up front so the per-day lookups
@@ -214,7 +220,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 () -> fetchRateQuotesWithRoomTypeFallback(
-                    request, arrivalDate, departureDate, baseInventory, lookupContext)
+                    request, arrivalDate, departureDate, baseInventory, roomOutletTypes, lookupContext)
             );
 
         inventory = enrichInventoryFromRateQuotes(
@@ -250,7 +256,13 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             })
             .toList();
 
-        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = joinedByRoomType.stream()
+        // Filter rooms by occupancy eligibility
+        Map<String, PropertyRoomOutletTypeDto> roomTypesByName = buildRoomTypesByName(roomOutletTypes);
+        List<RoomAvailabilityPricingDto> afterOccupancyFilter = joinedByRoomType.stream()
+            .filter(item -> isRoomEligibleForOccupancy(item, request.getAdultCount(), roomTypesByName))
+            .toList();
+
+        List<RoomAvailabilityPricingDto> afterRequestedRoomCount = afterOccupancyFilter.stream()
             .filter(item -> item.getAvailableRooms() != null
                 && item.getAvailableRooms() >= request.getNumberOfRooms())
             .toList();
@@ -440,6 +452,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         LocalDate arrivalDate,
         LocalDate departureDate,
         List<PropertyRoomInventoryDto> inventory,
+        List<PropertyRoomOutletTypeDto> roomOutletTypes,
         AvailabilityLookupContext lookupContext
     ) {
         int childAbove5Count = countChildrenAbove5(request);
@@ -450,6 +463,20 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         }
 
         Map<String, PropertyRoomInventoryDto> roomTypeCandidates = buildRoomTypeCandidates(inventory);
+
+        // Check if guest count is compatible with any room type
+        boolean hasEligibleRooms = roomOutletTypes == null || roomOutletTypes.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(roomType ->
+                (roomType.getMinimumGuestOccupancy() == null || request.getAdultCount() >= roomType.getMinimumGuestOccupancy())
+                && (roomType.getMaximumGuestOccupancy() == null || request.getAdultCount() <= roomType.getMaximumGuestOccupancy()));
+        
+        if (!hasEligibleRooms && !roomTypeCandidates.isEmpty()) {
+            // Only use room-specific pricing if NO rooms are eligible for the guest count
+            return fetchRateQuotesByRoomTypeCandidates(
+                request, arrivalDate, departureDate, roomTypeCandidates, roomOutletTypes,
+                lookupContext, "no eligible rooms for occupancy");
+        }
 
         try {
             List<RatePlanPricingQuoteDto> directFetch = rateManagementPort.fetchRateQuotes(
@@ -482,6 +509,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                     arrivalDate,
                     departureDate,
                     roomTypeCandidates,
+                    roomOutletTypes,
                     lookupContext,
                     "direct fetch returned quotes without joinable room-type context"
                 );
@@ -516,6 +544,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 roomTypeCandidates,
+                roomOutletTypes,
                 lookupContext,
                 "direct fetch returned empty"
             );
@@ -557,6 +586,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                 arrivalDate,
                 departureDate,
                 roomTypeCandidates,
+                roomOutletTypes,
                 lookupContext,
                 ex.getMessage()
             );
@@ -693,11 +723,40 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
         return true;
     }
 
+    private PropertyRoomOutletTypeDto findRoomOccupancy(
+        PropertyRoomInventoryDto candidate,
+        List<PropertyRoomOutletTypeDto> roomOutletTypes
+    ) {
+        if (roomOutletTypes == null) {
+            return null;
+        }
+        if (candidate.getRoomTypeId() != null) {
+            PropertyRoomOutletTypeDto idMatch = roomOutletTypes.stream()
+                .filter(roomType -> roomType != null && candidate.getRoomTypeId().equals(roomType.getId()))
+                .findFirst()
+                .orElse(null);
+            if (idMatch != null) {
+                return idMatch;
+            }
+        }
+        return roomOutletTypes.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(roomType ->
+                (StringUtils.hasText(candidate.getRoomCode())
+                    && normalize(candidate.getRoomCode()).equals(normalize(roomType.getRoomCode())))
+                || (StringUtils.hasText(candidate.getRoomType())
+                    && (normalize(candidate.getRoomType()).equals(normalize(roomType.getRoomName()))
+                        || normalize(candidate.getRoomType()).equals(normalize(roomType.getRoomCode())))))
+            .findFirst()
+            .orElse(null);
+    }
+
     private List<RatePlanPricingQuoteDto> fetchRateQuotesByRoomTypeCandidates(
         ReservationAvailabilityRequestDto request,
         LocalDate arrivalDate,
         LocalDate departureDate,
         Map<String, PropertyRoomInventoryDto> roomTypeCandidates,
+        List<PropertyRoomOutletTypeDto> roomOutletTypes,
         AvailabilityLookupContext lookupContext,
         String reason
     ) {
@@ -708,6 +767,17 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             candidate -> {
                 String roomType = candidate.getRoomType();
                 Long roomTypeId = candidate.getRoomTypeId();
+                PropertyRoomOutletTypeDto roomOccupancy = findRoomOccupancy(candidate, roomOutletTypes);
+                
+                // Skip rooms where guest count exceeds maximum occupancy
+                if (roomOccupancy != null && roomOccupancy.getMaximumGuestOccupancy() != null 
+                    && request.getAdultCount() > roomOccupancy.getMaximumGuestOccupancy()) {
+                    return List.<RatePlanPricingQuoteDto>of();
+                }
+                
+                int pricingAdultCount = roomOccupancy == null || roomOccupancy.getMinimumGuestOccupancy() == null
+                    ? request.getAdultCount()
+                    : Math.max(request.getAdultCount(), roomOccupancy.getMinimumGuestOccupancy());
                 if (lookupContext.isRateManagementUnauthorized()) {
                     return List.<RatePlanPricingQuoteDto>of();
                 }
@@ -719,7 +789,7 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
                         departureDate,
                         roomType,
                         roomTypeId,
-                        request.getAdultCount(),
+                        pricingAdultCount,
                         countChildrenAbove5(request)
                     );
 
@@ -990,6 +1060,49 @@ public class ReservationAvailabilityServiceImpl implements ReservationAvailabili
             cursor = cursor.getCause();
         }
         return false;
+    }
+
+    private Map<String, PropertyRoomOutletTypeDto> buildRoomTypesByName(List<PropertyRoomOutletTypeDto> roomOutletTypes) {
+        Map<String, PropertyRoomOutletTypeDto> roomTypesByName = new LinkedHashMap<>();
+        if (roomOutletTypes == null || roomOutletTypes.isEmpty()) {
+            return roomTypesByName;
+        }
+
+        for (PropertyRoomOutletTypeDto roomType : roomOutletTypes) {
+            if (roomType != null && StringUtils.hasText(roomType.getRoomName())) {
+                roomTypesByName.put(normalize(roomType.getRoomName()), roomType);
+            }
+        }
+        return roomTypesByName;
+    }
+
+    private boolean isRoomEligibleForOccupancy(
+        RoomAvailabilityPricingDto roomAvailability,
+        Integer adultCount,
+        Map<String, PropertyRoomOutletTypeDto> roomTypesByName
+    ) {
+        if (adultCount == null || roomAvailability == null || roomTypesByName.isEmpty()) {
+            return true;
+        }
+
+        String roomTypeName = roomAvailability.getRoomType();
+        if (!StringUtils.hasText(roomTypeName)) {
+            return true;
+        }
+
+        PropertyRoomOutletTypeDto roomType = roomTypesByName.get(normalize(roomTypeName));
+        if (roomType == null) {
+            return true;
+        }
+
+        // Only filter out rooms where the guest count exceeds the maximum occupancy.
+        // Rooms with higher minimum occupancy are still eligible, we just price them at minimum occupancy.
+        Integer maxOccupancy = roomType.getMaximumGuestOccupancy();
+        if (maxOccupancy != null && adultCount > maxOccupancy) {
+            return false;
+        }
+
+        return true;
     }
 
     private record AvailabilityRangeResult(

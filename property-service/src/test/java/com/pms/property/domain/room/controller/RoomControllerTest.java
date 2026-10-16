@@ -41,7 +41,7 @@ class RoomControllerTest {
         RoomService service = mock(RoomService.class);
         RoomController controller = new RoomController(service);
         when(service.listRoomOutletTypesByPropertyId("P-1"))
-            .thenReturn(List.of(new RoomOutletTypeResponse(1L, "P-1", "Deluxe", "DLX", 2, true, 2, "Desc", "A1,A2", "I1,I2")));
+            .thenReturn(List.of(new RoomOutletTypeResponse(1L, "P-1", "Deluxe", "DLX", 2, true, 2, 1, "Desc", "A1,A2", "I1,I2")));
 
         var response = controller.listRoomOutletTypes("P-1").getBody();
 

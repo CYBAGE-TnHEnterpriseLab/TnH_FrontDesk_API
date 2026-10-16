@@ -16,6 +16,7 @@ import com.pms.guestlisting.exception.GlobalExceptionHandler;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.dto.ReservationGuestRequestDto;
+import com.pms.reservation.dto.RoomTypeOccupancyRateDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.service.ReservationBookingService;
 import java.math.BigDecimal;
@@ -242,6 +243,73 @@ class ReservationControllerTest {
         verify(reservationBookingService).getBookingDetails("10256CNF569");
         }
 
+    @Test
+    void getRoomRateQuoteShouldReturnOccupancyWiseRoomTypeRates() throws Exception {
+        List<RoomTypeOccupancyRateDto> response = List.of(
+                RoomTypeOccupancyRateDto.builder()
+                        .roomTypeId(28L)
+                        .roomType("Super Delux")
+                        .guestCount(1)
+                        .baseRate(new BigDecimal("9000.00"))
+                        .taxAmount(BigDecimal.ZERO)
+                        .finalAmount(new BigDecimal("9000.00"))
+                        .build(),
+                RoomTypeOccupancyRateDto.builder()
+                        .roomTypeId(28L)
+                        .roomType("Super Delux")
+                        .guestCount(2)
+                        .baseRate(new BigDecimal("10000.00"))
+                        .taxAmount(BigDecimal.ZERO)
+                        .finalAmount(new BigDecimal("10000.00"))
+                        .build(),
+                RoomTypeOccupancyRateDto.builder()
+                        .roomTypeId(28L)
+                        .roomType("Super Delux")
+                        .guestCount(3)
+                        .baseRate(new BigDecimal("12000.00"))
+                        .taxAmount(BigDecimal.ZERO)
+                        .finalAmount(new BigDecimal("12000.00"))
+                        .build(),
+                RoomTypeOccupancyRateDto.builder()
+                        .roomTypeId(28L)
+                        .roomType("Super Delux")
+                        .guestCount(4)
+                        .baseRate(new BigDecimal("14000.00"))
+                        .taxAmount(BigDecimal.ZERO)
+                        .finalAmount(new BigDecimal("14000.00"))
+                        .build());
+
+        when(reservationBookingService.getRoomRateQuote(
+                "CONF-101",
+                2001L,
+                LocalDate.of(2026, 10, 16),
+                LocalDate.of(2026, 10, 18),
+                2)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/reservations/bookings/{confirmationNumber}/rooms/{bookingId}/room-rate", "CONF-101", 2001L)
+                        .param("fromDate", "2026-10-16")
+                        .param("toDate", "2026-10-18")
+                        .param("adultCount", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Room type rates fetched successfully"))
+                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[0].roomTypeId").value(28))
+                .andExpect(jsonPath("$.data[0].roomType").value("Super Delux"))
+                .andExpect(jsonPath("$.data[0].guestCount").value(1))
+                .andExpect(jsonPath("$.data[0].baseRate").value(9000.00))
+                .andExpect(jsonPath("$.data[1].guestCount").value(2))
+                .andExpect(jsonPath("$.data[2].guestCount").value(3))
+                .andExpect(jsonPath("$.data[3].guestCount").value(4));
+
+        verify(reservationBookingService).getRoomRateQuote(
+                "CONF-101",
+                2001L,
+                LocalDate.of(2026, 10, 16),
+                LocalDate.of(2026, 10, 18),
+                2);
+    }
+
         @Test
         void getRoomBookingDetailsShouldUseBookingIdWithinConfirmation() throws Exception {
         ReservationViewResponseDto response = ReservationViewResponseDto.builder()
@@ -292,6 +360,40 @@ class ReservationControllerTest {
                 .andExpect(jsonPath("$.message").value("Reservation updated successfully"))
             .andExpect(jsonPath("$.data.confirmationNumber").value("1234567890"))
             .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        verify(reservationBookingService).updateBooking(anyString(), any());
+    }
+
+    @Test
+    void updateBookingShouldReturnUpdatedRateWhenAdultCountChanges() throws Exception {
+        ReservationBookingRequestDto request = new ReservationBookingRequestDto();
+        request.setAdultCount(3);
+
+        ReservationViewResponseDto response = ReservationViewResponseDto.builder()
+            .reservationId("1234567890")
+            .confirmationNumber("1234567890")
+            .status("CONFIRMED")
+            .propertyId("7cfd4559-b6f3-4b7d-b933-e93018ac1d47")
+            .stay(ReservationViewResponseDto.StayDto.builder()
+                .adults(3)
+                .build())
+            .pricing(ReservationViewResponseDto.PricingDto.builder()
+                .roomRate(new BigDecimal("1500.00"))
+                .totalRate(new BigDecimal("3000.00"))
+                .build())
+            .build();
+
+        when(reservationBookingService.updateBooking(anyString(), any())).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/reservations/bookings/{confirmationNumber}", "1234567890")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Reservation updated successfully"))
+                .andExpect(jsonPath("$.data.stay.adults").value(3))
+                .andExpect(jsonPath("$.data.pricing.roomRate").value(1500.00))
+                .andExpect(jsonPath("$.data.pricing.totalRate").value(3000.00));
 
         verify(reservationBookingService).updateBooking(anyString(), any());
     }

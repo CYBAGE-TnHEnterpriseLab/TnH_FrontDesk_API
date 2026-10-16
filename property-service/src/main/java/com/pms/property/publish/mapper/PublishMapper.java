@@ -446,6 +446,11 @@ public class PublishMapper {
             entity.setQuantity(firstInt(roomNode, "quantity", "qty", "count"));
             entity.setAvailableForSell(roomNode.path("availableForSell").asBoolean(true));
             entity.setMaximumGuestOccupancy(firstInt(roomNode, "maximumGuestOccupancy", "maxOccupancy", "occupancy"));
+            JsonNode minimumNode = roomNode.has("minimumGuestOccupancy")
+                ? roomNode.get("minimumGuestOccupancy") : roomNode.get("minOccupancy");
+            entity.setMinimumGuestOccupancy(
+                minimumNode == null || minimumNode.isNull() || minimumNode.asText().isBlank()
+                    ? null : firstInt(roomNode, "minimumGuestOccupancy", "minOccupancy"));
             entity.setDescription(firstText(roomNode, "description"));
             entity.setAmenitiesCsv(joinAsCsv(roomNode.path("amenities")));
             entity.setImagesCsv(joinAsCsv(roomNode.path("images")));
@@ -557,5 +562,4 @@ public class PublishMapper {
     ) {
     }
 }
-
 

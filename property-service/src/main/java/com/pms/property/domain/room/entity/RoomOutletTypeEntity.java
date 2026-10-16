@@ -38,6 +38,9 @@ public class RoomOutletTypeEntity extends BaseEntity {
     @Column(name = "maximum_guest_occupancy", nullable = false)
     private Integer maximumGuestOccupancy;
 
+    @Column(name = "minimum_guest_occupancy")
+    private Integer minimumGuestOccupancy;
+
     @Column(length = 1000)
     private String description;
 
@@ -48,6 +51,5 @@ public class RoomOutletTypeEntity extends BaseEntity {
     private String imagesCsv;
 
 }
-
 
 

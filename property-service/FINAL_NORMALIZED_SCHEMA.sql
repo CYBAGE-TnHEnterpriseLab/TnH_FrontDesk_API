@@ -124,10 +124,13 @@ create table room_outlet_type (
     quantity integer not null,
     available_for_sell boolean not null,
     maximum_guest_occupancy integer not null,
+    minimum_guest_occupancy integer,
     description varchar(1000),
     amenities_csv varchar(2000),
     images_csv varchar(4000),
-    constraint fk_room_outlet_type_property foreign key (property_id) references property(id)
+    constraint fk_room_outlet_type_property foreign key (property_id) references property(id),
+    constraint ck_room_guest_occupancy check
+        (minimum_guest_occupancy >= 1 and minimum_guest_occupancy <= maximum_guest_occupancy)
 );
 
 create unique index uq_room_outlet_type_property_room_code on room_outlet_type(property_id, room_code)
@@ -203,6 +206,5 @@ create index idx_property_area_property on property_area(property_id);
 create index idx_room_outlet_type_property on room_outlet_type(property_id);
 create index idx_floor_property_area_property on floor_property_area(property_id);
 create index idx_floor_property_area_floor on floor_property_area(property_id, floor_name);
-
 
 
