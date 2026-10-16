@@ -99,8 +99,8 @@ public class RatePlanService {
         existing.setParentRatePlanId(requestDTO.getParentRatePlanId());
         existing.setApplicableRoomTypeIds(new HashSet<>(requestDTO.getApplicableRoomTypeIds()));
         existing.setOccupancyType(resolveStoredOccupancyType(
-                propertyId,
                 existing.getApplicableRoomTypeIds(),
+                fetchRoomTypesById(propertyId),
                 requestDTO.getOccupancyType()));
         existing.setPolicyId(requestDTO.getPolicyId()); // Update the policy ID in the entity
 
@@ -281,8 +281,8 @@ public class RatePlanService {
         entity.setParentRatePlanId(dto.getParentRatePlanId());
         entity.setApplicableRoomTypeIds(new HashSet<>(dto.getApplicableRoomTypeIds()));
         entity.setOccupancyType(resolveStoredOccupancyType(
-                propertyId,
                 entity.getApplicableRoomTypeIds(),
+                fetchRoomTypesById(propertyId),
                 dto.getOccupancyType()));
         entity.setPolicyId(dto.getPolicyId()); // Set the policy ID in the entity
         return entity;
@@ -644,7 +644,7 @@ public class RatePlanService {
         }
 
         if (ratePlan.getCalculationMethod() != RatePlanCalculationMethod.MANUAL) {
-            RoomDTO roomType = findRoomType(ratePlan.getPropertyId(), roomTypeId);
+            RoomDTO roomType = roomTypeId == null ? null : fetchRoomTypesById(ratePlan.getPropertyId()).get(roomTypeId);
             Integer requestedGuestCount = parseGuestCount(occupancyType);
             if (roomType != null && requestedGuestCount != null) {
                 Integer minimumOccupancy = roomType.getMinimumGuestOccupancy();
@@ -735,9 +735,6 @@ public class RatePlanService {
         return fetchRoomTypesById(propertyId).keySet();
     }
 
-    private String resolveStoredOccupancyType(String propertyId, Set<Long> applicableRoomTypeIds, String fallbackOccupancyType) {
-        return resolveStoredOccupancyType(applicableRoomTypeIds, fetchRoomTypesById(propertyId), fallbackOccupancyType);
-    }
 
     private String resolveStoredOccupancyType(
             Set<Long> applicableRoomTypeIds,
@@ -771,12 +768,6 @@ public class RatePlanService {
                 .collect(Collectors.toMap(RoomDTO::getId, roomType -> roomType, (left, right) -> left));
     }
 
-    private RoomDTO findRoomType(String propertyId, Long roomTypeId) {
-        if (roomTypeId == null) {
-            return null;
-        }
-        return fetchRoomTypesById(propertyId).get(roomTypeId);
-    }
 
     private Integer parseGuestCount(String occupancyType) {
         String normalized = normalizeOccupancyType(occupancyType);

@@ -828,14 +828,9 @@ class RatePlanServiceTest {
     }
 
     private RoomDTO[] roomTypes(Map<Long, Integer> occupancyByRoomTypeId) {
-        RoomDTO[] roomTypes = new RoomDTO[occupancyByRoomTypeId.size()];
-        int index = 0;
-        for (Map.Entry<Long, Integer> entry : occupancyByRoomTypeId.entrySet()) {
-            RoomDTO roomType = new RoomDTO();
-            roomType.setId(entry.getKey());
-            roomType.setActive(true);
-            roomType.setMaximumGuestOccupancy(entry.getValue());
-            roomTypes[index++] = roomType;
+        RoomDTO[] roomTypes = roomTypes(occupancyByRoomTypeId.keySet().toArray(Long[]::new));
+        for (RoomDTO roomType : roomTypes) {
+            roomType.setMaximumGuestOccupancy(occupancyByRoomTypeId.get(roomType.getId()));
         }
         return roomTypes;
     }

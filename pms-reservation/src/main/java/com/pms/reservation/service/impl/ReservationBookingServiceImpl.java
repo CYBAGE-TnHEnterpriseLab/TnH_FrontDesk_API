@@ -47,14 +47,17 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -272,8 +275,10 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         }
 
         RatePlanPricingQuoteDto bestQuote = occupancyQuotes.stream()
-                .filter(java.util.Objects::nonNull)
-                .min((left, right) -> compareQuoteAmounts(left, right))
+                .filter(Objects::nonNull)
+                .min(Comparator.comparing(
+                        quote -> quote.getFinalAmount() != null ? quote.getFinalAmount() : quote.getBaseRate(),
+                        Comparator.nullsLast(BigDecimal::compareTo)))
                 .orElse(null);
 
         if (bestQuote == null) {
@@ -290,52 +295,20 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
                 .build();
     }
 
-    private int compareQuoteAmounts(RatePlanPricingQuoteDto left, RatePlanPricingQuoteDto right) {
-        BigDecimal leftAmount = effectiveQuoteAmount(left);
-        BigDecimal rightAmount = effectiveQuoteAmount(right);
-        return compareNullableAmounts(leftAmount, rightAmount);
-    }
-
-    private BigDecimal effectiveQuoteAmount(RatePlanPricingQuoteDto quote) {
-        if (quote == null) {
-            return null;
-        }
-        return quote.getFinalAmount() != null ? quote.getFinalAmount() : quote.getBaseRate();
-    }
-
-    private int compareNullableAmounts(BigDecimal left, BigDecimal right) {
-        if (left == null && right == null) {
-            return 0;
-        }
-        if (left == null) {
-            return 1;
-        }
-        if (right == null) {
-            return -1;
-        }
-        return left.compareTo(right);
-    }
-
     private List<Integer> buildRoomRateOccupancyCandidates(
             com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto configuredRoomType,
             Integer requestedAdultCount) {
-        List<Integer> occupancies = new ArrayList<>();
         Integer maximumOccupancy = configuredRoomType.getMaximumGuestOccupancy();
 
         if (maximumOccupancy != null && maximumOccupancy > 0) {
-            for (int occupancy = 1; occupancy <= maximumOccupancy; occupancy++) {
-                occupancies.add(occupancy);
-            }
-            return occupancies;
+            return IntStream.rangeClosed(1, maximumOccupancy).boxed().collect(Collectors.toList());
         }
 
         if (requestedAdultCount != null && requestedAdultCount > 0) {
-            occupancies.add(requestedAdultCount);
-        } else {
-            occupancies.add(1);
+            return List.of(requestedAdultCount);
         }
 
-        return occupancies;
+        return List.of(1);
     }
 
     /**
@@ -540,12 +513,12 @@ private ReservationBookingRequestDto requestForRoom(
 
          if (shouldRefreshRateFromRateManagement && effectiveAdultCount != null && StringUtils.hasText(effectiveRoomType)) {
              BigDecimal refreshedRate = resolveUpdatedRoomRate(
-                     existing,
                      existing.getPropertyId(),
                      effectiveRoomType,
                      effectiveAdultCount,
                      effectiveArrivalDate,
-                     effectiveDepartureDate);
+                     effectiveDepartureDate,
+                     existing.getRateCode());
              request.setRate(refreshedRate);
              rateAdjustedForGuestCount = true;
              log.info(
@@ -1792,12 +1765,12 @@ private ReservationBookingRequestDto requestForRoom(
        * When guest count increases/decreases for same room, get the rate for new occupancy.
        */
       private BigDecimal resolveUpdatedRoomRate(
-              ReservationBookingRecord existing,
               String propertyId,
               String roomType,
               Integer newAdultCount,
               LocalDate arrivalDate,
-              LocalDate departureDate
+              LocalDate departureDate,
+              String preferredRateCode
       ) {
           Long roomTypeId = findConfiguredRoomType(propertyId, roomType)
                   .map(com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto::getId)
@@ -1821,7 +1794,7 @@ private ReservationBookingRequestDto requestForRoom(
                   departureDate,
                   newAdultCount,
                   0,
-                  existing.getRateCode())
+                  preferredRateCode)
                   .orElseThrow(() -> new BadRequestException(
                           "No room rate found in Rate Management for the selected room type and adult count"));
 
