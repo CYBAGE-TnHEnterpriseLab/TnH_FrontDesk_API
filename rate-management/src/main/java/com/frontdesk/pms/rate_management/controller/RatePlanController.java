@@ -78,6 +78,8 @@ public class RatePlanController {
         return ratePlanService.getAvailableRatePlans(propertyId, roomTypeId, occupancyType, mealOption, stayDate);
     }
 
+
+
     // Calculate final price for a rate plan and room type in the given property.
     @GetMapping("/final-price/property/{propertyId}/{id}/calculated-price")
     public ResponseEntity<RatePlanPriceResponseDTO> getCalculatedPrice(@PathVariable String propertyId,

@@ -8,15 +8,18 @@ import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.dto.HousekeepingSyncResponse;
+import com.pms.reservation.dto.RoomTypeOccupancyRateDto;
 import com.pms.reservation.service.ReservationBookingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -101,6 +104,22 @@ public class ReservationController {
                 confirmationNumber, bookingId);
             return ResponseEntity.ok(ApiResponse.success("Room booking fetched successfully", response));
         }
+
+    @GetMapping("/bookings/{confirmationNumber}/rooms/{bookingId}/room-rate")
+    @Operation(
+        summary = "Get room type occupancy rates for an edit reservation",
+        description = "Returns occupancy-wise room type rates from Rate Management for the room type already stored on the booking"
+    )
+    public ResponseEntity<ApiResponse<List<RoomTypeOccupancyRateDto>>> getRoomRateQuote(
+            @PathVariable String confirmationNumber,
+            @PathVariable Long bookingId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam Integer adultCount) {
+        List<RoomTypeOccupancyRateDto> response = reservationBookingService.getRoomRateQuote(
+            confirmationNumber, bookingId, fromDate, toDate, adultCount);
+        return ResponseEntity.ok(ApiResponse.success("Room type rates fetched successfully", response));
+    }
 
         @PatchMapping("/bookings/{confirmationNumber}")
     @Operation(summary = "Edit reservation booking",

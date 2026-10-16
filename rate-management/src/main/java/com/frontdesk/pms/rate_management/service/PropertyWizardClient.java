@@ -231,6 +231,20 @@ public class PropertyWizardClient {
             roomDTO.setType("UNKNOWN");
         }
 
+        if (roomOutletTypeNode.hasNonNull("maximumGuestOccupancy")) {
+            roomDTO.setMaximumGuestOccupancy(roomOutletTypeNode.get("maximumGuestOccupancy").asInt());
+        } else if (roomOutletTypeNode.hasNonNull("maxOccupancy")) {
+            roomDTO.setMaximumGuestOccupancy(roomOutletTypeNode.get("maxOccupancy").asInt());
+        } else if (roomOutletTypeNode.hasNonNull("occupancy")) {
+            roomDTO.setMaximumGuestOccupancy(roomOutletTypeNode.get("occupancy").asInt());
+        }
+
+        if (roomOutletTypeNode.hasNonNull("minimumGuestOccupancy")) {
+            roomDTO.setMinimumGuestOccupancy(roomOutletTypeNode.get("minimumGuestOccupancy").asInt());
+        } else if (roomOutletTypeNode.hasNonNull("minOccupancy")) {
+            roomDTO.setMinimumGuestOccupancy(roomOutletTypeNode.get("minOccupancy").asInt());
+        }
+
         roomDTO.setActive(roomOutletTypeNode.path("availableForSell").asBoolean(true));
 
         return roomDTO;

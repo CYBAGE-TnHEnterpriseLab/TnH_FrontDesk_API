@@ -86,6 +86,7 @@ class ReservationGuestHttpFlowTest {
     @Mock private HousekeepingRoomStatusClient housekeepingStatusClient;
     @Mock private HousekeepingRoomCalendarClient housekeepingCalendarClient;
     @Mock private FolioServiceClient folioServiceClient;
+    @Mock private com.pms.reservation.integration.RateManagementPort rateManagementPort;
     @Mock private LoyaltyServiceClient loyaltyServiceClient;
 
     private MockRestServiceServer guestHttp;
@@ -121,7 +122,8 @@ class ReservationGuestHttpFlowTest {
                 paymentProcessingService,
                 housekeepingStatusClient,
                 housekeepingCalendarClient,
-                folioServiceClient);
+                folioServiceClient,
+                rateManagementPort);
 
         PropertyRoomOutletTypeDto roomType = new PropertyRoomOutletTypeDto();
         roomType.setId(1L);

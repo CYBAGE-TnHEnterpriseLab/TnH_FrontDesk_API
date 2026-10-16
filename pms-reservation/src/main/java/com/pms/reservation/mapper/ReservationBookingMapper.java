@@ -240,7 +240,14 @@ public class ReservationBookingMapper {
         if (request.getFloor() != null) existing.setFloor(request.getFloor());
         if (request.getRateCode() != null) existing.setRateCode(request.getRateCode());
         if (request.getNumberOfRooms() != null) existing.setNumberOfRooms(request.getNumberOfRooms());
-        if (request.getRate() != null) existing.setRate(request.getRate());
+        
+        // Handle rate update with logging
+        if (request.getRate() != null) {
+            java.math.BigDecimal oldRate = existing.getRate();
+            existing.setRate(request.getRate());
+            org.slf4j.LoggerFactory.getLogger(getClass()).info("mergeEntity: rate updated from {} to {}", oldRate, request.getRate());
+        }
+        
         if (request.getTaxPercent() != null) existing.setTaxPercent(request.getTaxPercent());
         if (request.getPayment() != null) existing.setPayment(request.getPayment());
         if (request.getPaymentType() != null) existing.setPaymentType(request.getPaymentType());
@@ -255,12 +262,17 @@ public class ReservationBookingMapper {
         if (request.getDiscount() != null) existing.setDiscount(request.getDiscount());
         if (request.getAlertsMessages() != null) existing.setAlertsMessages(request.getAlertsMessages());
 
-        existing.setTotalRate(calculateTotalRate(
+        // Calculate totalRate with logging
+        java.math.BigDecimal oldTotalRate = existing.getTotalRate();
+        java.math.BigDecimal newTotalRate = calculateTotalRate(
                 existing.getRate(),
                 existing.getNumberOfRooms(),
                 existing.getArrivalDate(),
                 existing.getDepartureDate()
-        ));
+        );
+        existing.setTotalRate(newTotalRate);
+        org.slf4j.LoggerFactory.getLogger(getClass()).info("mergeEntity: totalRate recalculated. oldTotalRate={}, newTotalRate={}, rate={}, rooms={}", 
+                oldTotalRate, newTotalRate, existing.getRate(), existing.getNumberOfRooms());
 
         List<String> guestNames = sanitizeGuestNames(request.getGuestNames());
         if (!guestNames.isEmpty() || request.getGuestName() != null || request.getFirstName() != null || request.getLastName() != null) {

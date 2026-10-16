@@ -12,6 +12,7 @@ import com.pms.reservation.dto.PaymentProcessingResult;
 import com.pms.reservation.dto.ReservationBookingRequestDto;
 import com.pms.reservation.dto.ReservationBookingResponseDto;
 import com.pms.reservation.dto.ReservationGuestRequestDto;
+import com.pms.reservation.dto.RoomTypeOccupancyRateDto;
 import com.pms.reservation.dto.ReservationViewResponseDto;
 import com.pms.reservation.dto.HousekeepingSyncResponse;
 import com.pms.reservation.dto.ReservationRoomBookingSummaryDto;
@@ -22,8 +23,10 @@ import com.pms.reservation.integration.InventoryServiceClient;
 import com.pms.reservation.integration.HousekeepingRoomCalendarClient;
 import com.pms.reservation.integration.HousekeepingRoomStatusClient;
 import com.pms.reservation.integration.FolioServiceClient;
+import com.pms.reservation.integration.RateManagementPort;
 import com.pms.reservation.integration.dto.InventoryReservationRequest;
 import com.pms.reservation.integration.dto.PropertyTaxRuleResponseDto;
+import com.pms.reservation.integration.dto.RatePlanPricingQuoteDto;
 import com.pms.reservation.mapper.ReservationBookingMapper;
 import com.pms.reservation.repository.ReservationBookingRepository;
 import com.pms.reservation.repository.ReservationPaymentTransactionRepository;
@@ -88,6 +91,7 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
     private final HousekeepingRoomStatusClient housekeepingRoomStatusClient;
     private final HousekeepingRoomCalendarClient housekeepingRoomCalendarClient;
     private final FolioServiceClient folioServiceClient;
+    private final RateManagementPort rateManagementPort;
 
 
     @Override
@@ -207,6 +211,131 @@ public class ReservationBookingServiceImpl implements ReservationBookingService 
         return reservationBookingMapper.toResponse(saved, savedPaymentTransaction).toBuilder()
                 .roomBookings(toRoomBookingSummaries(savedBookings))
                 .build();
+    }
+
+    @Override
+    public List<RoomTypeOccupancyRateDto> getRoomRateQuote(
+            String confirmationNumber,
+            Long bookingId,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Integer adultCount) {
+        validateDates(fromDate, toDate);
+
+        ReservationBookingRecord existing = reservationBookingRepository
+                .findByIdAndConfirmationNumber(bookingId, confirmationNumber)
+                .orElseThrow(() -> new BadRequestException(
+                        "Reservation booking not found for the given confirmation number and booking ID"));
+
+        String propertyId = existing.getPropertyId();
+        String roomType = existing.getRoomType();
+
+        com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto configuredRoomType = findConfiguredRoomType(propertyId, roomType)
+                .orElseThrow(() -> new BadRequestException(
+                        "roomType is not configured for selected property"));
+
+        Long roomTypeId = configuredRoomType.getId();
+        List<RoomTypeOccupancyRateDto> roomTypeRates = new ArrayList<>();
+        for (Integer occupancy : buildRoomRateOccupancyCandidates(configuredRoomType, adultCount)) {
+            List<RatePlanPricingQuoteDto> occupancyQuotes = rateManagementPort.fetchRateQuotes(
+                    propertyId,
+                    fromDate,
+                    toDate,
+                    roomType,
+                    roomTypeId,
+                    occupancy,
+                    0);
+            RoomTypeOccupancyRateDto occupancyRate = toRoomTypeOccupancyRate(
+                    roomTypeId,
+                    roomType,
+                    occupancy,
+                    occupancyQuotes);
+            if (occupancyRate != null) {
+                roomTypeRates.add(occupancyRate);
+            }
+        }
+
+        if (roomTypeRates.isEmpty()) {
+            throw new BadRequestException("No room rate found for the selected booking room type");
+        }
+
+        return roomTypeRates;
+    }
+
+    private RoomTypeOccupancyRateDto toRoomTypeOccupancyRate(
+            Long roomTypeId,
+            String roomType,
+            Integer occupancy,
+            List<RatePlanPricingQuoteDto> occupancyQuotes) {
+        if (occupancyQuotes == null || occupancyQuotes.isEmpty()) {
+            return null;
+        }
+
+        RatePlanPricingQuoteDto bestQuote = occupancyQuotes.stream()
+                .filter(java.util.Objects::nonNull)
+                .min((left, right) -> compareQuoteAmounts(left, right))
+                .orElse(null);
+
+        if (bestQuote == null) {
+            return null;
+        }
+
+        return RoomTypeOccupancyRateDto.builder()
+                .roomTypeId(bestQuote.getRoomTypeId() != null ? bestQuote.getRoomTypeId() : roomTypeId)
+                .roomType(StringUtils.hasText(bestQuote.getRoomType()) ? bestQuote.getRoomType() : roomType)
+                .guestCount(occupancy)
+                .baseRate(bestQuote.getBaseRate())
+                .taxAmount(bestQuote.getTaxAmount())
+                .finalAmount(bestQuote.getFinalAmount())
+                .build();
+    }
+
+    private int compareQuoteAmounts(RatePlanPricingQuoteDto left, RatePlanPricingQuoteDto right) {
+        BigDecimal leftAmount = effectiveQuoteAmount(left);
+        BigDecimal rightAmount = effectiveQuoteAmount(right);
+        return compareNullableAmounts(leftAmount, rightAmount);
+    }
+
+    private BigDecimal effectiveQuoteAmount(RatePlanPricingQuoteDto quote) {
+        if (quote == null) {
+            return null;
+        }
+        return quote.getFinalAmount() != null ? quote.getFinalAmount() : quote.getBaseRate();
+    }
+
+    private int compareNullableAmounts(BigDecimal left, BigDecimal right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return 1;
+        }
+        if (right == null) {
+            return -1;
+        }
+        return left.compareTo(right);
+    }
+
+    private List<Integer> buildRoomRateOccupancyCandidates(
+            com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto configuredRoomType,
+            Integer requestedAdultCount) {
+        List<Integer> occupancies = new ArrayList<>();
+        Integer maximumOccupancy = configuredRoomType.getMaximumGuestOccupancy();
+
+        if (maximumOccupancy != null && maximumOccupancy > 0) {
+            for (int occupancy = 1; occupancy <= maximumOccupancy; occupancy++) {
+                occupancies.add(occupancy);
+            }
+            return occupancies;
+        }
+
+        if (requestedAdultCount != null && requestedAdultCount > 0) {
+            occupancies.add(requestedAdultCount);
+        } else {
+            occupancies.add(1);
+        }
+
+        return occupancies;
     }
 
     /**
@@ -386,20 +515,66 @@ private ReservationBookingRequestDto requestForRoom(
             validateRoomSelectionAndGuestNames(request);
         }
 
-        if (request.getAdultCount() != null || request.getRoomType() != null) {
-            String effectiveRoomType = request.getRoomType() != null ? request.getRoomType() : existing.getRoomType();
-            Integer effectiveAdultCount = request.getAdultCount() != null ? request.getAdultCount() : existing.getAdultCount();
-            validateAdultOccupancyForRoomType(existing.getPropertyId(), effectiveRoomType, effectiveAdultCount);
-        }
+         boolean rateAdjustedForGuestCount = false;
+         String effectiveRoomType = request.getRoomType() != null ? request.getRoomType() : existing.getRoomType();
+         Integer effectiveAdultCount = request.getAdultCount() != null ? request.getAdultCount() : existing.getAdultCount();
+         LocalDate effectiveArrivalDate = request.getArrivalDate() != null ? request.getArrivalDate() : existing.getArrivalDate();
+         LocalDate effectiveDepartureDate = request.getDepartureDate() != null ? request.getDepartureDate() : existing.getDepartureDate();
 
-        String previousRoomNumber = existing.getAssignedRoomNo();
-        LocalDate previousArrivalDate = existing.getArrivalDate();
-        LocalDate previousDepartureDate = existing.getDepartureDate();
-        String previousRoomTypeId = resolveRoomTypeId(existing.getPropertyId(), existing.getRoomType());
-        BigDecimal originalTotalRate = existing.getTotalRate() != null ? existing.getTotalRate() : BigDecimal.ZERO;
-        BigDecimal originalGuestBalance = existing.getGuestBalance() != null ? existing.getGuestBalance() : BigDecimal.ZERO;
+         if (effectiveAdultCount != null || request.getRoomType() != null) {
+             validateAdultOccupancyForRoomType(existing.getPropertyId(), effectiveRoomType, effectiveAdultCount);
+         }
 
-        ReservationBookingRecord updated = reservationBookingMapper.mergeEntity(existing, request);
+         boolean adultCountChanged = request.getAdultCount() != null
+                 && !java.util.Objects.equals(request.getAdultCount(), existing.getAdultCount());
+         boolean roomTypeChanged = request.getRoomType() != null
+                 && !request.getRoomType().trim().equalsIgnoreCase(existing.getRoomType());
+         boolean arrivalChanged = request.getArrivalDate() != null
+                 && !request.getArrivalDate().equals(existing.getArrivalDate());
+         boolean departureChangedForPricing = request.getDepartureDate() != null
+                 && !request.getDepartureDate().equals(existing.getDepartureDate());
+         boolean shouldRefreshRateFromRateManagement = adultCountChanged
+                 || roomTypeChanged
+                 || arrivalChanged
+                 || departureChangedForPricing;
+
+         if (shouldRefreshRateFromRateManagement && effectiveAdultCount != null && StringUtils.hasText(effectiveRoomType)) {
+             BigDecimal refreshedRate = resolveUpdatedRoomRate(
+                     existing,
+                     existing.getPropertyId(),
+                     effectiveRoomType,
+                     effectiveAdultCount,
+                     effectiveArrivalDate,
+                     effectiveDepartureDate);
+             request.setRate(refreshedRate);
+             rateAdjustedForGuestCount = true;
+             log.info(
+                     "Refreshed room rate from Rate Management for confirmationNumber={} bookingId={} roomType={} adultCount={} arrivalDate={} departureDate={} rate={}",
+                     existing.getConfirmationNumber(),
+                     existing.getId(),
+                     effectiveRoomType,
+                     effectiveAdultCount,
+                     effectiveArrivalDate,
+                     effectiveDepartureDate,
+                     refreshedRate);
+         }
+
+         String previousRoomNumber = existing.getAssignedRoomNo();
+         LocalDate previousArrivalDate = existing.getArrivalDate();
+         LocalDate previousDepartureDate = existing.getDepartureDate();
+         String previousRoomTypeId = resolveRoomTypeId(existing.getPropertyId(), existing.getRoomType());
+         BigDecimal originalTotalRate = existing.getTotalRate() != null ? existing.getTotalRate() : BigDecimal.ZERO;
+         BigDecimal originalGuestBalance = existing.getGuestBalance() != null ? existing.getGuestBalance() : BigDecimal.ZERO;
+
+         log.info("Before merge: confirmationNumber={}, adultCount={}, rate={}, totalRate={}, guestBalance={}",
+                 existing.getConfirmationNumber(), existing.getAdultCount(), existing.getRate(), 
+                 existing.getTotalRate(), existing.getGuestBalance());
+
+         ReservationBookingRecord updated = reservationBookingMapper.mergeEntity(existing, request);
+         
+         log.info("After merge: confirmationNumber={}, adultCount={}, rate={}, totalRate={}, guestBalance={}",
+                 updated.getConfirmationNumber(), updated.getAdultCount(), updated.getRate(), 
+                 updated.getTotalRate(), updated.getGuestBalance());
 
         boolean checkedIn = existing.getCheckInCompletedAt() != null;
         boolean departureChanged = request.getDepartureDate() != null
@@ -469,30 +644,44 @@ private ReservationBookingRequestDto requestForRoom(
                     previousDepartureDate);
         }
 
-        if (departureShortened || departureExtended) {
-            boolean folioAdjusted = false;
-            try {
-                folioServiceClient.adjustReservationCharge(
-                        saved.getConfirmationNumber(),
-                        saved.getId(),
-                        originalTotalRate,
-                        saved.getTotalRate(),
-                        "reservation-service"
-                );
-                folioAdjusted = true;
-            } catch (Exception ex) {
-                log.warn("Folio adjustment failed for confirmationNumber={} bookingId={}",
-                        saved.getConfirmationNumber(), saved.getId(), ex);
-            }
+         if (departureShortened || departureExtended) {
+             boolean folioAdjusted = false;
+             try {
+                 folioServiceClient.adjustReservationCharge(
+                         saved.getConfirmationNumber(),
+                         saved.getId(),
+                         originalTotalRate,
+                         saved.getTotalRate(),
+                         "reservation-service"
+                 );
+                 folioAdjusted = true;
+              } catch (Exception ex) {
+                  log.warn("Folio adjustment failed for confirmationNumber={} bookingId={}",
+                          saved.getConfirmationNumber(), saved.getId(), ex);
+              }
 
-            saved.setGuestBalance(resolveGuestBalanceAfterRateChange(
-                    saved, originalTotalRate, originalGuestBalance, folioAdjusted));
-            reservationBookingRepository.save(saved);
-        }
+              saved.setGuestBalance(resolveGuestBalanceAfterRateChange(
+                      saved, originalTotalRate, originalGuestBalance, folioAdjusted));
+              saved = reservationBookingRepository.save(saved);
+          } else if (rateAdjustedForGuestCount) {
+              // Recalculate guest balance when rate changes due to guest count change
+              // but dates remain the same (no folio adjustment needed in this case)
+              log.info("Recalculating balance for guest count change: confirmationNumber={}, originalTotalRate={}, newTotalRate={}, originalBalance={}",
+                      saved.getConfirmationNumber(), originalTotalRate, saved.getTotalRate(), originalGuestBalance);
+              
+              BigDecimal derivedBalance = resolveGuestBalanceAfterRateChange(
+                      saved, originalTotalRate, originalGuestBalance, false);
+              saved.setGuestBalance(derivedBalance);
+              
+              log.info("Updated balance for guest count change: confirmationNumber={}, newBalance={}, newTotalRate={}",
+                      saved.getConfirmationNumber(), derivedBalance, saved.getTotalRate());
+              
+              saved = reservationBookingRepository.save(saved);
+         }
 
-        Optional<ReservationPaymentTransactionRecord> latestTransaction =
-            reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(existing.getId());
-        return buildReservationViewResponse(saved, latestTransaction.orElse(null));
+         Optional<ReservationPaymentTransactionRecord> latestTransaction =
+             reservationPaymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(existing.getId());
+         return buildReservationViewResponse(saved, latestTransaction.orElse(null));
     }
 
     private boolean roomNumberChanged(String previousRoomNumber, String newRoomNumber) {
@@ -1466,6 +1655,44 @@ private ReservationBookingRequestDto requestForRoom(
         });
         }
 
+
+    private Optional<RatePlanPricingQuoteDto> findBestRateQuote(
+            String propertyId,
+            String roomType,
+            Long roomTypeId,
+            LocalDate arrivalDate,
+            LocalDate departureDate,
+            Integer adultCount,
+            Integer childAbove5Count,
+            String preferredRateCode) {
+        try {
+            List<RatePlanPricingQuoteDto> quotes = rateManagementPort.fetchRateQuotes(
+                    propertyId,
+                    arrivalDate,
+                    departureDate,
+                    roomType,
+                    roomTypeId,
+                    adultCount,
+                    childAbove5Count == null ? 0 : childAbove5Count);
+
+            if (quotes == null || quotes.isEmpty()) {
+                return Optional.empty();
+            }
+
+            RatePlanPricingQuoteDto selected = quotes.stream()
+                    .filter(quote -> StringUtils.hasText(preferredRateCode)
+                            && StringUtils.hasText(quote.getRateCode())
+                            && preferredRateCode.trim().equalsIgnoreCase(quote.getRateCode()))
+                    .findFirst()
+                    .orElse(quotes.get(0));
+
+            return Optional.of(selected);
+        } catch (Exception ex) {
+            log.warn("Failed to fetch rate quotes for propertyId={} roomType={} adultCount={}",
+                    propertyId, roomType, adultCount, ex);
+            return Optional.empty();
+        }
+    }
         private String inventoryRoomTypeId(String propertyId, String roomCode, String roomName) {
         String roomKey = StringUtils.hasText(roomCode)
             ? roomCode.trim()
@@ -1559,6 +1786,53 @@ private ReservationBookingRequestDto requestForRoom(
         updated.setPaymentType(existing.getPaymentType());
         updated.setCreatedAt(existing.getCreatedAt());
     }
+
+      /**
+       * Fetch new rate from rate management based on guest count change.
+       * When guest count increases/decreases for same room, get the rate for new occupancy.
+       */
+      private BigDecimal resolveUpdatedRoomRate(
+              ReservationBookingRecord existing,
+              String propertyId,
+              String roomType,
+              Integer newAdultCount,
+              LocalDate arrivalDate,
+              LocalDate departureDate
+      ) {
+          Long roomTypeId = findConfiguredRoomType(propertyId, roomType)
+                  .map(com.pms.reservation.integration.dto.PropertyRoomOutletTypeDto::getId)
+                  .orElseThrow(() -> new BadRequestException(
+                          "roomType is not configured for selected property"));
+
+          log.info(
+                  "Fetching updated rate from Rate Management: propertyId={} roomType={} adultCount={} roomTypeId={} arrivalDate={} departureDate={}",
+                  propertyId,
+                  roomType,
+                  newAdultCount,
+                  roomTypeId,
+                  arrivalDate,
+                  departureDate);
+
+          RatePlanPricingQuoteDto quote = findBestRateQuote(
+                  propertyId,
+                  roomType,
+                  roomTypeId,
+                  arrivalDate,
+                  departureDate,
+                  newAdultCount,
+                  0,
+                  existing.getRateCode())
+                  .orElseThrow(() -> new BadRequestException(
+                          "No room rate found in Rate Management for the selected room type and adult count"));
+
+          BigDecimal finalAmount = quote.getFinalAmount() != null ? quote.getFinalAmount() : quote.getBaseRate();
+          if (finalAmount == null) {
+              throw new BadRequestException(
+                      "Rate Management returned an empty room rate for the selected room type and adult count");
+          }
+
+          return finalAmount;
+      }
 
     private void validateDnmRoomLock(
             ReservationBookingRecord existing,

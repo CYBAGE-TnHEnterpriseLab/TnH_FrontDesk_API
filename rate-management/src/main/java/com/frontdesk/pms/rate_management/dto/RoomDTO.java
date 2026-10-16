@@ -8,5 +8,6 @@ public class RoomDTO {
     private String name;
     private String type;
     private boolean active;
-    // we can add other fields as needed to match the response from room-service
+    private Integer maximumGuestOccupancy;
+    private Integer minimumGuestOccupancy;
 }
